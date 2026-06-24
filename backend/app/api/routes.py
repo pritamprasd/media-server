@@ -82,6 +82,45 @@ def list_directories():
     return jsonify(result)
 
 
+@api_bp.route("/browse-fs", methods=["GET"])
+def browse_fs():
+    path = request.args.get("path", "").strip()
+    if not path:
+        path = os.path.expanduser("~")
+    path = os.path.normpath(path)
+    if not os.path.isdir(path):
+        return jsonify({"error": "Directory not found"}), 404
+
+    try:
+        entries = sorted(os.listdir(path))
+    except PermissionError:
+        return jsonify({"error": "Permission denied"}), 403
+
+    dirs = []
+    files = []
+    for entry in entries:
+        if entry.startswith("."):
+            continue
+        full = os.path.join(path, entry)
+        if os.path.isdir(full):
+            dirs.append({"name": entry, "path": full})
+        else:
+            mime = guess_mime(entry)
+            if mime:
+                files.append({"name": entry, "path": full, "mime_type": mime})
+
+    parent = os.path.dirname(path)
+    if not parent:
+        parent = None
+
+    return jsonify({
+        "path": path,
+        "parent": parent,
+        "directories": dirs,
+        "files": files,
+    })
+
+
 @api_bp.route("/import", methods=["POST"])
 def import_folder():
     data = request.get_json(silent=True) or {}

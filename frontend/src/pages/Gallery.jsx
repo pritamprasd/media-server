@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { listSessions, browseSession } from "../services/api";
 import TreeNode from "../components/TreeNode";
 import FileViewer from "../components/FileViewer";
@@ -9,6 +9,33 @@ function Gallery() {
   const [activeSession, setActiveSession] = useState(null);
   const [treeData, setTreeData] = useState({});
   const [viewerFile, setViewerFile] = useState(null);
+  const viewerOpenRef = useRef(false);
+
+  const closeViewer = useCallback(() => {
+    if (viewerOpenRef.current) {
+      viewerOpenRef.current = false;
+      setViewerFile(null);
+    }
+  }, []);
+
+  useEffect(() => {
+    const handler = () => {
+      if (viewerOpenRef.current) {
+        viewerOpenRef.current = false;
+        setViewerFile(null);
+      }
+    };
+    window.addEventListener("popstate", handler);
+    return () => window.removeEventListener("popstate", handler);
+  }, []);
+
+  const openViewer = useCallback((file) => {
+    if (!viewerOpenRef.current) {
+      viewerOpenRef.current = true;
+      window.history.pushState({ viewer: true }, "");
+    }
+    setViewerFile(file);
+  }, []);
 
   useEffect(() => {
     listSessions()
@@ -26,6 +53,7 @@ function Gallery() {
   const handleSelectSession = (session) => {
     setActiveSession(session);
     setTreeData({});
+    viewerOpenRef.current = false;
     setViewerFile(null);
   };
 
@@ -70,12 +98,12 @@ function Gallery() {
             name={activeSession.root_path}
             loadDir={loadDir}
             treeData={treeData}
-            onFileClick={setViewerFile}
+            onFileClick={openViewer}
           />
         </div>
       )}
 
-      {viewerFile && <FileViewer file={viewerFile} onClose={() => setViewerFile(null)} />}
+      {viewerFile && <FileViewer file={viewerFile} onClose={closeViewer} />}
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { listFavorites, toggleFavorite, getFileThumbnail } from "../services/api";
 import FileViewer from "../components/FileViewer";
 import "./Favorites.css";
@@ -8,6 +8,33 @@ function Favorites() {
   const [thumbnails, setThumbnails] = useState({});
   const [loading, setLoading] = useState(true);
   const [viewerFile, setViewerFile] = useState(null);
+  const viewerOpenRef = useRef(false);
+
+  const closeViewer = useCallback(() => {
+    if (viewerOpenRef.current) {
+      viewerOpenRef.current = false;
+      setViewerFile(null);
+    }
+  }, []);
+
+  useEffect(() => {
+    const handler = () => {
+      if (viewerOpenRef.current) {
+        viewerOpenRef.current = false;
+        setViewerFile(null);
+      }
+    };
+    window.addEventListener("popstate", handler);
+    return () => window.removeEventListener("popstate", handler);
+  }, []);
+
+  const openViewer = useCallback((file) => {
+    if (!viewerOpenRef.current) {
+      viewerOpenRef.current = true;
+      window.history.pushState({ viewer: true }, "");
+    }
+    setViewerFile(file);
+  }, []);
 
   const fetchFavorites = useCallback(async () => {
     setLoading(true);
@@ -38,13 +65,13 @@ function Favorites() {
 
   const handleViewerToggleFav = (fileId, isFav) => {
     if (!isFav) {
-      setViewerFile(null);
+      closeViewer();
       setFiles((prev) => prev.filter((f) => f.id !== fileId));
     }
   };
 
   const handleFileClick = (file) => {
-    setViewerFile(file);
+    openViewer(file);
   };
 
   return (
@@ -93,10 +120,11 @@ function Favorites() {
       {viewerFile && (
         <FileViewer
           file={viewerFile}
-          onClose={() => setViewerFile(null)}
+          onClose={closeViewer}
           onToggleFavorite={handleViewerToggleFav}
           onDelete={(fileId) => {
-            setFavorites((prev) => prev.filter((f) => f.id !== fileId));
+            setFiles((prev) => prev.filter((f) => f.id !== fileId));
+            closeViewer();
           }}
         />
       )}

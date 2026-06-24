@@ -11,6 +11,11 @@ export async function getStatus() {
   return data;
 }
 
+export async function browseFs(path = "") {
+  const { data } = await client.get("/browse-fs", { params: { path } });
+  return data;
+}
+
 export async function importFolder(path, groups) {
   const { data } = await client.post("/import", { path, groups });
   return data;

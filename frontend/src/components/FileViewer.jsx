@@ -186,6 +186,27 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete }) {
             ) : (
               <img className="viewer-media" src={fileUrl} alt={file.filename} style={previewStyle} />
             )}
+            {!editMode && (
+              <div className="viewer-float-actions">
+                {!isVideo && (
+                  <button className="viewer-float-btn" onClick={() => setEditMode(true)} title="Edit image">
+                    ✏
+                  </button>
+                )}
+                <a className="viewer-float-btn" href={fileUrl} download title="Download">⬇</a>
+                <button className="viewer-float-btn" onClick={handleDeleteClick} title="Delete">🗑</button>
+                <button
+                  className={`viewer-float-btn ${isFav ? "viewer-float-btn--active" : ""}`}
+                  onClick={handleToggleFav}
+                  title={isFav ? "Remove from favorites" : "Add to favorites"}
+                >
+                  {isFav ? "★" : "☆"}
+                </button>
+                <button className="viewer-float-btn viewer-float-btn--close" onClick={onClose} title="Close">
+                  ✕
+                </button>
+              </div>
+            )}
           </div>
           <div className="viewer-sidebar">
             {metaLoading && <div className="viewer-meta-loading">Loading metadata...</div>}
