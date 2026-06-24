@@ -15,6 +15,8 @@ celery.conf.update(
 )
 
 
+_app = None
+
 class FlaskTask(celery.Task):
     abstract = True
 
@@ -22,8 +24,11 @@ class FlaskTask(celery.Task):
         from flask import has_app_context
         if has_app_context():
             return super().__call__(*args, **kwargs)
-        from app import create_app
-        with create_app().app_context():
+        global _app
+        if _app is None:
+            from app import create_app
+            _app = create_app()
+        with _app.app_context():
             return super().__call__(*args, **kwargs)
 
 

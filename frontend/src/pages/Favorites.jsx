@@ -1,10 +1,11 @@
 import { useState, useEffect, useCallback } from "react";
-import { listFavorites, toggleFavorite } from "../services/api";
+import { listFavorites, toggleFavorite, getFileThumbnail } from "../services/api";
 import FileViewer from "../components/FileViewer";
 import "./Favorites.css";
 
 function Favorites() {
   const [files, setFiles] = useState([]);
+  const [thumbnails, setThumbnails] = useState({});
   const [loading, setLoading] = useState(true);
   const [viewerFile, setViewerFile] = useState(null);
 
@@ -13,6 +14,13 @@ function Favorites() {
     try {
       const data = await listFavorites();
       setFiles(data);
+      data.forEach(async (f) => {
+        try {
+          const t = await getFileThumbnail(f.id);
+          setThumbnails((prev) => ({ ...prev, [f.id]: t.thumbnail }));
+        } catch {
+        }
+      });
     } catch {
     } finally {
       setLoading(false);
@@ -59,15 +67,11 @@ function Favorites() {
               className="favorites__card"
               onClick={() => handleFileClick(file)}
             >
-              {file.mime_type && file.mime_type.startsWith("video/") ? (
-                <video className="favorites__thumb" src={`/api/files/${file.id}/serve`} muted />
-              ) : (
-                <img
-                  className="favorites__thumb"
-                  src={`/api/files/${file.id}/serve`}
-                  alt={file.filename}
-                />
-              )}
+              <img
+                className="favorites__thumb"
+                src={thumbnails[file.id] || `/api/files/${file.id}/serve`}
+                alt={file.filename}
+              />
               <div className="favorites__info">
                 <span className="favorites__name">{file.filename}</span>
                 <button

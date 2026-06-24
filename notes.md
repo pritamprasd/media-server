@@ -1,3 +1,6 @@
-Database: test_server
-User:     test_server
-Password: vnSzqgf5KcnW6QJ5
+```sql
+DROP TABLE public.file_metadata CASCADE;
+DROP TABLE public.import_sessions CASCADE;
+DROP TABLE public.imported_directories CASCADE;
+DROP TABLE public.imported_files CASCADE;
+```

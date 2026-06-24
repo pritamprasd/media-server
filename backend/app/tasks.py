@@ -1,12 +1,14 @@
 import base64
+import io
 import json
 import os
 import subprocess
 from datetime import datetime
 
-import requests
+import ollama
 from PIL import Image
 from PIL.ExifTags import TAGS, GPSTAGS
+from sqlalchemy.exc import IntegrityError
 
 from app import db
 from app.celery_app import celery
@@ -27,9 +29,13 @@ def extract_file_metadata(self, file_info):
 
     meta = FileMetadata.query.filter_by(file_id=file_id).first()
     if not meta:
-        meta = FileMetadata(file_id=file_id)
-        db.session.add(meta)
-        db.session.flush()
+        try:
+            meta = FileMetadata(file_id=file_id)
+            db.session.add(meta)
+            db.session.flush()
+        except IntegrityError:
+            db.session.rollback()
+            meta = FileMetadata.query.filter_by(file_id=file_id).first()
 
     meta.metadata_status = "extracting"
     db.session.commit()
@@ -163,14 +169,20 @@ def generate_ai_metadata(self, file_info):
 
     meta = FileMetadata.query.filter_by(file_id=file_id).first()
     if not meta:
-        meta = FileMetadata(file_id=file_id)
-        db.session.add(meta)
+        try:
+            meta = FileMetadata(file_id=file_id)
+            db.session.add(meta)
+            db.session.flush()
+        except IntegrityError:
+            db.session.rollback()
+            meta = FileMetadata.query.filter_by(file_id=file_id).first()
 
     meta.metadata_status = "processing_ai"
     db.session.commit()
 
-    ollama_url = current_app.config.get("OLLAMA_BASE_URL", "http://localhost:11434")
+    host = current_app.config.get("OLLAMA_BASE_URL", "http://localhost:11434")
     model = current_app.config.get("OLLAMA_MODEL", "llava")
+    client = ollama.Client(host=host)
 
     try:
         prompt = (
@@ -181,28 +193,19 @@ def generate_ai_metadata(self, file_info):
         )
 
         if mime.startswith("image/"):
-            payload = {
-                "model": model,
-                "prompt": prompt,
-                "stream": False,
-                "images": [_encode_image(file_path)],
-            }
+            result = client.generate(
+                model=model,
+                prompt=prompt,
+                images=[file_path],
+            )
         else:
             text_model = model.replace("llava", "gemma4:12b").replace("bakllava", "llama3.2")
-            payload = {
-                "model": text_model,
-                "prompt": f"Filename: {filename}\n\n{prompt}",
-                "stream": False,
-            }
+            result = client.generate(
+                model=text_model,
+                prompt=f"Filename: {filename}\n\n{prompt}",
+            )
 
-        resp = requests.post(
-            f"{ollama_url}/api/generate",
-            json=payload,
-            timeout=120,
-        )
-        resp.raise_for_status()
-        result = resp.json()
-        response_text = result.get("response", "{}")
+        response_text = result.response
 
         cleaned = response_text.strip()
         if cleaned.startswith("```"):
@@ -226,6 +229,103 @@ def generate_ai_metadata(self, file_info):
     return {"file_id": file_id, "status": meta.metadata_status}
 
 
-def _encode_image(path):
-    with open(path, "rb") as f:
-        return base64.b64encode(f.read()).decode("utf-8")
+@celery.task(bind=True, max_retries=3)
+def generate_thumbnail(self, file_info):
+    import logging
+    logger = logging.getLogger(__name__)
+
+    file_id = file_info["id"]
+    file_path = file_info["file_path"]
+    mime = file_info.get("mime_type", "")
+
+    meta = FileMetadata.query.filter_by(file_id=file_id).first()
+    if not meta:
+        try:
+            meta = FileMetadata(file_id=file_id)
+            db.session.add(meta)
+            db.session.flush()
+        except IntegrityError:
+            db.session.rollback()
+            meta = FileMetadata.query.filter_by(file_id=file_id).first()
+
+    meta.thumbnail_status = "generating"
+    db.session.commit()
+
+    try:
+        if mime.startswith("image/"):
+            _generate_image_thumbnail(file_path, meta)
+        elif mime.startswith("video/"):
+            _generate_video_thumbnail(file_path, meta)
+
+        meta.thumbnail_status = "completed" if meta.thumbnail else "failed"
+    except Exception as exc:
+        meta.thumbnail_status = "failed"
+        db.session.commit()
+        raise self.retry(exc=exc, countdown=60)
+
+    db.session.commit()
+    return {"file_id": file_id, "thumbnail_status": meta.thumbnail_status}
+
+
+THUMB_SIZE = (400, 400)
+
+
+def _generate_image_thumbnail(path, meta):
+    if not os.path.isfile(path):
+        return
+
+    img = Image.open(path)
+    img.thumbnail(THUMB_SIZE, Image.LANCZOS)
+
+    buf = io.BytesIO()
+    img.save(buf, format="JPEG", quality=85)
+    b64 = base64.b64encode(buf.getvalue()).decode("utf-8")
+    meta.thumbnail = f"data:image/jpeg;base64,{b64}"
+    buf.close()
+    img.close()
+
+
+def _generate_video_thumbnail(path, meta):
+    if not os.path.isfile(path):
+        return
+
+    result = subprocess.run(
+        [
+            "ffprobe", "-v", "quiet",
+            "-print_format", "json",
+            "-show_format",
+            path,
+        ],
+        capture_output=True, text=True, timeout=15,
+    )
+    data = json.loads(result.stdout)
+    duration_str = data.get("format", {}).get("duration", "0")
+    try:
+        duration = float(duration_str)
+    except (ValueError, TypeError):
+        duration = 0
+
+    seek = max(1.0, duration * 0.3) if duration > 0 else 1.0
+
+    pipe = subprocess.run(
+        [
+            "ffmpeg", "-y", "-v", "quiet",
+            "-ss", str(seek),
+            "-i", path,
+            "-vframes", "1",
+            "-f", "image2pipe",
+            "-vcodec", "mjpeg",
+            "-q:v", "5",
+            "-s", "400x400",
+            "-",
+        ],
+        capture_output=True, timeout=30,
+    )
+    if pipe.returncode != 0 or not pipe.stdout:
+        return
+
+    b64 = base64.b64encode(pipe.stdout).decode("utf-8")
+    meta.thumbnail = f"data:image/jpeg;base64,{b64}"
+
+
+

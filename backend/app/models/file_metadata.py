@@ -22,6 +22,9 @@ class FileMetadata(db.Model):
     description = db.Column(db.Text, nullable=True)
     search_words = db.Column(db.Text, nullable=True)
 
+    thumbnail = db.Column(db.Text, nullable=True)
+    thumbnail_status = db.Column(db.Text, default="pending", nullable=False)
+
     created_at = db.Column(db.DateTime, server_default=db.func.now())
     updated_at = db.Column(db.DateTime, server_default=db.func.now(), onupdate=db.func.now())
 
@@ -42,4 +45,6 @@ class FileMetadata(db.Model):
             "tags": self.tags,
             "description": self.description,
             "search_words": self.search_words,
+            "thumbnail": self.thumbnail,
+            "thumbnail_status": self.thumbnail_status,
         }

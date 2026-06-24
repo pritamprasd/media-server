@@ -43,4 +43,22 @@ export async function getFileMetadata(fileId) {
   return data;
 }
 
+export async function getFileThumbnail(fileId) {
+  const { data } = await client.get(`/files/${fileId}/thumbnail`);
+  return data;
+}
+
+export async function listFiles(page = 1, perPage = 50, filters = {}, signal) {
+  const params = { page, per_page: perPage };
+  if (filters.mimeGroup) params.mime_group = filters.mimeGroup;
+  if (filters.q) params.q = filters.q;
+  const { data } = await client.get("/files", { params, signal });
+  return data;
+}
+
+export async function editFile(fileId, operations) {
+  const { data } = await client.post(`/files/${fileId}/edit`, { operations });
+  return data;
+}
+
 export default client;

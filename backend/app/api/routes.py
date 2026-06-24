@@ -2,7 +2,7 @@ import os
 import mimetypes
 from datetime import datetime
 
-from flask import jsonify, request, send_file
+from flask import current_app, jsonify, request, send_file
 
 from app import db
 from app.api import api_bp
@@ -10,7 +10,7 @@ from app.models.import_session import ImportSession
 from app.models.imported_directory import ImportedDirectory
 from app.models.imported_file import ImportedFile
 from app.models.file_metadata import FileMetadata
-from app.tasks import extract_file_metadata, generate_ai_metadata
+from app.tasks import extract_file_metadata, generate_ai_metadata, generate_thumbnail
 
 MIME_GROUPS = {
     "image": [
@@ -201,6 +201,7 @@ def import_folder():
     for file_info in file_infos:
         extract_file_metadata.delay(file_info)
         generate_ai_metadata.delay(file_info)
+        generate_thumbnail.delay(file_info)
 
     return jsonify({
         "session": session.to_dict(),
@@ -271,12 +272,169 @@ def toggle_favorite(file_id):
     return jsonify(file_record.to_dict()), 200
 
 
+@api_bp.route("/files", methods=["GET"])
+def list_files():
+    page = request.args.get("page", 1, type=int)
+    per_page = request.args.get("per_page", 50, type=int)
+    per_page = min(per_page, 200)
+    mime_group = request.args.get("mime_group")
+    q = request.args.get("q", "").strip()
+
+    query = db.session.query(
+        ImportedFile, FileMetadata.thumbnail, FileMetadata.thumbnail_status
+    ).outerjoin(
+        FileMetadata, ImportedFile.id == FileMetadata.file_id
+    )
+
+    if mime_group == "image":
+        query = query.filter(ImportedFile.mime_type.like("image/%"))
+    elif mime_group == "video":
+        query = query.filter(ImportedFile.mime_type.like("video/%"))
+
+    if q:
+        like = f"%{q}%"
+        query = query.filter(
+            db.or_(
+                FileMetadata.tags.ilike(like),
+                FileMetadata.description.ilike(like),
+                FileMetadata.search_words.ilike(like),
+                ImportedFile.filename.ilike(like),
+            )
+        )
+
+    pagination = query.order_by(
+        ImportedFile.created_at.desc()
+    ).paginate(
+        page=page, per_page=per_page, error_out=False
+    )
+
+    files = []
+    for f, thumb, thumb_status in pagination.items:
+        d = f.to_dict()
+        d["thumbnail"] = thumb
+        d["thumbnail_status"] = thumb_status or "pending"
+        d["created_at"] = f.created_at.isoformat() if f.created_at else None
+        files.append(d)
+
+    return jsonify({
+        "files": files,
+        "page": page,
+        "per_page": per_page,
+        "total": pagination.total,
+        "pages": pagination.pages,
+    }), 200
+
+
 @api_bp.route("/favorites", methods=["GET"])
 def list_favorites():
     files = ImportedFile.query.filter_by(
         is_favorite=True
     ).order_by(ImportedFile.filename).all()
     return jsonify([f.to_dict() for f in files]), 200
+
+
+@api_bp.route("/files/<int:file_id>/thumbnail", methods=["GET"])
+def get_file_thumbnail(file_id):
+    meta = FileMetadata.query.filter_by(file_id=file_id).first()
+    if not meta or not meta.thumbnail:
+        return jsonify({"error": "Thumbnail not available"}), 404
+    import base64
+    header, _, b64data = meta.thumbnail.partition(",")
+    return jsonify({
+        "thumbnail": meta.thumbnail,
+        "thumbnail_status": meta.thumbnail_status,
+    }), 200
+
+
+@api_bp.route("/files/<int:file_id>/edit", methods=["POST"])
+def edit_file(file_id):
+    from PIL import Image
+
+    data = request.get_json(silent=True) or {}
+    operations = data.get("operations", [])
+
+    file_record = db.session.get(ImportedFile, file_id)
+    if not file_record:
+        return jsonify({"error": "File not found"}), 404
+    if not os.path.isfile(file_record.file_path):
+        return jsonify({"error": "Original file no longer exists"}), 404
+
+    img = Image.open(file_record.file_path)
+    img = img.convert("RGB")
+
+    for op in operations:
+        op_type = op.get("type")
+        if op_type == "rotate":
+            img = img.rotate(op.get("degrees", 0), expand=True, resample=Image.BICUBIC)
+        elif op_type == "flip":
+            d = op.get("direction")
+            if d == "horizontal":
+                img = img.transpose(Image.FLIP_LEFT_RIGHT)
+            elif d == "vertical":
+                img = img.transpose(Image.FLIP_TOP_BOTTOM)
+        elif op_type == "grayscale":
+            img = img.convert("L").convert("RGB")
+
+    edited_dir = current_app.config["EDITED_IMAGES_DIR"]
+    os.makedirs(edited_dir, exist_ok=True)
+
+    stem, _ = os.path.splitext(file_record.filename)
+    ts = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+    save_name = f"{stem}_edited_{ts}.jpg"
+    save_path = os.path.join(edited_dir, save_name)
+
+    img.save(save_path, format="JPEG", quality=95)
+    img.close()
+
+    session = ImportSession.query.filter_by(root_path=edited_dir).first()
+    if not session:
+        session = ImportSession(root_path=edited_dir, mime_groups=["image"])
+        db.session.add(session)
+        db.session.flush()
+        root_dir = ImportedDirectory(
+            session_id=session.id, path="", name="", parent_path=None,
+        )
+        db.session.add(root_dir)
+        db.session.flush()
+    else:
+        root_dir = ImportedDirectory.query.filter_by(
+            session_id=session.id, path=""
+        ).first()
+
+    stat = os.stat(save_path)
+    f = ImportedFile(
+        session_id=session.id,
+        directory_id=root_dir.id,
+        filename=save_name,
+        file_path=save_path,
+        relative_path=save_name,
+        mime_type="image/jpeg",
+        size=stat.st_size,
+        modified=datetime.fromtimestamp(stat.st_mtime),
+    )
+    db.session.add(f)
+    db.session.flush()
+
+    session.total_files = (session.total_files or 0) + 1
+    db.session.commit()
+
+    file_info = {
+        "id": f.id,
+        "session_id": f.session_id,
+        "directory_id": f.directory_id,
+        "filename": f.filename,
+        "file_path": f.file_path,
+        "relative_path": f.relative_path,
+        "mime_type": f.mime_type,
+        "size": f.size,
+        "modified": f.modified.isoformat(),
+    }
+
+    extract_file_metadata.delay(file_info)
+    generate_ai_metadata.delay(file_info)
+    generate_thumbnail.delay(file_info)
+
+    return jsonify(f.to_dict()), 201
 
 
 @api_bp.route("/files/<int:file_id>/serve", methods=["GET"])
