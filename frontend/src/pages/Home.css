@@ -216,6 +216,137 @@
   to { transform: rotate(360deg); }
 }
 
+.home__dirs {
+  margin-top: 0.75rem;
+  width: 100%;
+  max-height: 220px;
+  overflow-y: auto;
+  background: var(--color-surface);
+  border: 1px solid var(--color-secondary);
+  border-radius: var(--radius);
+  text-align: left;
+}
+
+.home__dir-picker {
+  padding: 0.5rem;
+}
+
+.home__dir-all {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  margin-bottom: 0.375rem;
+  background: var(--color-bg);
+  border: 1px dashed var(--color-secondary);
+  border-radius: var(--radius);
+  color: var(--color-text-muted);
+  font-size: 0.8125rem;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.home__dir-all:hover {
+  background: var(--color-secondary);
+  color: var(--color-text);
+  border-color: var(--color-primary);
+}
+
+.home__dir-all--active {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  border-style: solid;
+  color: #fff;
+}
+
+.home__dir-all-icon {
+  font-size: 1rem;
+}
+
+.home__dir-all-label {
+  font-weight: 500;
+}
+
+.home__dir-session + .home__dir-session {
+  margin-top: 0.25rem;
+  padding-top: 0.25rem;
+  border-top: 1px solid var(--color-secondary);
+}
+
+.home__dir-session-header {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  width: 100%;
+  padding: 0.375rem 0.5rem;
+  background: none;
+  border: none;
+  color: var(--color-text-muted);
+  font-size: 0.75rem;
+  cursor: pointer;
+  text-align: left;
+  transition: color 0.15s;
+}
+
+.home__dir-session-header:hover {
+  color: var(--color-text);
+}
+
+.home__dir-session-arrow {
+  flex-shrink: 0;
+  font-size: 0.625rem;
+  width: 10px;
+}
+
+.home__dir-session-path {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.home__dir-ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.home__dir-li {
+  margin: 0;
+  padding: 0;
+}
+
+.home__dir-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  width: 100%;
+  background: none;
+  border: none;
+  color: var(--color-text);
+  font-size: 0.8125rem;
+  padding: 0.3rem 0.5rem;
+  text-align: left;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.1s;
+  border-radius: 3px;
+}
+
+.home__dir-btn:hover {
+  background: var(--color-secondary);
+}
+
+.home__dir-btn--active {
+  background: var(--color-primary);
+  color: #fff;
+}
+
+.home__dir-icon {
+  flex-shrink: 0;
+  font-size: 0.875rem;
+}
+
 @media (max-width: 560px) {
   .home__grid {
     grid-template-columns: repeat(2, 1fr);

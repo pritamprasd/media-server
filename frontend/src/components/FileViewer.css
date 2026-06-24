@@ -72,6 +72,16 @@
   color: var(--color-text-muted);
 }
 
+.viewer-btn--delete {
+  color: var(--color-danger, #e74c3c);
+  border-color: var(--color-danger, #e74c3c);
+}
+
+.viewer-btn--delete:hover {
+  background: var(--color-danger, #e74c3c);
+  color: #fff;
+}
+
 .viewer-fav {
   background: none;
   border: none;
@@ -214,6 +224,90 @@
 .viewer-meta-value {
   color: var(--color-text);
   word-break: break-word;
+}
+
+.viewer-delete-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+  border-radius: var(--radius);
+}
+
+.viewer-delete-modal {
+  background: var(--color-surface);
+  border: 1px solid var(--color-secondary);
+  border-radius: var(--radius);
+  padding: 1.5rem;
+  max-width: 360px;
+  width: 90%;
+  text-align: center;
+}
+
+.viewer-delete-title {
+  margin: 0 0 0.25rem;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.viewer-delete-path {
+  font-size: 0.8125rem;
+  color: var(--color-text-muted);
+  word-break: break-all;
+  margin: 0 0 1rem;
+}
+
+.viewer-delete-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.viewer-delete-btn {
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  font-size: 0.8125rem;
+  cursor: pointer;
+  border: 1px solid var(--color-secondary);
+  background: none;
+  color: var(--color-text);
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.viewer-delete-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.viewer-delete-btn--library {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+
+.viewer-delete-btn--library:hover:not(:disabled) {
+  background: var(--color-primary);
+  color: #fff;
+}
+
+.viewer-delete-btn--storage {
+  border-color: var(--color-danger, #e74c3c);
+  color: var(--color-danger, #e74c3c);
+}
+
+.viewer-delete-btn--storage:hover:not(:disabled) {
+  background: var(--color-danger, #e74c3c);
+  color: #fff;
+}
+
+.viewer-delete-btn--cancel {
+  color: var(--color-text-muted);
+}
+
+.viewer-delete-btn--cancel:hover:not(:disabled) {
+  background: var(--color-secondary);
 }
 
 @media (max-width: 768px) {

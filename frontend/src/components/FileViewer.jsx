@@ -1,14 +1,16 @@
 import { useEffect, useRef, useState, useCallback } from "react";
-import { toggleFavorite as toggleFavApi, getFileMetadata, editFile } from "../services/api";
+import { toggleFavorite as toggleFavApi, getFileMetadata, editFile, deleteFile } from "../services/api";
 import "./FileViewer.css";
 
-function FileViewer({ file, onClose, onToggleFavorite, onEditSave }) {
+function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete }) {
   const [isFav, setIsFav] = useState(file.is_favorite);
   const [meta, setMeta] = useState(null);
   const [metaLoading, setMetaLoading] = useState(true);
   const [editMode, setEditMode] = useState(false);
   const [operations, setOperations] = useState([]);
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const overlayRef = useRef(null);
 
   useEffect(() => {
@@ -85,6 +87,27 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave }) {
     setOperations([]);
   };
 
+  const handleDeleteClick = () => {
+    setShowDeleteConfirm(true);
+  };
+
+  const handleDeleteConfirm = async (deleteStorage) => {
+    setDeleting(true);
+    try {
+      await deleteFile(file.id, deleteStorage);
+      setShowDeleteConfirm(false);
+      if (onDelete) onDelete(file.id);
+      onClose();
+    } catch {
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const handleDeleteCancel = () => {
+    if (!deleting) setShowDeleteConfirm(false);
+  };
+
   const previewStyle = (() => {
     if (!editMode || operations.length === 0) return {};
     let rot = 0;
@@ -129,6 +152,7 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave }) {
                   </button>
                 )}
                 <a className="viewer-btn viewer-btn--download" href={fileUrl} download title="Download file">⬇</a>
+                <button className="viewer-btn viewer-btn--delete" onClick={handleDeleteClick} title="Delete file">🗑</button>
                 <button
                   className={`viewer-fav ${isFav ? "viewer-fav--active" : ""}`}
                   onClick={handleToggleFav}
@@ -218,6 +242,38 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave }) {
             )}
           </div>
         </div>
+
+        {showDeleteConfirm && (
+          <div className="viewer-delete-overlay" onClick={handleDeleteCancel}>
+            <div className="viewer-delete-modal" onClick={(e) => e.stopPropagation()}>
+              <h3 className="viewer-delete-title">Delete file</h3>
+              <p className="viewer-delete-path">{file.filename}</p>
+              <div className="viewer-delete-actions">
+                <button
+                  className="viewer-delete-btn viewer-delete-btn--library"
+                  onClick={() => handleDeleteConfirm(false)}
+                  disabled={deleting}
+                >
+                  {deleting ? "Deleting..." : "Remove from library"}
+                </button>
+                <button
+                  className="viewer-delete-btn viewer-delete-btn--storage"
+                  onClick={() => handleDeleteConfirm(true)}
+                  disabled={deleting}
+                >
+                  {deleting ? "Deleting..." : "Delete from library & disk"}
+                </button>
+                <button
+                  className="viewer-delete-btn viewer-delete-btn--cancel"
+                  onClick={handleDeleteCancel}
+                  disabled={deleting}
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

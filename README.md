@@ -46,12 +46,14 @@ media-server/
 │   │   │   ├── FileViewer.jsx           # Image/video modal viewer
 │   │   │   └── FileViewer.css
 │   │   ├── pages/
-│   │   │   ├── Home.jsx                 # Status page
+│   │   │   ├── Home.jsx                 # Infinite-scroll gallery grid with search & filters
 │   │   │   ├── Home.css
 │   │   │   ├── Importer.jsx             # Import media page
 │   │   │   ├── Importer.css
-│   │   │   ├── Gallery.jsx              # Tree-view gallery
-│   │   │   └── Gallery.css
+│   │   │   ├── Gallery.jsx              # Tree-view gallery (renamed to "Imported Media")
+│   │   │   ├── Gallery.css
+│   │   │   ├── Favorites.jsx            # Favorites grid
+│   │   │   └── Favorites.css
 │   │   ├── services/
 │   │   │   └── api.js                   # Axios API client
 │   │   ├── hooks/
@@ -106,26 +108,58 @@ Server starts at **http://localhost:5000**. Tables are created automatically on 
 
 ### Celery Workers (separate terminal)
 
-Celery processes background tasks (metadata extraction, AI tagging). Start one worker per task type:
+Celery processes background tasks (metadata extraction, AI tagging, thumbnails). Tasks are routed to named queues so you can scale each type independently:
+
+| Queue          | Task                         | Concurrency |
+| -------------- | ---------------------------- | ----------- |
+| `metadata`     | `extract_file_metadata`      | 4           |
+| `ai_metadata`  | `generate_ai_metadata`       | 2           |
+| `thumbnail`    | `generate_thumbnail`         | 3           |
+
+Start separate workers per queue:
 
 ```bash
 cd backend
 source .venv/bin/activate
-celery -A app.tasks.celery worker -Q celery -l info --concurrency=2
+
+celery -A app.tasks.celery worker -Q metadata -l info --concurrency=10
+celery -A app.tasks.celery worker -Q ai_metadata -l info --concurrency=2
+celery -A app.tasks.celery worker -Q thumbnail -l info --concurrency=10
 ```
 
+Or a single worker handling all queues:
 
+```bash
+celery -A app.tasks.celery worker -Q celery,metadata,ai_metadata,thumbnail -l info
+```
 
-Tasks are dispatched automatically when files are imported. The `extract_file_metadata` task extracts EXIF/ffprobe data; the `generate_ai_metadata` task calls Ollama for tags and descriptions.
+Tasks are dispatched automatically when files are imported or edited:
+
+- `extract_file_metadata` — extracts EXIF/ffprobe data (dimensions, duration, GPS, date taken)
+- `generate_ai_metadata` — calls Ollama for tags, description, and search keywords
+- `generate_thumbnail` — generates 400×400 JPEG thumbnails (Pillow for images, ffmpeg for videos)
 
 > **Note**: In testing mode, Celery runs tasks synchronously (`CELERY_TASK_ALWAYS_EAGER = True`), so no Redis or worker process is needed for tests.
->
 
-### Flower celery UI(Optional)
+### Flower (Celery monitoring UI)
+
+Install and run:
+
 ```sh
 pip install flower
-celery -A app.tasks.celery flower
+celery -A app.tasks.celery flower --port=5555
 ```
+
+Open **http://localhost:5555**.
+
+**Filtering tasks**:
+- Use the search box in the **Tasks** tab — type task name (`extract_file_metadata`), state (`SUCCESS`, `FAILURE`, `RECEIVED`, `STARTED`), worker hostname, or any substring
+- Click column headers (**Name**, **State**, **Received**, **Worker**) to sort ascending/descending
+- URL query params: `?state=FAILURE` or `?task=app.tasks.extract_file_metadata`
+
+**Monitor per queue**:
+- The **Broker** tab shows queue depths (pending tasks in each queue)
+
 #### Purge all tasks
 ```sh
 celery -A app.tasks.celery purge
@@ -149,7 +183,7 @@ App starts at **http://localhost:5173**. The Vite dev server proxies `/api` requ
 | Command                    | Description            |
 | -------------------------- | ---------------------- |
 | `python run.py`            | Start dev server       |
-| `source .venv/bin/activate && pytest tests/` | Run 10 tests |
+| `source .venv/bin/activate && pytest tests/` | Run 14 tests |
 
 ### Frontend
 
@@ -169,7 +203,11 @@ App starts at **http://localhost:5173**. The Vite dev server proxies `/api` requ
 | POST    | `/api/import`                 | Import media files from a folder          |
 | GET     | `/api/sessions`               | List all import sessions                 |
 | GET     | `/api/sessions/<id>/browse`   | Browse files/dirs in a session (lazy)    |
+| GET     | `/api/files`                   | List files (paginated, with `?mime_group=`, `?q=` search) |
 | GET     | `/api/files/<id>/serve`       | Serve the actual file for viewing        |
+| GET     | `/api/files/<id>/metadata`    | Get file metadata (EXIF, GPS, tags, AI)  |
+| GET     | `/api/files/<id>/thumbnail`   | Get base64 thumbnail data URI            |
+| POST    | `/api/files/<id>/edit`        | Apply image edits (rotate, flip, grayscale) |
 | PATCH   | `/api/files/<id>/favorite`    | Toggle favorite status on a file         |
 | GET     | `/api/favorites`              | List all favorited files                 |
 
@@ -187,6 +225,25 @@ Browse imported files in a **lazy-loaded tree view**. Directories and files are 
 
 Click any file in the gallery tree to open an **overlay modal**. Images are rendered inline; videos play with native controls. Files are served from their original disk location via the API.
 
+Features:
+- **Favorite toggle** — mark files with a star; view all favorites on the Favorites page
+- **Metadata panel** — see EXIF, GPS, dimensions, duration, date taken, AI-generated tags and description in a sidebar
+- **Image editing** — rotate, flip (H/V), grayscale directly in the viewer; edits save as new files
+- **Download** — download the original file with one click
+
+### Home Gallery
+
+The Home page shows an **infinite-scroll grid** of all imported media with:
+- **Thumbnails** — 400×400 previews (generated asynchronously by Celery)
+- **Search** — type to search across tags, description, and filename (400ms debounce)
+- **Media type filters** — toggle between All / Images / Videos
+
+### Thumbnails
+
+Thumbnails are generated asynchronously by the `generate_thumbnail` Celery task:
+- **Images** — Pillow `thumbnail()` resized to 400×400, saved as base64 JPEG data URI in the database
+- **Videos** — ffmpeg extracts a frame at 30% duration, resized to 400×400
+
 ## Database Schema
 
 Four tables store media metadata:
@@ -196,13 +253,14 @@ Four tables store media metadata:
 | `import_sessions`     | Tracks each import operation                     |
 | `imported_directories`| Directory entries (for tree navigation)          |
 | `imported_files`      | File metadata (path, size, mime, is_favorite)    |
-| `file_metadata`       | EXIF data, GPS, tags, description, search words  |
+| `file_metadata`       | EXIF data, GPS, tags, description, search words, thumbnail (base64 JPEG) |
 
 `imported_directories` uses a `parent_path` column enabling efficient lazy-load tree queries without scanning the entire file list.
 
-`file_metadata` is populated asynchronously by Celery tasks after each import:
+`file_metadata` is populated asynchronously by Celery tasks after each import or edit:
 - `extract_file_metadata` — reads EXIF (images via Pillow) or stream metadata (videos via ffprobe), stores GPS, dimensions, duration, date taken
-- `generate_ai_metadata` — sends the file to a local Ollama model (`llava` for images, `llama3.2` for videos), saves generated tags, description, and search keywords
+- `generate_ai_metadata` — sends the file to a local Ollama model (`llava` for images, `gemma4:12b` / `llama3.2` for videos), saves generated tags, description, and search keywords
+- `generate_thumbnail` — creates 400×400 base64 JPEG thumbnails
 
 ## Development
 

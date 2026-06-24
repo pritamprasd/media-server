@@ -12,6 +12,17 @@ celery.conf.update(
     broker_url=os.environ.get("CELERY_BROKER_URL", "redis://localhost:6379/0"),
     result_backend=os.environ.get("CELERY_RESULT_BACKEND", "redis://localhost:6379/0"),
     broker_connection_retry_on_startup=True,
+    task_queues={
+        "celery": {},
+        "metadata": {},
+        "ai_metadata": {},
+        "thumbnail": {},
+    },
+    task_routes={
+        "app.tasks.extract_file_metadata": {"queue": "metadata"},
+        "app.tasks.generate_ai_metadata": {"queue": "ai_metadata"},
+        "app.tasks.generate_thumbnail": {"queue": "thumbnail"},
+    },
 )
 
 

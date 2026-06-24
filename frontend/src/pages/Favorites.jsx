@@ -95,6 +95,9 @@ function Favorites() {
           file={viewerFile}
           onClose={() => setViewerFile(null)}
           onToggleFavorite={handleViewerToggleFav}
+          onDelete={(fileId) => {
+            setFavorites((prev) => prev.filter((f) => f.id !== fileId));
+          }}
         />
       )}
     </div>

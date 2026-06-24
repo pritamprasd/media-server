@@ -65,6 +65,23 @@ def status():
     return jsonify({"message": "API is running"}), 200
 
 
+@api_bp.route("/directories", methods=["GET"])
+def list_directories():
+    dirs = ImportedDirectory.query.order_by(
+        ImportedDirectory.session_id, ImportedDirectory.path
+    ).all()
+    session_cache = {}
+    result = []
+    for d in dirs:
+        entry = d.to_dict()
+        if d.session_id not in session_cache:
+            session = db.session.get(ImportSession, d.session_id)
+            session_cache[d.session_id] = session.root_path if session else ""
+        entry["session_root_path"] = session_cache[d.session_id]
+        result.append(entry)
+    return jsonify(result)
+
+
 @api_bp.route("/import", methods=["POST"])
 def import_folder():
     data = request.get_json(silent=True) or {}
@@ -200,8 +217,8 @@ def import_folder():
 
     for file_info in file_infos:
         extract_file_metadata.delay(file_info)
-        generate_ai_metadata.delay(file_info)
         generate_thumbnail.delay(file_info)
+        generate_ai_metadata.delay(file_info)
 
     return jsonify({
         "session": session.to_dict(),
@@ -279,12 +296,32 @@ def list_files():
     per_page = min(per_page, 200)
     mime_group = request.args.get("mime_group")
     q = request.args.get("q", "").strip()
+    directory_id = request.args.get("directory_id", type=int)
 
     query = db.session.query(
         ImportedFile, FileMetadata.thumbnail, FileMetadata.thumbnail_status
     ).outerjoin(
         FileMetadata, ImportedFile.id == FileMetadata.file_id
     )
+
+    if directory_id is not None and directory_id > 0:
+        dir_record = db.session.get(ImportedDirectory, directory_id)
+        if dir_record:
+            dir_path = dir_record.path
+            base = ImportedDirectory.query.filter(
+                ImportedDirectory.session_id == dir_record.session_id,
+            )
+            if dir_path:
+                descendants = base.filter(
+                    db.or_(
+                        ImportedDirectory.path == dir_path,
+                        ImportedDirectory.path.like(f"{dir_path}/%"),
+                    )
+                )
+            else:
+                descendants = base
+            dir_ids = [d.id for d in descendants.all()]
+            query = query.filter(ImportedFile.directory_id.in_(dir_ids))
 
     if mime_group == "image":
         query = query.filter(ImportedFile.mime_type.like("image/%"))
@@ -295,7 +332,7 @@ def list_files():
         like = f"%{q}%"
         query = query.filter(
             db.or_(
-                FileMetadata.tags.ilike(like),
+                db.cast(FileMetadata.tags, db.String).ilike(like),
                 FileMetadata.description.ilike(like),
                 FileMetadata.search_words.ilike(like),
                 ImportedFile.filename.ilike(like),
@@ -449,3 +486,32 @@ def serve_file(file_id):
         mimetype=file_record.mime_type,
         as_attachment=False,
     )
+
+
+@api_bp.route("/files/<int:file_id>", methods=["DELETE"])
+def delete_file(file_id):
+    data = request.get_json(silent=True) or {}
+    delete_storage = data.get("delete_storage", False)
+
+    file_record = db.session.get(ImportedFile, file_id)
+    if not file_record:
+        return jsonify({"error": "File not found"}), 404
+
+    file_path = file_record.file_path
+
+    FileMetadata.query.filter_by(file_id=file_id).delete()
+
+    session = ImportSession.query.get(file_record.session_id)
+    db.session.delete(file_record)
+    if session:
+        session.total_files = max(0, (session.total_files or 0) - 1)
+
+    db.session.commit()
+
+    if delete_storage and os.path.isfile(file_path):
+        try:
+            os.remove(file_path)
+        except OSError:
+            pass
+
+    return jsonify({"message": "File deleted"}), 200

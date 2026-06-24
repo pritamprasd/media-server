@@ -48,16 +48,29 @@ export async function getFileThumbnail(fileId) {
   return data;
 }
 
+export async function listDirectories() {
+  const { data } = await client.get("/directories");
+  return data;
+}
+
 export async function listFiles(page = 1, perPage = 50, filters = {}, signal) {
   const params = { page, per_page: perPage };
   if (filters.mimeGroup) params.mime_group = filters.mimeGroup;
   if (filters.q) params.q = filters.q;
+  if (filters.directoryId) params.directory_id = filters.directoryId;
   const { data } = await client.get("/files", { params, signal });
   return data;
 }
 
 export async function editFile(fileId, operations) {
   const { data } = await client.post(`/files/${fileId}/edit`, { operations });
+  return data;
+}
+
+export async function deleteFile(fileId, deleteStorage = false) {
+  const { data } = await client.delete(`/files/${fileId}`, {
+    data: { delete_storage: deleteStorage },
+  });
   return data;
 }
 

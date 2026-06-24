@@ -17,6 +17,8 @@ class ImportedDirectory(db.Model):
     def to_dict(self):
         return {
             "id": self.id,
+            "session_id": self.session_id,
             "path": self.path,
             "name": self.name or "(root)",
+            "parent_path": self.parent_path or "",
         }

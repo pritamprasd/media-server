@@ -102,19 +102,17 @@ def _extract_video_metadata(path, meta):
     if not os.path.isfile(path):
         return
 
-    try:
-        result = subprocess.run(
-            [
-                "ffprobe", "-v", "quiet",
-                "-print_format", "json",
-                "-show_format", "-show_streams",
-                path,
-            ],
-            capture_output=True, text=True, timeout=30,
-        )
-        data = json.loads(result.stdout)
-    except Exception:
-        return
+    result = subprocess.run(
+        [
+            "ffprobe", "-v", "quiet",
+            "-print_format", "json",
+            "-show_format", "-show_streams",
+            path,
+        ],
+        capture_output=True, text=True, timeout=30,
+        check=True,
+    )
+    data = json.loads(result.stdout)
 
     streams = data.get("streams", [])
     video_stream = next((s for s in streams if s.get("codec_type") == "video"), None)
@@ -151,6 +149,49 @@ def _safe_int(val):
         return int(val)
     except (ValueError, TypeError):
         return None
+
+
+def _extract_video_frames(path, max_frames=5):
+    if not os.path.isfile(path):
+        return []
+
+    result = subprocess.run(
+        ["ffprobe", "-v", "quiet", "-print_format", "json", "-show_format", path],
+        capture_output=True, text=True, timeout=15,
+    )
+    data = json.loads(result.stdout)
+    duration_str = data.get("format", {}).get("duration", "0")
+    try:
+        duration = float(duration_str)
+    except (ValueError, TypeError):
+        duration = 0
+
+    if duration <= 0:
+        return []
+
+    n = min(max_frames, max(1, int(duration // 2)))
+    interval = duration / (n + 1)
+    frames = []
+
+    for i in range(1, n + 1):
+        timestamp = interval * i
+        pipe = subprocess.run(
+            [
+                "ffmpeg", "-y", "-v", "quiet",
+                "-ss", str(timestamp),
+                "-i", path,
+                "-vframes", "1",
+                "-f", "image2pipe",
+                "-vcodec", "mjpeg",
+                "-q:v", "5",
+                "-",
+            ],
+            capture_output=True, timeout=30,
+        )
+        if pipe.returncode == 0 and pipe.stdout:
+            frames.append(base64.b64encode(pipe.stdout).decode("utf-8"))
+
+    return frames
 
 
 @celery.task(bind=True, max_retries=3)
@@ -198,14 +239,39 @@ def generate_ai_metadata(self, file_info):
                 prompt=prompt,
                 images=[file_path],
             )
+            used_model = model
         else:
-            text_model = model.replace("llava", "gemma4:12b").replace("bakllava", "llama3.2")
-            result = client.generate(
-                model=text_model,
-                prompt=f"Filename: {filename}\n\n{prompt}",
-            )
+            frames = _extract_video_frames(file_path)
+            if frames:
+                video_prompt = (
+                    "These are frames from a video. Describe the video scene in 1-2 sentences, "
+                    "then list 5-10 relevant tags (comma separated), "
+                    "then list 5-10 short search keywords (comma separated). "
+                    "Respond ONLY in JSON format with keys: description, tags (array), search_words (array). "
+                    "No other text."
+                )
+                result = client.generate(
+                    model=model,
+                    prompt=video_prompt,
+                    images=frames,
+                )
+                used_model = model
+            else:
+                text_model = current_app.config.get("OLLAMA_TEXT_MODEL", "llama3.2")
+                result = client.generate(
+                    model=text_model,
+                    prompt=f"Filename: {filename}\n\n{prompt}",
+                )
+                used_model = text_model
 
         response_text = result.response
+
+        if not response_text or not response_text.strip():
+            logger.error(
+                "Ollama returned empty response for file_id=%s model=%s",
+                file_id, used_model,
+            )
+            raise Exception("Ollama returned empty response")
 
         cleaned = response_text.strip()
         if cleaned.startswith("```"):
@@ -213,7 +279,15 @@ def generate_ai_metadata(self, file_info):
             cleaned = cleaned.rsplit("```", 1)[0]
         cleaned = cleaned.strip()
 
-        parsed = json.loads(cleaned)
+        try:
+            parsed = json.loads(cleaned)
+        except json.JSONDecodeError:
+            logger.error(
+                "Failed to parse Ollama response: file_id=%s model=%s response=%.500s",
+                file_id, used_model,
+                response_text,
+            )
+            raise
         meta.description = parsed.get("description", "")
         meta.tags = parsed.get("tags", [])
         sw = parsed.get("search_words", [])
@@ -275,6 +349,7 @@ def _generate_image_thumbnail(path, meta):
         return
 
     img = Image.open(path)
+    img = img.convert("RGB")
     img.thumbnail(THUMB_SIZE, Image.LANCZOS)
 
     buf = io.BytesIO()

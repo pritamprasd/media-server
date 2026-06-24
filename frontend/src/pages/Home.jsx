@@ -1,7 +1,101 @@
-import { useState, useEffect, useRef, useCallback } from "react";
-import { listFiles, toggleFavorite as toggleFavApi } from "../services/api";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { listFiles, listDirectories, toggleFavorite as toggleFavApi } from "../services/api";
 import FileViewer from "../components/FileViewer";
 import "./Home.css";
+
+function buildDirTree(dirs) {
+  const bySession = {};
+  for (const d of dirs) {
+    if (!bySession[d.session_id]) bySession[d.session_id] = [];
+    bySession[d.session_id].push(d);
+  }
+
+  const sessions = [];
+  for (const sid of Object.keys(bySession)) {
+    const children = bySession[sid];
+    const childMap = {};
+    for (const d of children) {
+      if (d.path === d.parent_path) continue;
+      if (!childMap[d.parent_path]) childMap[d.parent_path] = [];
+      childMap[d.parent_path].push(d);
+    }
+
+    const sorted = (parentPath) => {
+      const entries = childMap[parentPath] || [];
+      entries.sort((a, b) => a.name.localeCompare(b.name));
+      return entries.map((d) => ({
+        ...d,
+        children: sorted(d.path),
+      }));
+    };
+
+    const sessionRoot = children.find((d) => d.path === "");
+    const sessionRoots = sorted("");
+    sessions.push({
+      session_id: parseInt(sid),
+      root_path: sessionRoot?.session_root_path || `Session ${sid}`,
+      trees: sessionRoots,
+    });
+  }
+
+  sessions.sort((a, b) => a.root_path.localeCompare(b.root_path));
+  return sessions;
+}
+
+function DirTree({ sessions, selectedId, onSelect }) {
+  const [collapsed, setCollapsed] = useState({});
+
+  const toggle = (sessionId) => {
+    setCollapsed((prev) => ({ ...prev, [sessionId]: !prev[sessionId] }));
+  };
+
+  const renderNode = (node, depth) => (
+    <li key={node.id} className="home__dir-li">
+      <button
+        className={`home__dir-btn ${selectedId === node.id ? "home__dir-btn--active" : ""}`}
+        style={{ paddingLeft: `${12 + depth * 16}px` }}
+        onClick={() => onSelect(node.id)}
+      >
+        <span className="home__dir-icon">{node.children?.length ? "📂" : "📁"}</span>
+        {node.name}
+      </button>
+      {node.children?.length > 0 && (
+        <ul className="home__dir-ul">
+          {node.children.map((c) => renderNode(c, depth + 1))}
+        </ul>
+      )}
+    </li>
+  );
+
+  return (
+    <div className="home__dir-picker">
+      <button
+        className={`home__dir-all ${selectedId === null ? "home__dir-all--active" : ""}`}
+        onClick={() => onSelect(null)}
+      >
+        <span className="home__dir-all-icon">🗂</span>
+        <span className="home__dir-all-label">All directories</span>
+      </button>
+
+      {sessions.map((s) => (
+        <div key={s.session_id} className="home__dir-session">
+          <button
+            className="home__dir-session-header"
+            onClick={() => toggle(s.session_id)}
+          >
+            <span className="home__dir-session-arrow">{collapsed[s.session_id] ? "▶" : "▼"}</span>
+            <span className="home__dir-session-path" title={s.root_path}>{s.root_path}</span>
+          </button>
+          {!collapsed[s.session_id] && (
+            <ul className="home__dir-ul">
+              {s.trees.map((n) => renderNode(n, 0))}
+            </ul>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
 
 function Home() {
   const [files, setFiles] = useState([]);
@@ -13,6 +107,8 @@ function Home() {
   const [mimeGroup, setMimeGroup] = useState("");
   const [searchInput, setSearchInput] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
+  const [directories, setDirectories] = useState([]);
+  const [directoryId, setDirectoryId] = useState(null);
   const sentinelRef = useRef(null);
   const searchTimeout = useRef(null);
   const hasMoreRef = useRef(hasMore);
@@ -21,11 +117,20 @@ function Home() {
   hasMoreRef.current = hasMore;
   loadingRef.current = loading;
 
-  const fetchPage = useCallback(async (p, mime, q, signal) => {
+  const dirSessions = useMemo(() => buildDirTree(directories), [directories]);
+
+  useEffect(() => {
+    listDirectories()
+      .then(setDirectories)
+      .catch(() => {});
+  }, []);
+
+  const fetchPage = useCallback(async (p, mime, q, dirId, signal) => {
     setLoading(true);
     const filters = {};
     if (mime) filters.mimeGroup = mime;
     if (q) filters.q = q;
+    if (dirId != null) filters.directoryId = dirId;
     try {
       const data = await listFiles(p, 50, filters, signal);
       if (signal?.aborted) return;
@@ -46,18 +151,18 @@ function Home() {
     setFiles([]);
     setHasMore(true);
     setInitialLoading(true);
-    fetchPage(1, mimeGroup, searchQuery, controller.signal);
+    fetchPage(1, mimeGroup, searchQuery, directoryId, controller.signal);
     return () => controller.abort();
-  }, [mimeGroup, searchQuery]);
+  }, [mimeGroup, searchQuery, directoryId]);
 
   useEffect(() => {
     if (page === 1) return;
     if (abortRef.current) abortRef.current.abort();
     const controller = new AbortController();
     abortRef.current = controller;
-    fetchPage(page, mimeGroup, searchQuery, controller.signal);
+    fetchPage(page, mimeGroup, searchQuery, directoryId, controller.signal);
     return () => controller.abort();
-  }, [page, mimeGroup, searchQuery]);
+  }, [page, mimeGroup, searchQuery, directoryId]);
 
   useEffect(() => {
     const el = sentinelRef.current;
@@ -121,6 +226,11 @@ function Home() {
             ))}
           </div>
         </div>
+        {directories.length > 0 && (
+          <div className="home__dirs">
+            <DirTree sessions={dirSessions} selectedId={directoryId} onSelect={setDirectoryId} />
+          </div>
+        )}
       </header>
 
       {initialLoading && (
@@ -199,6 +309,9 @@ function Home() {
           }}
           onEditSave={(newFile) => {
             setViewerFile(newFile);
+          }}
+          onDelete={(fileId) => {
+            setFiles((prev) => prev.filter((f) => f.id !== fileId));
           }}
         />
       )}

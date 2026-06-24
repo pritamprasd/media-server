@@ -16,6 +16,7 @@ class Config:
     CELERY_RESULT_BACKEND = os.environ.get("CELERY_RESULT_BACKEND", "redis://localhost:6379/0")
     OLLAMA_BASE_URL = os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434")
     OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "llava")
+    OLLAMA_TEXT_MODEL = os.environ.get("OLLAMA_TEXT_MODEL", "llama3.2")
     EDITED_IMAGES_DIR = os.environ.get(
         "EDITED_IMAGES_DIR",
         os.path.join(os.path.expanduser("~"), "media-server-edited"),
