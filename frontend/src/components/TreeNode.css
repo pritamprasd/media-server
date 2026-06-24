@@ -1,0 +1,87 @@
+.tree-node__row {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.375rem 0.75rem;
+  font-size: 0.8125rem;
+  cursor: pointer;
+  transition: background 0.15s;
+  user-select: none;
+}
+
+.tree-node__row:hover {
+  background: var(--color-secondary);
+}
+
+.tree-node__arrow {
+  width: 1rem;
+  text-align: center;
+  flex-shrink: 0;
+  color: var(--color-text-muted);
+  font-size: 0.75rem;
+}
+
+.tree-node__spinner {
+  display: inline-block;
+  width: 0.625rem;
+  height: 0.625rem;
+  border: 2px solid var(--color-text-muted);
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.tree-node__spacer {
+  display: inline-block;
+  width: 0.625rem;
+}
+
+.tree-node__icon {
+  flex-shrink: 0;
+  font-size: 0.875rem;
+}
+
+.tree-node__name {
+  color: var(--color-text);
+  word-break: break-all;
+  min-width: 0;
+}
+
+.tree-node__name--file {
+  cursor: pointer;
+  transition: color 0.15s;
+}
+
+.tree-node__name--file:hover {
+  color: var(--color-primary);
+}
+
+.tree-node__size {
+  margin-left: auto;
+  padding-left: 0.75rem;
+  color: var(--color-text-muted);
+  font-size: 0.75rem;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.tree-node__children {
+  padding-left: 1rem;
+}
+
+.tree-node__file {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.25rem 0.75rem;
+  font-size: 0.8125rem;
+  transition: background 0.15s;
+}
+
+.tree-node__file:hover {
+  background: var(--color-secondary);
+}
