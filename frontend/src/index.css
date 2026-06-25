@@ -6,14 +6,26 @@
   padding: 0;
 }
 
-:root {
+:root,
+[data-theme="dark"] {
   --color-bg: #0f0f23;
   --color-surface: #1a1a2e;
   --color-primary: #e94560;
   --color-secondary: #16213e;
   --color-text: #eaeaea;
   --color-text-muted: #a0a0b0;
+  --color-danger: #e74c3c;
   --radius: 8px;
+}
+
+[data-theme="light"] {
+  --color-bg: #f0f0f5;
+  --color-surface: #ffffff;
+  --color-primary: #d63031;
+  --color-secondary: #dcdce4;
+  --color-text: #1a1a2e;
+  --color-text-muted: #7a7a8a;
+  --color-danger: #c0392b;
 }
 
 html {

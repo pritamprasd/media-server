@@ -4,57 +4,38 @@ import FileViewer from "../components/FileViewer";
 import "./Home.css";
 
 function buildDirTree(dirs) {
-  const bySession = {};
+  const byPath = {};
   for (const d of dirs) {
-    if (!bySession[d.session_id]) bySession[d.session_id] = [];
-    bySession[d.session_id].push(d);
+    if (!byPath[d.path]) byPath[d.path] = d;
   }
 
-  const sessions = [];
-  for (const sid of Object.keys(bySession)) {
-    const children = bySession[sid];
-    const childMap = {};
-    for (const d of children) {
-      if (d.path === d.parent_path) continue;
-      if (!childMap[d.parent_path]) childMap[d.parent_path] = [];
-      childMap[d.parent_path].push(d);
-    }
-
-    const sorted = (parentPath) => {
-      const entries = childMap[parentPath] || [];
-      entries.sort((a, b) => a.name.localeCompare(b.name));
-      return entries.map((d) => ({
-        ...d,
-        children: sorted(d.path),
-      }));
-    };
-
-    const sessionRoot = children.find((d) => d.path === "");
-    const sessionRoots = sorted("");
-    sessions.push({
-      session_id: parseInt(sid),
-      root_path: sessionRoot?.session_root_path || `Session ${sid}`,
-      trees: sessionRoots,
-    });
+  const unique = Object.values(byPath);
+  const childMap = {};
+  for (const d of unique) {
+    if (d.path === d.parent_path) continue;
+    if (!childMap[d.parent_path]) childMap[d.parent_path] = [];
+    childMap[d.parent_path].push(d);
   }
 
-  sessions.sort((a, b) => a.root_path.localeCompare(b.root_path));
-  return sessions;
-}
-
-function DirTree({ sessions, selectedId, onSelect }) {
-  const [collapsed, setCollapsed] = useState({});
-
-  const toggle = (sessionId) => {
-    setCollapsed((prev) => ({ ...prev, [sessionId]: !prev[sessionId] }));
+  const build = (parentPath) => {
+    const entries = childMap[parentPath] || [];
+    entries.sort((a, b) => a.name.localeCompare(b.name));
+    return entries.map((d) => ({
+      ...d,
+      children: build(d.path),
+    }));
   };
 
+  return build("");
+}
+
+function DirTree({ trees, selectedId, onSelect, onClose }) {
   const renderNode = (node, depth) => (
     <li key={node.id} className="home__dir-li">
       <button
         className={`home__dir-btn ${selectedId === node.id ? "home__dir-btn--active" : ""}`}
         style={{ paddingLeft: `${12 + depth * 16}px` }}
-        onClick={() => onSelect(node.id)}
+        onClick={() => { onSelect(node.id); onClose?.(); }}
       >
         <span className="home__dir-icon">{node.children?.length ? "📂" : "📁"}</span>
         {node.name}
@@ -71,28 +52,19 @@ function DirTree({ sessions, selectedId, onSelect }) {
     <div className="home__dir-picker">
       <button
         className={`home__dir-all ${selectedId === null ? "home__dir-all--active" : ""}`}
-        onClick={() => onSelect(null)}
+        onClick={() => { onSelect(null); onClose?.(); }}
       >
         <span className="home__dir-all-icon">🗂</span>
         <span className="home__dir-all-label">All directories</span>
       </button>
 
-      {sessions.map((s) => (
-        <div key={s.session_id} className="home__dir-session">
-          <button
-            className="home__dir-session-header"
-            onClick={() => toggle(s.session_id)}
-          >
-            <span className="home__dir-session-arrow">{collapsed[s.session_id] ? "▶" : "▼"}</span>
-            <span className="home__dir-session-path" title={s.root_path}>{s.root_path}</span>
-          </button>
-          {!collapsed[s.session_id] && (
-            <ul className="home__dir-ul">
-              {s.trees.map((n) => renderNode(n, 0))}
-            </ul>
-          )}
+      {trees.length > 0 && (
+        <div className="home__dir-scroll">
+          <ul className="home__dir-ul">
+            {trees.map((n) => renderNode(n, 0))}
+          </ul>
         </div>
-      ))}
+      )}
     </div>
   );
 }
@@ -109,6 +81,7 @@ function Home() {
   const [searchQuery, setSearchQuery] = useState("");
   const [directories, setDirectories] = useState([]);
   const [directoryId, setDirectoryId] = useState(null);
+  const [dirDialogOpen, setDirDialogOpen] = useState(false);
   const sentinelRef = useRef(null);
   const searchTimeout = useRef(null);
   const hasMoreRef = useRef(hasMore);
@@ -145,7 +118,13 @@ function Home() {
     setViewerFile(file);
   }, []);
 
-  const dirSessions = useMemo(() => buildDirTree(directories), [directories]);
+  const dirTree = useMemo(() => buildDirTree(directories), [directories]);
+
+  const selectedDirName = useMemo(() => {
+    if (directoryId == null) return "All directories";
+    const d = directories.find((d) => d.id === directoryId);
+    return d ? d.name : "All directories";
+  }, [directoryId, directories]);
 
   useEffect(() => {
     listDirectories()
@@ -234,16 +213,21 @@ function Home() {
   return (
     <div className="home">
       <div className="home__layout">
-        {directories.length > 0 && (
-          <aside className="home__sidebar">
-            <DirTree sessions={dirSessions} selectedId={directoryId} onSelect={setDirectoryId} />
-          </aside>
-        )}
-
         <div className="home__main">
           <header className="home__header">
             <h1>Media Server</h1>
             <p className="home__subtitle">Your personal media hub</p>
+
+            {directories.length > 0 && (
+              <div className="home__dir-bar">
+                <button className="home__dir-trigger" onClick={() => setDirDialogOpen(true)}>
+                  <span>📁</span>
+                  <span>{selectedDirName}</span>
+                  <span className="home__dir-trigger-arrow">▾</span>
+                </button>
+              </div>
+            )}
+
             <div className="home__filters">
               <input
                 className="home__search"
@@ -350,6 +334,25 @@ function Home() {
             closeViewer();
           }}
         />
+      )}
+
+      {dirDialogOpen && (
+        <div className="home__dir-overlay" onClick={() => setDirDialogOpen(false)}>
+          <div className="home__dir-dialog" onClick={(e) => e.stopPropagation()}>
+            <div className="home__dir-dialog-header">
+              <span>Filter by directory</span>
+              <button className="home__dir-close" onClick={() => setDirDialogOpen(false)}>✕</button>
+            </div>
+            <div className="home__dir-dialog-body">
+              <DirTree
+                trees={dirTree}
+                selectedId={directoryId}
+                onSelect={setDirectoryId}
+                onClose={() => setDirDialogOpen(false)}
+              />
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
