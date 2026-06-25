@@ -1,6 +1,6 @@
 # Media Server
 
-A full-stack media server application with a React frontend and Flask API backend.
+A scalable system that supports a semantic searchable media viewer site for your media files. 
 
 ## Stack
 
@@ -378,3 +378,8 @@ make lint
 # Vite production build
 make build	
 ```
+
+## Features TODO:
+1. Add single/multi media upload feature.
+2. Fix bugs for unsupported media formats.
+3. Improve UX in mobile device.
