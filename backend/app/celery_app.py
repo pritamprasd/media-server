@@ -7,6 +7,11 @@ from celery import Celery
 dotenv_path = Path(__file__).resolve().parent.parent / ".env"
 load_dotenv(dotenv_path)
 
+_Q_IMPORT = os.environ.get("CELERY_QUEUE_IMPORT", "import_queue_dev")
+_Q_METADATA = os.environ.get("CELERY_QUEUE_METADATA", "metadata_dev")
+_Q_AI = os.environ.get("CELERY_QUEUE_AI", "ai_metadata_dev")
+_Q_THUMB = os.environ.get("CELERY_QUEUE_THUMBNAIL", "thumbnail_dev")
+
 celery = Celery("media_server")
 celery.conf.update(
     broker_url=os.environ.get("CELERY_BROKER_URL", "redis://localhost:6379/0"),
@@ -14,16 +19,16 @@ celery.conf.update(
     broker_connection_retry_on_startup=True,
     task_queues={
         "celery": {},
-        "metadata": {},
-        "ai_metadata": {},
-        "thumbnail": {},
-        "import_queue": {},
+        _Q_METADATA: {},
+        _Q_AI: {},
+        _Q_THUMB: {},
+        _Q_IMPORT: {},
     },
     task_routes={
-        "app.tasks.process_import_folder": {"queue": "import_queue"},
-        "app.tasks.extract_file_metadata": {"queue": "metadata"},
-        "app.tasks.generate_ai_metadata": {"queue": "ai_metadata"},
-        "app.tasks.generate_thumbnail": {"queue": "thumbnail"},
+        "app.tasks.process_import_folder": {"queue": _Q_IMPORT},
+        "app.tasks.extract_file_metadata": {"queue": _Q_METADATA},
+        "app.tasks.generate_ai_metadata": {"queue": _Q_AI},
+        "app.tasks.generate_thumbnail": {"queue": _Q_THUMB},
     },
 )
 

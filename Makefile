@@ -124,25 +124,30 @@ backend:
 frontend:
 	$(NPM) --prefix $(FRONTEND_DIR) run dev
 
+_Q_IMPORT = $(or $(shell grep '^CELERY_QUEUE_IMPORT=' $(BACKEND_DIR)/.env 2>/dev/null | head -1 | cut -d= -f2-),import_queue)
+_Q_METADATA = $(or $(shell grep '^CELERY_QUEUE_METADATA=' $(BACKEND_DIR)/.env 2>/dev/null | head -1 | cut -d= -f2-),metadata)
+_Q_AI = $(or $(shell grep '^CELERY_QUEUE_AI=' $(BACKEND_DIR)/.env 2>/dev/null | head -1 | cut -d= -f2-),ai_metadata)
+_Q_THUMB = $(or $(shell grep '^CELERY_QUEUE_THUMBNAIL=' $(BACKEND_DIR)/.env 2>/dev/null | head -1 | cut -d= -f2-),thumbnail)
+
 .PHONY: celery
 celery:
-	$(CELERY) -A app.tasks.celery worker -Q celery,metadata,ai_metadata,thumbnail -l info
+	$(CELERY) -A app.tasks.celery worker -Q celery,$(_Q_METADATA),$(_Q_AI),$(_Q_THUMB) -l info
 
 .PHONY: celery-import
 celery-import:
-	$(CELERY) -A app.tasks.celery worker -Q import_queue -l info --concurrency=1
+	$(CELERY) -A app.tasks.celery worker -Q $(_Q_IMPORT) -l info --concurrency=1
 
 .PHONY: celery-meta
 celery-meta:
-	$(CELERY) -A app.tasks.celery worker -Q metadata -l info --concurrency=10
+	$(CELERY) -A app.tasks.celery worker -Q $(_Q_METADATA) -l info --concurrency=10
 
 .PHONY: celery-ai
 celery-ai:
-	$(CELERY) -A app.tasks.celery worker -Q ai_metadata -l info --concurrency=2
+	$(CELERY) -A app.tasks.celery worker -Q $(_Q_AI) -l info --concurrency=2
 
 .PHONY: celery-thumb
 celery-thumb:
-	$(CELERY) -A app.tasks.celery worker -Q thumbnail -l info --concurrency=10
+	$(CELERY) -A app.tasks.celery worker -Q $(_Q_THUMB) -l info --concurrency=10
 
 .PHONY: flower
 flower:

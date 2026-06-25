@@ -25,7 +25,9 @@ def status():
 
 @api_bp.route("/directories", methods=["GET"])
 def list_directories():
-    dirs = ImportedDirectory.query.order_by(
+    dirs = ImportedDirectory.query.filter(
+        ImportedDirectory.deleted != True
+    ).order_by(
         ImportedDirectory.session_id, ImportedDirectory.path
     ).all()
     session_cache = {}
@@ -91,26 +93,32 @@ def browse_session(session_id):
 
     path = request.args.get("path", "")
 
-    directories = ImportedDirectory.query.filter_by(
-        session_id=session_id, parent_path=path
+    directories = ImportedDirectory.query.filter(
+        ImportedDirectory.deleted != True,
+        ImportedDirectory.session_id == session_id,
+        ImportedDirectory.parent_path == path,
     ).order_by(ImportedDirectory.name).all()
 
     if path == "":
-        files = ImportedFile.query.filter_by(
-            session_id=session_id, directory_id=(
-                ImportedDirectory.query.filter_by(
-                    session_id=session_id, path=""
-                ).first().id
-            )
+        root_dir = ImportedDirectory.query.filter_by(
+            session_id=session_id, path=""
+        ).first()
+        files = ImportedFile.query.filter(
+            ImportedFile.deleted != True,
+            ImportedFile.session_id == session_id,
+            ImportedFile.directory_id == (root_dir.id if root_dir else -1),
         ).order_by(ImportedFile.filename).all()
     else:
-        parent_dir = ImportedDirectory.query.filter_by(
-            session_id=session_id, path=path
+        parent_dir = ImportedDirectory.query.filter(
+            ImportedDirectory.deleted != True,
+            ImportedDirectory.session_id == session_id,
+            ImportedDirectory.path == path,
         ).first()
         if not parent_dir:
             return jsonify({"directories": [], "files": []}), 200
-        files = ImportedFile.query.filter_by(
-            directory_id=parent_dir.id
+        files = ImportedFile.query.filter(
+            ImportedFile.deleted != True,
+            ImportedFile.directory_id == parent_dir.id,
         ).order_by(ImportedFile.filename).all()
 
     return jsonify({
@@ -173,7 +181,7 @@ def list_files():
         FileMetadata.width, FileMetadata.height, FileMetadata.tags
     ).outerjoin(
         FileMetadata, ImportedFile.id == FileMetadata.file_id
-    )
+    ).filter(ImportedFile.deleted != True)
 
     if directory_id is not None and directory_id > 0:
         dir_record = db.session.get(ImportedDirectory, directory_id)
@@ -212,7 +220,7 @@ def list_files():
 
     tag = request.args.get("tag", "").strip().lower()
     if tag:
-        query = query.filter(FileMetadata.tags.any(tag))
+        query = query.filter(FileMetadata.tags.cast(db.String).contains(f'"{tag}"'))
 
     has_ai = request.args.get("has_ai", type=bool)
     if has_ai:
@@ -265,7 +273,11 @@ def list_duplicates():
     if type_ == "exact":
         hashes = (
             db.session.query(FileMetadata.file_hash, db.func.count(FileMetadata.id))
-            .filter(FileMetadata.file_hash.isnot(None))
+            .join(ImportedFile, FileMetadata.file_id == ImportedFile.id)
+            .filter(
+                ImportedFile.deleted != True,
+                FileMetadata.file_hash.isnot(None),
+            )
             .group_by(FileMetadata.file_hash)
             .having(db.func.count(FileMetadata.id) > 1)
             .all()
@@ -275,12 +287,15 @@ def list_duplicates():
             metas = (
                 FileMetadata.query.filter_by(file_hash=h)
                 .join(ImportedFile)
+                .filter(ImportedFile.deleted != True)
                 .order_by(ImportedFile.filename)
                 .all()
             )
             group = []
             for m in metas:
                 f = m.file
+                if f.deleted:
+                    continue
                 group.append({
                     "file_id": f.id,
                     "filename": f.filename,
@@ -294,8 +309,11 @@ def list_duplicates():
 
     if type_ == "near":
         THRESHOLD = 10
-        near_meta = FileMetadata.query.filter(
-            FileMetadata.dhash.isnot(None)
+        near_meta = FileMetadata.query.join(
+            ImportedFile, FileMetadata.file_id == ImportedFile.id
+        ).filter(
+            ImportedFile.deleted != True,
+            FileMetadata.dhash.isnot(None),
         ).all()
         pairs = []
         seen = set()
@@ -373,8 +391,9 @@ def get_near_duplicates(file_id):
 
 @api_bp.route("/favorites", methods=["GET"])
 def list_favorites():
-    files = ImportedFile.query.filter_by(
-        is_favorite=True
+    files = ImportedFile.query.filter(
+        ImportedFile.deleted != True,
+        ImportedFile.is_favorite == True,
     ).order_by(ImportedFile.filename).all()
     return jsonify([f.to_dict() for f in files]), 200
 
@@ -582,14 +601,16 @@ def _ensure_upload_subdir(session, subdir_path):
 @api_bp.route("/upload/directories", methods=["GET"])
 def list_upload_dirs():
     upload_dir = current_app.config["UPLOAD_DIR"]
-    if not os.path.isdir(upload_dir):
-        return jsonify({"directories": []}), 200
+    prefix = request.args.get("prefix", "").strip().strip("/")
+    scan_dir = os.path.join(upload_dir, prefix) if prefix else upload_dir
+    if not os.path.isdir(scan_dir):
+        return jsonify({"directories": [], "prefix": prefix}), 200
     dirs = []
-    for entry in sorted(os.listdir(upload_dir)):
-        full = os.path.join(upload_dir, entry)
+    for entry in sorted(os.listdir(scan_dir)):
+        full = os.path.join(scan_dir, entry)
         if os.path.isdir(full):
-            dirs.append({"name": entry, "path": entry})
-    return jsonify({"directories": dirs}), 200
+            dirs.append({"name": entry, "path": os.path.join(prefix, entry) if prefix else entry})
+    return jsonify({"directories": dirs, "prefix": prefix}), 200
 
 
 @api_bp.route("/upload/directories", methods=["POST"])
@@ -691,6 +712,74 @@ def upload_files():
     return jsonify({"saved": saved, "errors": errors}), 201
 
 
+@api_bp.route("/upload/files/delete", methods=["POST"])
+def soft_delete_upload_files():
+    data = request.get_json(silent=True) or {}
+    file_ids = data.get("file_ids", [])
+    paths = data.get("paths", [])
+    if not file_ids and not paths:
+        return jsonify({"error": "Provide file_ids or paths"}), 400
+
+    query = ImportedFile.query
+    if file_ids:
+        query = query.filter(ImportedFile.id.in_(file_ids))
+    if paths:
+        query = query.filter(ImportedFile.file_path.in_(paths))
+
+    count = query.update({ImportedFile.deleted: True}, synchronize_session="fetch")
+    db.session.commit()
+    return jsonify({"deleted": count}), 200
+
+
+@api_bp.route("/upload/directories/delete", methods=["POST"])
+def soft_delete_upload_dir():
+    data = request.get_json(silent=True) or {}
+    path = data.get("path", "").strip().strip("/")
+    if not path:
+        return jsonify({"error": "path is required"}), 400
+
+    upload_dir = current_app.config["UPLOAD_DIR"]
+    full_path = os.path.join(upload_dir, path)
+
+    dirs = ImportedDirectory.query.filter(
+        ImportedDirectory.path == path
+    ).all()
+    for d in dirs:
+        d.deleted = True
+        ImportedFile.query.filter_by(directory_id=d.id).update(
+            {ImportedFile.deleted: True}, synchronize_session="fetch"
+        )
+
+    subdirs = ImportedDirectory.query.filter(
+        ImportedDirectory.path.like(f"{path}/%")
+    ).all()
+    sub_ids = [sd.id for sd in subdirs]
+    if sub_ids:
+        ImportedDirectory.query.filter(ImportedDirectory.id.in_(sub_ids)).update(
+            {ImportedDirectory.deleted: True}, synchronize_session="fetch"
+        )
+        ImportedFile.query.filter(ImportedFile.directory_id.in_(sub_ids)).update(
+            {ImportedFile.deleted: True}, synchronize_session="fetch"
+        )
+
+    db.session.commit()
+
+    return jsonify({"message": f"Deleted path '{path}'", "deleted_dirs": len(dirs) + len(subdirs)}), 200
+
+
+@api_bp.route("/upload/files/recent", methods=["GET"])
+def list_recent_upload_files():
+    prefix = request.args.get("prefix", "").strip().strip("/")
+    query = ImportedFile.query.filter(ImportedFile.deleted != True)
+    if prefix:
+        like = f"{prefix}/%"
+        query = query.filter(
+            db.or_(ImportedFile.relative_path == prefix, ImportedFile.relative_path.like(like))
+        )
+    files = query.order_by(ImportedFile.created_at.desc()).limit(100).all()
+    return jsonify({"files": [f.to_dict() for f in files]}), 200
+
+
 @api_bp.route("/upload/nicknames", methods=["GET"])
 def list_nicknames():
     rows = (
@@ -705,34 +794,46 @@ def list_nicknames():
 
 @api_bp.route("/tags", methods=["GET"])
 def list_all_tags():
-    metas = FileMetadata.query.filter(
+    metas = FileMetadata.query.join(
+        ImportedFile, FileMetadata.file_id == ImportedFile.id
+    ).filter(
+        ImportedFile.deleted != True,
         FileMetadata.tags.isnot(None),
-        FileMetadata.tags != "[]",
+        db.cast(FileMetadata.tags, db.String) != "[]",
     ).with_entities(FileMetadata.tags).all()
-    all_tags = set()
+    freq = {}
     for (tags,) in metas:
         if tags and isinstance(tags, list):
+            seen = set()
             for t in tags:
                 t = t.strip().lower()
-                if t:
-                    all_tags.add(t)
-    return jsonify({"tags": sorted(all_tags)}), 200
+                if t and t not in seen:
+                    seen.add(t)
+                    freq[t] = freq.get(t, 0) + 1
+    sorted_tags = sorted(freq.items(), key=lambda x: (-x[1], x[0]))
+    return jsonify({"tags": [{"tag": t, "count": c} for t, c in sorted_tags]}), 200
 
 
 @api_bp.route("/stats", methods=["GET"])
 def get_statistics():
-    total_files = ImportedFile.query.count()
-    total_favorites = ImportedFile.query.filter_by(is_favorite=True).count()
+    total_files = ImportedFile.query.filter(ImportedFile.deleted != True).count()
+    total_favorites = ImportedFile.query.filter(
+        ImportedFile.deleted != True, ImportedFile.is_favorite == True
+    ).count()
     total_metadata = FileMetadata.query.count()
 
     image_count = ImportedFile.query.filter(
-        ImportedFile.mime_type.like("image/%")
+        ImportedFile.deleted != True,
+        ImportedFile.mime_type.like("image/%"),
     ).count()
     video_count = ImportedFile.query.filter(
-        ImportedFile.mime_type.like("video/%")
+        ImportedFile.deleted != True,
+        ImportedFile.mime_type.like("video/%"),
     ).count()
 
-    total_size = db.session.query(db.func.sum(ImportedFile.size)).scalar() or 0
+    total_size = db.session.query(db.func.sum(ImportedFile.size)).filter(
+        ImportedFile.deleted != True
+    ).scalar() or 0
 
     statuses = (
         db.session.query(
@@ -756,7 +857,7 @@ def get_statistics():
             ImportedFile.mime_type,
             db.func.count(ImportedFile.id),
         )
-        .filter(ImportedFile.created_at.isnot(None))
+        .filter(ImportedFile.created_at.isnot(None), ImportedFile.deleted != True)
         .group_by(db.func.date(ImportedFile.created_at), ImportedFile.mime_type)
         .order_by(db.func.date(ImportedFile.created_at).desc())
         .all()
@@ -802,6 +903,7 @@ def get_statistics():
     ).count()
 
     files_with_nickname = ImportedFile.query.filter(
+        ImportedFile.deleted != True,
         ImportedFile.nickname.isnot(None),
         ImportedFile.nickname != "",
     ).count()
@@ -810,6 +912,7 @@ def get_statistics():
         db.session.query(
             ImportedFile.mime_type, db.func.count(ImportedFile.id)
         )
+        .filter(ImportedFile.deleted != True)
         .group_by(ImportedFile.mime_type)
         .order_by(db.func.count(ImportedFile.id).desc())
         .all()

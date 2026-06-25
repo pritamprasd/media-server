@@ -1,4 +1,10 @@
 import { useEffect, useRef, useState, useCallback } from "react";
+import {
+  Heart, Download, Trash2, X, RotateCcw, RotateCw, ArrowLeftRight,
+  ArrowUpDown, Contrast, Edit3, Image, FileJson, MapPin,
+  Hash, Tag, AlignLeft, Clock, Maximize2, Camera,
+  ZoomIn, ZoomOut,
+} from "lucide-react";
 import { toggleFavorite as toggleFavApi, getFileMetadata, editFile, deleteFile, updateTags } from "../services/api";
 import "./FileViewer.css";
 
@@ -14,6 +20,8 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete }) {
   const [exifExpanded, setExifExpanded] = useState(window.innerWidth > 768);
   const [tagInput, setTagInput] = useState("");
   const [tagSaving, setTagSaving] = useState(false);
+  const [zoom, setZoom] = useState(1);
+  const pinchRef = useRef(null);
   const overlayRef = useRef(null);
 
   useEffect(() => {
@@ -66,6 +74,45 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete }) {
   const addOp = useCallback((op) => {
     setOperations((prev) => [...prev, op]);
   }, []);
+
+  const handleZoomIn = () => setZoom((p) => Math.min(5, +(p * 1.25).toFixed(2)));
+  const handleZoomOut = () => setZoom((p) => Math.max(0.25, +(p / 1.25).toFixed(2)));
+  const handleZoomReset = () => setZoom(1);
+
+  const handleWheel = useCallback((e) => {
+    if (e.ctrlKey || e.metaKey) {
+      e.preventDefault();
+      setZoom((p) => {
+        const factor = e.deltaY > 0 ? 1 / 1.1 : 1.1;
+        return Math.max(0.25, Math.min(5, +(p * factor).toFixed(2)));
+      });
+    }
+  }, []);
+
+  const handleTouchStart = useCallback((e) => {
+    if (e.touches.length === 2) {
+      const dist = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY
+      );
+      pinchRef.current = dist;
+    }
+  }, []);
+
+  const handleTouchMove = useCallback((e) => {
+    if (e.touches.length === 2 && pinchRef.current) {
+      e.preventDefault();
+      const dist = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY
+      );
+      const factor = dist / pinchRef.current;
+      setZoom((p) => Math.max(0.25, Math.min(5, +(p * factor).toFixed(2))));
+      pinchRef.current = dist;
+    }
+  }, []);
+
+  const handleTouchEnd = useCallback(() => { pinchRef.current = null; }, []);
 
   const handleSave = async () => {
     if (operations.length === 0) return;
@@ -147,7 +194,6 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete }) {
   };
 
   const previewStyle = (() => {
-    if (!editMode || operations.length === 0) return {};
     let rot = 0;
     let sx = 1;
     let sy = 1;
@@ -158,8 +204,12 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete }) {
       if (op.type === "flip" && op.direction === "vertical") sy *= -1;
       if (op.type === "grayscale") gray = true;
     }
+    const transforms = [];
+    if (zoom !== 1) transforms.push(`scale(${zoom})`);
+    if (rot) transforms.push(`rotate(${rot}deg)`);
+    if (sx !== 1 || sy !== 1) transforms.push(`scale(${sx}, ${sy})`);
     return {
-      transform: `rotate(${rot}deg) scale(${sx}, ${sy})`,
+      transform: transforms.join(" "),
       filter: gray ? "grayscale(1)" : "none",
     };
   })();
@@ -189,20 +239,20 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete }) {
               <div className="viewer-actions">
                 {!isVideo && (
                   <button className="viewer-btn viewer-btn--edit" onClick={() => setEditMode(true)} title="Edit image">
-                    Edit
+                    <Edit3 size={14} /> Edit
                   </button>
                 )}
-                <a className="viewer-btn viewer-btn--download" href={fileUrl} download title="Download file">⬇</a>
-                <button className="viewer-btn viewer-btn--delete" onClick={handleDeleteClick} title="Delete file">🗑</button>
+                <a className="viewer-btn viewer-btn--download" href={fileUrl} download title="Download file"><Download size={15} /></a>
+                <button className="viewer-btn viewer-btn--delete" onClick={handleDeleteClick} title="Delete file"><Trash2 size={15} /></button>
                 <button
                   className={`viewer-fav ${isFav ? "viewer-fav--active" : ""}`}
                   onClick={handleToggleFav}
                   title={isFav ? "Remove from favorites" : "Add to favorites"}
                 >
-                  {isFav ? "★" : "☆"}
+                  <Heart size={15} fill={isFav ? "currentColor" : "none"} />
                 </button>
                 <button className="viewer-close" onClick={onClose}>
-                  ✕
+                  <X size={18} />
                 </button>
               </div>
             </>
@@ -211,17 +261,28 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete }) {
 
         {editMode && (
           <div className="viewer-toolbar">
-            <button className="viewer-tool" onClick={() => addOp({ type: "rotate", degrees: -90 })} title="Rotate left">⟲</button>
-            <button className="viewer-tool" onClick={() => addOp({ type: "rotate", degrees: 90 })} title="Rotate right">⟳</button>
-            <button className="viewer-tool" onClick={() => addOp({ type: "flip", direction: "horizontal" })} title="Flip horizontal">↔</button>
-            <button className="viewer-tool" onClick={() => addOp({ type: "flip", direction: "vertical" })} title="Flip vertical">↕</button>
-            <button className="viewer-tool" onClick={() => addOp({ type: "grayscale" })} title="Grayscale">◐</button>
+            <button className="viewer-tool" onClick={handleZoomOut} title="Zoom out"><ZoomOut size={16} /></button>
+            <span className="viewer-zoom-pct">{Math.round(zoom * 100)}%</span>
+            <button className="viewer-tool" onClick={handleZoomIn} title="Zoom in"><ZoomIn size={16} /></button>
+            <button className="viewer-tool viewer-tool--sm" onClick={handleZoomReset} title="Reset zoom">1:1</button>
+            <span className="viewer-tool-sep" />
+            <button className="viewer-tool" onClick={() => addOp({ type: "rotate", degrees: -90 })} title="Rotate left"><RotateCcw size={16} /></button>
+            <button className="viewer-tool" onClick={() => addOp({ type: "rotate", degrees: 90 })} title="Rotate right"><RotateCw size={16} /></button>
+            <button className="viewer-tool" onClick={() => addOp({ type: "flip", direction: "horizontal" })} title="Flip horizontal"><ArrowLeftRight size={16} /></button>
+            <button className="viewer-tool" onClick={() => addOp({ type: "flip", direction: "vertical" })} title="Flip vertical"><ArrowUpDown size={16} /></button>
+            <button className="viewer-tool" onClick={() => addOp({ type: "grayscale" })} title="Grayscale"><Contrast size={16} /></button>
             <span className="viewer-tool-count">{operations.length} op(s)</span>
           </div>
         )}
 
         <div className="viewer-content">
-          <div className="viewer-body">
+          <div
+            className="viewer-body"
+            onWheel={handleWheel}
+            onTouchStart={handleTouchStart}
+            onTouchMove={handleTouchMove}
+            onTouchEnd={handleTouchEnd}
+          >
             {isVideo ? (
               <video className="viewer-media" src={fileUrl} controls autoPlay />
             ) : (
@@ -231,20 +292,25 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete }) {
               <div className="viewer-float-actions">
                 {!isVideo && (
                   <button className="viewer-float-btn" onClick={() => setEditMode(true)} title="Edit image">
-                    ✏
+                    <Edit3 size={16} />
                   </button>
                 )}
-                <a className="viewer-float-btn" href={fileUrl} download title="Download">⬇</a>
-                <button className="viewer-float-btn" onClick={handleDeleteClick} title="Delete">🗑</button>
+                <div className="viewer-float-zoom">
+                  <button className="viewer-float-btn viewer-float-btn--zoom" onClick={handleZoomOut} title="Zoom out"><ZoomOut size={15} /></button>
+                  <span className="viewer-float-pct">{Math.round(zoom * 100)}%</span>
+                  <button className="viewer-float-btn viewer-float-btn--zoom" onClick={handleZoomIn} title="Zoom in"><ZoomIn size={15} /></button>
+                </div>
+                <a className="viewer-float-btn" href={fileUrl} download title="Download"><Download size={16} /></a>
+                <button className="viewer-float-btn" onClick={handleDeleteClick} title="Delete"><Trash2 size={16} /></button>
                 <button
                   className={`viewer-float-btn ${isFav ? "viewer-float-btn--active" : ""}`}
                   onClick={handleToggleFav}
                   title={isFav ? "Remove from favorites" : "Add to favorites"}
                 >
-                  {isFav ? "★" : "☆"}
+                  <Heart size={16} fill={isFav ? "currentColor" : "none"} />
                 </button>
                 <button className="viewer-float-btn viewer-float-btn--close" onClick={onClose} title="Close">
-                  ✕
+                  <X size={18} />
                 </button>
               </div>
             )}
@@ -256,36 +322,36 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete }) {
                 <h3 className="viewer-meta-title">Metadata</h3>
                 {meta.width && meta.height && (
                   <div className="viewer-meta-row">
-                    <span className="viewer-meta-label">Dimensions</span>
+                    <span className="viewer-meta-label"><Maximize2 size={12} /> Dimensions</span>
                     <span className="viewer-meta-value">{meta.width} × {meta.height}</span>
                   </div>
                 )}
                 {meta.duration != null && (
                   <div className="viewer-meta-row">
-                    <span className="viewer-meta-label">Duration</span>
+                    <span className="viewer-meta-label"><Clock size={12} /> Duration</span>
                     <span className="viewer-meta-value">{meta.duration.toFixed(1)}s</span>
                   </div>
                 )}
                 {meta.date_taken && (
                   <div className="viewer-meta-row">
-                    <span className="viewer-meta-label">Date Taken</span>
+                    <span className="viewer-meta-label"><Camera size={12} /> Date Taken</span>
                     <span className="viewer-meta-value">{new Date(meta.date_taken).toLocaleString()}</span>
                   </div>
                 )}
                 {meta.latitude != null && meta.longitude != null && (
                   <div className="viewer-meta-row">
-                    <span className="viewer-meta-label">GPS</span>
+                    <span className="viewer-meta-label"><MapPin size={12} /> GPS</span>
                     <span className="viewer-meta-value">{meta.latitude}, {meta.longitude}</span>
                   </div>
                 )}
                 {meta.description && (
                   <div className="viewer-meta-row viewer-meta-row--block">
-                    <span className="viewer-meta-label">Description</span>
+                    <span className="viewer-meta-label"><AlignLeft size={12} /> Description</span>
                     <span className="viewer-meta-value">{meta.description}</span>
                   </div>
                 )}
                 <div className="viewer-meta-row viewer-meta-row--block">
-                  <span className="viewer-meta-label">Tags</span>
+                  <span className="viewer-meta-label"><Hash size={12} /> Tags</span>
                   <div className="viewer-tags">
                     {(meta.tags || []).map((t) => (
                       <span key={t} className="viewer-tag">
@@ -295,7 +361,7 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete }) {
                           onClick={() => handleRemoveTag(t)}
                           disabled={tagSaving}
                         >
-                          ✕
+                          <X size={12} />
                         </button>
                       </span>
                     ))}

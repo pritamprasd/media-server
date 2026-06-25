@@ -43,8 +43,9 @@ def get_or_create_metadata(file_id):
         try:
             meta = FileMetadata(file_id=file_id)
             db.session.add(meta)
-            db.session.flush()
+            db.session.commit()
             return meta
-        except IntegrityError:
+        except Exception as e:
             db.session.rollback()
+            print(f"Error: {e}")
     raise Exception(f"Failed to find/create FileMetadata for file_id={file_id}")

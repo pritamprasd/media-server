@@ -19,6 +19,7 @@ class ImportedFile(db.Model):
     modified = db.Column(db.DateTime, nullable=False)
     is_favorite = db.Column(db.Boolean, default=False, nullable=False)
     nickname = db.Column(db.Text, nullable=True)
+    deleted = db.Column(db.Boolean, default=False, nullable=False)
     created_at = db.Column(db.DateTime, server_default=db.func.now())
 
     __table_args__ = (db.UniqueConstraint("session_id", "file_path"),)
@@ -35,4 +36,5 @@ class ImportedFile(db.Model):
             "modified": self.modified.isoformat() if self.modified else None,
             "is_favorite": self.is_favorite,
             "nickname": self.nickname,
+            "deleted": self.deleted,
         }

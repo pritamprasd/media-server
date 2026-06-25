@@ -111,8 +111,8 @@ export async function uploadFiles(files, nickname, directory, onProgress) {
   return data;
 }
 
-export async function listUploadDirs() {
-  const { data } = await client.get("/upload/directories");
+export async function listUploadDirs(prefix) {
+  const { data } = await client.get("/upload/directories", { params: { prefix } });
   return data;
 }
 
@@ -133,6 +133,21 @@ export async function listNicknames() {
 
 export async function listTags() {
   const { data } = await client.get("/tags");
+  return data;
+}
+
+export async function softDeleteFiles(fileIds) {
+  const { data } = await client.post("/upload/files/delete", { file_ids: fileIds });
+  return data;
+}
+
+export async function softDeleteDir(path) {
+  const { data } = await client.post("/upload/directories/delete", { path });
+  return data;
+}
+
+export async function listRecentFiles(prefix) {
+  const { data } = await client.get("/upload/files/recent", { params: { prefix } });
   return data;
 }
 

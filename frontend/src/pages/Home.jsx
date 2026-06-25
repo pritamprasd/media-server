@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { Search, List, Image, Video, Sparkles, FolderTree, ChevronDown, X, Hash } from "lucide-react";
 import { listFiles, listDirectories, toggleFavorite as toggleFavApi, listTags } from "../services/api";
 import FileViewer from "../components/FileViewer";
 import "./Home.css";
@@ -87,6 +88,8 @@ function Home() {
   const [hasAi, setHasAi] = useState(false);
   const [tag, setTag] = useState("");
   const [allTags, setAllTags] = useState([]);
+  const [showTagDropdown, setShowTagDropdown] = useState(false);
+  const [tagSearch, setTagSearch] = useState("");
   const [totalCount, setTotalCount] = useState(0);
   const sentinelRef = useRef(null);
   const searchTimeout = useRef(null);
@@ -126,11 +129,26 @@ function Home() {
 
   const dirTree = useMemo(() => buildDirTree(directories), [directories]);
 
+  useEffect(() => {
+    if (!showTagDropdown) return;
+    const handler = (e) => {
+      if (!e.target.closest(".home__tag-dropdown")) setShowTagDropdown(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [showTagDropdown]);
+
   const selectedDirName = useMemo(() => {
     if (directoryId == null) return "All directories";
     const d = directories.find((d) => d.id === directoryId);
     return d ? d.name : "All directories";
   }, [directoryId, directories]);
+
+  const filteredTags = useMemo(() => {
+    if (!tagSearch) return allTags;
+    const q = tagSearch.toLowerCase();
+    return allTags.filter((t) => t.tag.includes(q));
+  }, [allTags, tagSearch]);
 
   useEffect(() => {
     listDirectories()
@@ -245,9 +263,9 @@ function Home() {
             {directories.length > 0 && (
               <div className="home__dir-bar">
                 <button className="home__dir-trigger" onClick={() => setDirDialogOpen(true)}>
-                  <span>📁</span>
+                  <FolderTree size={16} />
                   <span>{selectedDirName}</span>
-                  <span className="home__dir-trigger-arrow">▾</span>
+                  <ChevronDown size={14} className="home__dir-trigger-arrow" />
                 </button>
               </div>
             )}
@@ -260,29 +278,44 @@ function Home() {
             )}
 
             <div className="home__filters">
-              <input
-                className="home__search"
-                type="text"
-                placeholder="Search tags, description, filename..."
-                value={searchInput}
-                onChange={(e) => setSearchInput(e.target.value)}
-              />
+              <div className="home__search-wrap">
+                <Search size={15} className="home__search-icon" />
+                <input
+                  className="home__search"
+                  type="text"
+                  placeholder="Search tags, description, filename..."
+                  value={searchInput}
+                  onChange={(e) => setSearchInput(e.target.value)}
+                />
+              </div>
               <div className="home__mime-filters">
-                {["", "image", "video"].map((g) => (
-                  <button
-                    key={g}
-                    className={`home__mime-btn ${mimeGroup === g ? "home__mime-btn--active" : ""}`}
-                    onClick={() => setMimeGroup(g)}
-                  >
-                    {g === "" ? "All" : g === "image" ? "Images" : "Videos"}
-                  </button>
-                ))}
+                <button
+                  className={`home__mime-btn ${mimeGroup === "" ? "home__mime-btn--active" : ""}`}
+                  onClick={() => setMimeGroup("")}
+                  title="All"
+                >
+                  <List size={15} />
+                </button>
+                <button
+                  className={`home__mime-btn ${mimeGroup === "image" ? "home__mime-btn--active" : ""}`}
+                  onClick={() => setMimeGroup("image")}
+                  title="Images"
+                >
+                  <Image size={15} />
+                </button>
+                <button
+                  className={`home__mime-btn ${mimeGroup === "video" ? "home__mime-btn--active" : ""}`}
+                  onClick={() => setMimeGroup("video")}
+                  title="Videos"
+                >
+                  <Video size={15} />
+                </button>
                 <button
                   className={`home__mime-btn ${hasAi ? "home__mime-btn--active" : ""}`}
                   onClick={() => setHasAi((p) => !p)}
                   title="Only media with AI-generated tags, description, or search words"
                 >
-                  {hasAi ? "✦ AI" : "AI"}
+                  <Sparkles size={15} />
                 </button>
               </div>
             </div>
@@ -305,16 +338,46 @@ function Home() {
             </div>
 
             <div className="home__tag-filter">
-              <select
-                className="home__tag-select"
-                value={tag}
-                onChange={(e) => setTag(e.target.value)}
-              >
-                <option value="">All tags</option>
-                {allTags.map((t) => (
-                  <option key={t} value={t}>{t}</option>
-                ))}
-              </select>
+              <div className="home__tag-dropdown">
+                <button
+                  className="home__tag-trigger"
+                  onClick={() => setShowTagDropdown((p) => !p)}
+                >
+                  <Hash size={13} />
+                  <span>{tag || "All tags"}</span>
+                  <ChevronDown size={12} className={`home__tag-arrow ${showTagDropdown ? "home__tag-arrow--open" : ""}`} />
+                </button>
+                {showTagDropdown && (
+                  <div className="home__tag-menu">
+                    <input
+                      className="home__tag-search"
+                      type="text"
+                      placeholder="Search tags..."
+                      value={tagSearch}
+                      onChange={(e) => setTagSearch(e.target.value)}
+                      autoFocus
+                    />
+                    <div className="home__tag-options">
+                      <div
+                        className={`home__tag-option ${!tag ? "home__tag-option--active" : ""}`}
+                        onClick={() => { setTag(""); setShowTagDropdown(false); setTagSearch(""); }}
+                      >
+                        <span className="home__tag-option-name">All tags</span>
+                      </div>
+                      {filteredTags.map((t) => (
+                        <div
+                          key={t.tag}
+                          className={`home__tag-option ${tag === t.tag ? "home__tag-option--active" : ""}`}
+                          onClick={() => { setTag(t.tag); setShowTagDropdown(false); setTagSearch(""); }}
+                        >
+                          <span className="home__tag-option-name">{t.tag}</span>
+                          <span className="home__tag-option-count">{t.count}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
 
             {mimeGroup || searchQuery || directoryId || minWidth || minHeight || hasAi || tag ? (
@@ -328,7 +391,7 @@ function Home() {
                 setHasAi(false);
                 setTag("");
               }}>
-                Clear filters
+                <X size={14} /> Clear
               </button>
             ) : null}
           </header>

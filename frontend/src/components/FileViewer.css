@@ -180,6 +180,26 @@
   color: var(--color-primary);
 }
 
+.viewer-tool--sm {
+  font-size: 0.6875rem;
+  width: auto;
+  padding: 0 0.45rem;
+}
+
+.viewer-tool-sep {
+  width: 1px;
+  height: 20px;
+  background: var(--neu-dark);
+  margin: 0 0.2rem;
+}
+
+.viewer-zoom-pct {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  min-width: 2.6rem;
+  text-align: center;
+}
+
 .viewer-tool-count {
   font-size: 0.75rem;
   color: var(--color-text-muted);
@@ -201,10 +221,31 @@
   flex: 1;
   min-width: 0;
   position: relative;
+  touch-action: pan-x pan-y;
 }
 
 .viewer-float-actions {
   display: none;
+}
+
+.viewer-float-zoom {
+  display: flex;
+  align-items: center;
+  gap: 0.2rem;
+  pointer-events: auto;
+}
+
+.viewer-float-btn--zoom {
+  width: 34px;
+  height: 34px;
+}
+
+.viewer-float-pct {
+  font-size: 0.7rem;
+  color: var(--color-text);
+  min-width: 2.4rem;
+  text-align: center;
+  pointer-events: none;
 }
 
 .viewer-float-btn {
@@ -299,6 +340,9 @@
   color: var(--color-text-muted);
   flex-shrink: 0;
   min-width: 6rem;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
 }
 
 .viewer-meta-value {
@@ -517,6 +561,8 @@
     border-radius: 0;
     padding-top: env(safe-area-inset-top, 0.75rem);
     padding-bottom: env(safe-area-inset-bottom, 0.75rem);
+    overflow-y: auto;
+    position: relative;
   }
 
   .viewer-header {
@@ -529,11 +575,14 @@
 
   .viewer-content {
     flex-direction: column;
+    flex: none;
+    min-height: 0;
   }
 
   .viewer-body {
-    padding: 0.5rem;
-    flex: 0 1 auto;
+    padding: 0;
+    flex: none;
+    align-items: flex-start;
   }
 
   .viewer-float-actions {
@@ -562,6 +611,7 @@
   .viewer-media {
     width: 100%;
     height: auto;
-    max-height: 65vh;
+    max-height: none;
+    border-radius: 0;
   }
 }

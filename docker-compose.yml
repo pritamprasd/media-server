@@ -24,7 +24,7 @@ services:
       context: .
       dockerfile: backend/Dockerfile
     env_file: ./backend/.env
-    command: celery -A app.tasks.celery worker -Q import_queue -l info --concurrency=1
+    command: sh -c "celery -A app.tasks.celery worker -Q $CELERY_QUEUE_IMPORT -l info --concurrency=1"
     volumes:
       - ${MEDIA_PATH:-/media}:/media:ro
       - /home/pritam/media_server_files:/media_files
@@ -39,7 +39,7 @@ services:
       context: .
       dockerfile: backend/Dockerfile
     env_file: ./backend/.env
-    command: celery -A app.tasks.celery worker -Q metadata -l info --concurrency=1
+    command: sh -c "celery -A app.tasks.celery worker -Q $CELERY_QUEUE_METADATA -l info --concurrency=1"
     volumes:
       - ${MEDIA_PATH:-/media}:/media:ro
       - /home/pritam/media_server_files:/media_files
@@ -54,7 +54,7 @@ services:
       context: .
       dockerfile: backend/Dockerfile
     env_file: ./backend/.env
-    command: celery -A app.tasks.celery worker -Q ai_metadata -l info --concurrency=2
+    command: sh -c "celery -A app.tasks.celery worker -Q $CELERY_QUEUE_AI -l info --concurrency=2"
     volumes:
       - ${MEDIA_PATH:-/media}:/media:ro
       - /home/pritam/media_server_files:/media_files
@@ -69,7 +69,7 @@ services:
       context: .
       dockerfile: backend/Dockerfile
     env_file: ./backend/.env
-    command: celery -A app.tasks.celery worker -Q thumbnail -l info --concurrency=1
+    command: sh -c "celery -A app.tasks.celery worker -Q $CELERY_QUEUE_THUMBNAIL -l info --concurrency=1"
     volumes:
       - ${MEDIA_PATH:-/media}:/media:ro
       - /home/pritam/media_server_files:/media_files

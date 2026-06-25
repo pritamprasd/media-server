@@ -11,6 +11,7 @@ class ImportedDirectory(db.Model):
     path = db.Column(db.Text, nullable=False, default="")
     name = db.Column(db.Text, nullable=False, default="")
     parent_path = db.Column(db.Text, nullable=True)
+    deleted = db.Column(db.Boolean, default=False, nullable=False)
 
     __table_args__ = (db.UniqueConstraint("session_id", "path"),)
 
@@ -21,4 +22,5 @@ class ImportedDirectory(db.Model):
             "path": self.path,
             "name": self.name or "(root)",
             "parent_path": self.parent_path or "",
+            "deleted": self.deleted,
         }
