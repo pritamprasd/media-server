@@ -255,6 +255,25 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete }) {
                     <span className="viewer-meta-value">{meta.search_words}</span>
                   </div>
                 )}
+                {meta.exif && (
+                  <>
+                    <h3 className="viewer-meta-title viewer-meta-title--sub">Exif Data</h3>
+                    {Object.entries(meta.exif)
+                      .filter(([, v]) => {
+                        if (v == null || v === "") return false;
+                        const s = String(v);
+                        if (s.startsWith("b'") || s.startsWith('b"')) return false;
+                        if (s.length > 60) return false;
+                        return true;
+                      })
+                      .map(([k, v]) => (
+                        <div className="viewer-meta-row" key={k}>
+                          <span className="viewer-meta-label">{k}</span>
+                          <span className="viewer-meta-value">{String(v)}</span>
+                        </div>
+                      ))}
+                  </>
+                )}
                 <div className="viewer-meta-row">
                   <span className="viewer-meta-label">Status</span>
                   <span className="viewer-meta-value">{meta.metadata_status}</span>
