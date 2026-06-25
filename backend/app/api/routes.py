@@ -2,6 +2,7 @@ import os
 from datetime import datetime
 
 from flask import current_app, jsonify, request, send_file
+from werkzeug.utils import secure_filename
 
 from app import db
 from app.api import api_bp
@@ -13,6 +14,7 @@ from app.models.imported_file import ImportedFile
 from app.tasks import extract_file_metadata, generate_ai_metadata, generate_thumbnail, process_import_folder
 from app.utility.file_system import traverse_directory
 from app.utility.hash_utility import hamming_distance
+from app.utility.mime_utility import guess_mime
 
 config = get_config()
 
@@ -205,6 +207,20 @@ def list_files():
                 FileMetadata.description.ilike(like),
                 FileMetadata.search_words.ilike(like),
                 ImportedFile.filename.ilike(like),
+            )
+        )
+
+    tag = request.args.get("tag", "").strip().lower()
+    if tag:
+        query = query.filter(FileMetadata.tags.any(tag))
+
+    has_ai = request.args.get("has_ai", type=bool)
+    if has_ai:
+        query = query.filter(
+            db.or_(
+                FileMetadata.tags.isnot(None),
+                FileMetadata.description.isnot(None),
+                FileMetadata.search_words.isnot(None),
             )
         )
 
@@ -507,3 +523,363 @@ def delete_file(file_id):
             pass
 
     return jsonify({"message": "File deleted"}), 200
+
+
+ALLOWED_UPLOAD_MIMES = {
+    "image/jpeg", "image/png", "image/gif", "image/webp",
+    "image/bmp", "image/tiff", "image/avif", "image/heic", "image/heif",
+    "video/mp4", "video/x-matroska", "video/webm",
+    "video/x-msvideo", "video/quicktime", "video/x-flv",
+    "video/x-ms-wmv", "video/ogg",
+}
+
+
+def _get_or_create_upload_session(upload_dir):
+    session = ImportSession.query.filter_by(root_path=upload_dir).first()
+    if session:
+        root_dir = ImportedDirectory.query.filter_by(
+            session_id=session.id, path=""
+        ).first()
+        return session, root_dir
+    session = ImportSession(root_path=upload_dir, mime_groups=["image", "video"])
+    db.session.add(session)
+    db.session.flush()
+    root_dir = ImportedDirectory(
+        session_id=session.id, path="", name="", parent_path=None,
+    )
+    db.session.add(root_dir)
+    db.session.flush()
+    return session, root_dir
+
+
+def _ensure_upload_subdir(session, subdir_path):
+    if not subdir_path:
+        return ImportedDirectory.query.filter_by(
+            session_id=session.id, path=""
+        ).first()
+    parts = subdir_path.strip("/").split("/")
+    parent_path = ""
+    parent_dir = None
+    for i, part in enumerate(parts):
+        current_path = "/".join(parts[:i+1])
+        dir_entry = ImportedDirectory.query.filter_by(
+            session_id=session.id, path=current_path
+        ).first()
+        if not dir_entry:
+            dir_entry = ImportedDirectory(
+                session_id=session.id,
+                path=current_path,
+                name=part,
+                parent_path=parent_path,
+            )
+            db.session.add(dir_entry)
+            db.session.flush()
+        parent_path = current_path
+        parent_dir = dir_entry
+    return parent_dir
+
+
+@api_bp.route("/upload/directories", methods=["GET"])
+def list_upload_dirs():
+    upload_dir = current_app.config["UPLOAD_DIR"]
+    if not os.path.isdir(upload_dir):
+        return jsonify({"directories": []}), 200
+    dirs = []
+    for entry in sorted(os.listdir(upload_dir)):
+        full = os.path.join(upload_dir, entry)
+        if os.path.isdir(full):
+            dirs.append({"name": entry, "path": entry})
+    return jsonify({"directories": dirs}), 200
+
+
+@api_bp.route("/upload/directories", methods=["POST"])
+def create_upload_dir():
+    upload_dir = current_app.config["UPLOAD_DIR"]
+    data = request.get_json(silent=True) or {}
+    path = data.get("path", "").strip().strip("/")
+    if not path:
+        return jsonify({"error": "Path is required"}), 400
+    full = os.path.join(upload_dir, path)
+    try:
+        os.makedirs(full, exist_ok=True)
+    except OSError as e:
+        return jsonify({"error": str(e)}), 500
+    session, root_dir = _get_or_create_upload_session(upload_dir)
+    _ensure_upload_subdir(session, path)
+    db.session.commit()
+    return jsonify({"path": path, "message": "Directory created"}), 201
+
+
+@api_bp.route("/upload", methods=["POST"])
+def upload_files():
+    upload_dir = current_app.config["UPLOAD_DIR"]
+    subdir = request.form.get("directory", "").strip().strip("/")
+    nickname = request.form.get("nickname", "").strip()
+    if not nickname:
+        return jsonify({"error": "nickname is required"}), 400
+
+    files = request.files.getlist("files")
+    if not files:
+        return jsonify({"error": "No files provided"}), 400
+
+    target_dir = os.path.join(upload_dir, subdir) if subdir else upload_dir
+    os.makedirs(target_dir, exist_ok=True)
+
+    session, root_dir = _get_or_create_upload_session(upload_dir)
+    parent_dir = _ensure_upload_subdir(session, subdir) if subdir else root_dir
+
+    saved = []
+    errors = []
+
+    for f in files:
+        if not f.filename:
+            continue
+        safe = secure_filename(f.filename)
+        if not safe:
+            safe = f.filename
+
+        save_path = os.path.join(target_dir, safe)
+        f.save(save_path)
+
+        mime = guess_mime(save_path)
+        if mime not in ALLOWED_UPLOAD_MIMES:
+            try:
+                os.remove(save_path)
+            except OSError:
+                pass
+            errors.append({"filename": safe, "error": f"Unsupported mime type: {mime}"})
+            continue
+
+        stat = os.stat(save_path)
+        rel_path = os.path.join(subdir, safe) if subdir else safe
+
+        file_record = ImportedFile(
+            session_id=session.id,
+            directory_id=parent_dir.id,
+            filename=safe,
+            file_path=save_path,
+            relative_path=rel_path,
+            mime_type=mime,
+            nickname=nickname,
+            size=stat.st_size,
+            modified=datetime.fromtimestamp(stat.st_mtime),
+        )
+        db.session.add(file_record)
+        db.session.flush()
+
+        session.total_files = (session.total_files or 0) + 1
+        db.session.commit()
+
+        file_info = {
+            "id": file_record.id,
+            "session_id": file_record.session_id,
+            "directory_id": file_record.directory_id,
+            "filename": file_record.filename,
+            "file_path": file_record.file_path,
+            "relative_path": file_record.relative_path,
+            "mime_type": file_record.mime_type,
+            "size": file_record.size,
+            "modified": file_record.modified.isoformat(),
+        }
+
+        extract_file_metadata.delay(file_info)
+        generate_ai_metadata.delay(file_info)
+        generate_thumbnail.delay(file_info)
+
+        saved.append(file_record.to_dict())
+
+    return jsonify({"saved": saved, "errors": errors}), 201
+
+
+@api_bp.route("/upload/nicknames", methods=["GET"])
+def list_nicknames():
+    rows = (
+        db.session.query(ImportedFile.nickname)
+        .filter(ImportedFile.nickname.isnot(None), ImportedFile.nickname != "")
+        .distinct()
+        .order_by(ImportedFile.nickname)
+        .all()
+    )
+    return jsonify({"nicknames": [r[0] for r in rows]}), 200
+
+
+@api_bp.route("/tags", methods=["GET"])
+def list_all_tags():
+    metas = FileMetadata.query.filter(
+        FileMetadata.tags.isnot(None),
+        FileMetadata.tags != "[]",
+    ).with_entities(FileMetadata.tags).all()
+    all_tags = set()
+    for (tags,) in metas:
+        if tags and isinstance(tags, list):
+            for t in tags:
+                t = t.strip().lower()
+                if t:
+                    all_tags.add(t)
+    return jsonify({"tags": sorted(all_tags)}), 200
+
+
+@api_bp.route("/stats", methods=["GET"])
+def get_statistics():
+    total_files = ImportedFile.query.count()
+    total_favorites = ImportedFile.query.filter_by(is_favorite=True).count()
+    total_metadata = FileMetadata.query.count()
+
+    image_count = ImportedFile.query.filter(
+        ImportedFile.mime_type.like("image/%")
+    ).count()
+    video_count = ImportedFile.query.filter(
+        ImportedFile.mime_type.like("video/%")
+    ).count()
+
+    total_size = db.session.query(db.func.sum(ImportedFile.size)).scalar() or 0
+
+    statuses = (
+        db.session.query(
+            FileMetadata.metadata_status, db.func.count(FileMetadata.id)
+        )
+        .group_by(FileMetadata.metadata_status)
+        .all()
+    )
+
+    thumbnail_statuses = (
+        db.session.query(
+            FileMetadata.thumbnail_status, db.func.count(FileMetadata.id)
+        )
+        .group_by(FileMetadata.thumbnail_status)
+        .all()
+    )
+
+    date_counts = (
+        db.session.query(
+            db.func.date(ImportedFile.created_at).label("date"),
+            ImportedFile.mime_type,
+            db.func.count(ImportedFile.id),
+        )
+        .filter(ImportedFile.created_at.isnot(None))
+        .group_by(db.func.date(ImportedFile.created_at), ImportedFile.mime_type)
+        .order_by(db.func.date(ImportedFile.created_at).desc())
+        .all()
+    )
+
+    date_rows = {}
+    for d, mt, cnt in date_counts:
+        d_str = str(d)
+        if d_str not in date_rows:
+            date_rows[d_str] = {"date": d_str, "image": 0, "video": 0}
+        if mt and mt.startswith("image/"):
+            date_rows[d_str]["image"] += cnt
+        elif mt and mt.startswith("video/"):
+            date_rows[d_str]["video"] += cnt
+        else:
+            date_rows[d_str]["other"] = date_rows[d_str].get("other", 0) + cnt
+    files_by_date = list(date_rows.values())
+    files_by_date.sort(key=lambda x: x["date"])
+
+    tags_raw = []
+    all_metas = FileMetadata.query.filter(
+        FileMetadata.tags.isnot(None)
+    ).with_entities(FileMetadata.tags).all()
+    for (tags,) in all_metas:
+        if tags and isinstance(tags, list):
+            tags_raw.extend(tags)
+
+    tag_freq = {}
+    for t in tags_raw:
+        t = t.strip().lower()
+        if t:
+            tag_freq[t] = tag_freq.get(t, 0) + 1
+    top_tags = sorted(tag_freq.items(), key=lambda x: -x[1])[:20]
+
+    files_with_gps = FileMetadata.query.filter(
+        FileMetadata.latitude.isnot(None),
+        FileMetadata.longitude.isnot(None),
+    ).count()
+
+    files_with_description = FileMetadata.query.filter(
+        FileMetadata.description.isnot(None),
+        FileMetadata.description != "",
+    ).count()
+
+    files_with_nickname = ImportedFile.query.filter(
+        ImportedFile.nickname.isnot(None),
+        ImportedFile.nickname != "",
+    ).count()
+
+    mime_detail = (
+        db.session.query(
+            ImportedFile.mime_type, db.func.count(ImportedFile.id)
+        )
+        .group_by(ImportedFile.mime_type)
+        .order_by(db.func.count(ImportedFile.id).desc())
+        .all()
+    )
+
+    tag_count_dist = {}
+    for (tags,) in all_metas:
+        cnt = len(tags) if tags else 0
+        tag_count_dist[cnt] = tag_count_dist.get(cnt, 0) + 1
+    tag_count_buckets = sorted(tag_count_dist.items())
+
+    dim_ranges = {"< 1 MP": 0, "1-5 MP": 0, "5-10 MP": 0, "10+ MP": 0, "unknown": 0}
+    dim_metas = FileMetadata.query.with_entities(
+        FileMetadata.width, FileMetadata.height
+    ).all()
+    for w, h in dim_metas:
+        if w and h:
+            mp = (w * h) / 1_000_000
+            if mp < 1:
+                dim_ranges["< 1 MP"] += 1
+            elif mp < 5:
+                dim_ranges["1-5 MP"] += 1
+            elif mp < 10:
+                dim_ranges["5-10 MP"] += 1
+            else:
+                dim_ranges["10+ MP"] += 1
+        else:
+            dim_ranges["unknown"] += 1
+
+    def fmt(s):
+        if s < 1024:
+            return f"{s} B"
+        if s < 1048576:
+            return f"{s / 1024:.1f} KB"
+        if s < 1073741824:
+            return f"{s / 1048576:.1f} MB"
+        return f"{s / 1073741824:.2f} GB"
+
+    return jsonify({
+        "overview": {
+            "total_files": total_files,
+            "total_favorites": total_favorites,
+            "total_metadata": total_metadata,
+            "total_size": total_size,
+            "total_size_formatted": fmt(total_size),
+        },
+        "mime_breakdown": {
+            "image": image_count,
+            "video": video_count,
+        },
+        "mime_detail": [
+            {"mime": m, "count": c} for m, c in mime_detail
+        ],
+        "metadata_status": [
+            {"status": s, "count": c} for s, c in statuses
+        ],
+        "thumbnail_status": [
+            {"status": s, "count": c} for s, c in thumbnail_statuses
+        ],
+        "files_by_date": files_by_date,
+        "top_tags": [
+            {"tag": t, "count": c} for t, c in top_tags
+        ],
+        "tag_count_distribution": [
+            {"tag_count": k, "file_count": v} for k, v in tag_count_buckets
+        ],
+        "dimension_ranges": dim_ranges,
+        "coverage": {
+            "files_with_gps": files_with_gps,
+            "files_with_description": files_with_description,
+            "files_with_nickname": files_with_nickname,
+        },
+    })

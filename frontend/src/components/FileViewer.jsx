@@ -183,6 +183,9 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete }) {
           ) : (
             <>
               <span className="viewer-filename">{file.filename}</span>
+              {file.relative_path && file.relative_path !== file.filename && (
+                <span className="viewer-filepath">{file.relative_path}</span>
+              )}
               <div className="viewer-actions">
                 {!isVideo && (
                   <button className="viewer-btn viewer-btn--edit" onClick={() => setEditMode(true)} title="Edit image">

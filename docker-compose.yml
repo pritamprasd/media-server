@@ -54,7 +54,7 @@ services:
       context: .
       dockerfile: backend/Dockerfile
     env_file: ./backend/.env
-    command: celery -A app.tasks.celery worker -Q ai_metadata -l info --concurrency=1
+    command: celery -A app.tasks.celery worker -Q ai_metadata -l info --concurrency=2
     volumes:
       - ${MEDIA_PATH:-/media}:/media:ro
       - /home/pritam/media_server_files:/media_files

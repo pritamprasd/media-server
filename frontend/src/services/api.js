@@ -75,6 +75,8 @@ export async function listFiles(page = 1, perPage = 50, filters = {}, signal) {
   if (filters.directoryId) params.directory_id = filters.directoryId;
   if (filters.minWidth != null) params.min_width = filters.minWidth;
   if (filters.minHeight != null) params.min_height = filters.minHeight;
+  if (filters.hasAi) params.has_ai = true;
+  if (filters.tag) params.tag = filters.tag;
   const { data } = await client.get("/files", { params, signal });
   return data;
 }
@@ -93,6 +95,44 @@ export async function deleteFile(fileId, deleteStorage = false) {
   const { data } = await client.delete(`/files/${fileId}`, {
     data: { delete_storage: deleteStorage },
   });
+  return data;
+}
+
+export async function uploadFiles(files, nickname, directory, onProgress) {
+  const form = new FormData();
+  for (const f of files) form.append("files", f);
+  form.append("nickname", nickname);
+  if (directory) form.append("directory", directory);
+  const { data } = await client.post("/upload", form, {
+    headers: { "Content-Type": "multipart/form-data" },
+    onUploadProgress: onProgress,
+    timeout: 300000,
+  });
+  return data;
+}
+
+export async function listUploadDirs() {
+  const { data } = await client.get("/upload/directories");
+  return data;
+}
+
+export async function createUploadDir(path) {
+  const { data } = await client.post("/upload/directories", { path });
+  return data;
+}
+
+export async function getStats() {
+  const { data } = await client.get("/stats");
+  return data;
+}
+
+export async function listNicknames() {
+  const { data } = await client.get("/upload/nicknames");
+  return data;
+}
+
+export async function listTags() {
+  const { data } = await client.get("/tags");
   return data;
 }
 

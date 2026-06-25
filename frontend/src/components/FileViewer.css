@@ -39,6 +39,17 @@
   padding-right: 1rem;
 }
 
+.viewer-filepath {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  word-break: break-all;
+  padding-right: 1rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 300px;
+}
+
 .viewer-actions {
   display: flex;
   align-items: center;

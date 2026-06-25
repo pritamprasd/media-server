@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
-import { listFiles, listDirectories, toggleFavorite as toggleFavApi } from "../services/api";
+import { listFiles, listDirectories, toggleFavorite as toggleFavApi, listTags } from "../services/api";
 import FileViewer from "../components/FileViewer";
 import "./Home.css";
 
@@ -84,6 +84,10 @@ function Home() {
   const [dirDialogOpen, setDirDialogOpen] = useState(false);
   const [minWidth, setMinWidth] = useState(null);
   const [minHeight, setMinHeight] = useState(null);
+  const [hasAi, setHasAi] = useState(false);
+  const [tag, setTag] = useState("");
+  const [allTags, setAllTags] = useState([]);
+  const [totalCount, setTotalCount] = useState(0);
   const sentinelRef = useRef(null);
   const searchTimeout = useRef(null);
   const hasMoreRef = useRef(hasMore);
@@ -132,6 +136,9 @@ function Home() {
     listDirectories()
       .then(setDirectories)
       .catch(() => {});
+    listTags()
+      .then((d) => setAllTags(d.tags || []))
+      .catch(() => {});
   }, []);
 
   const dimPresets = [
@@ -147,7 +154,7 @@ function Home() {
     setMinHeight(preset.h);
   };
 
-  const fetchPage = useCallback(async (p, mime, q, dirId, minW, minH, signal) => {
+  const fetchPage = useCallback(async (p, mime, q, dirId, minW, minH, ai, tg, signal) => {
     setLoading(true);
     const filters = {};
     if (mime) filters.mimeGroup = mime;
@@ -155,12 +162,15 @@ function Home() {
     if (dirId != null) filters.directoryId = dirId;
     if (minW != null) filters.minWidth = minW;
     if (minH != null) filters.minHeight = minH;
+    if (ai) filters.hasAi = true;
+    if (tg) filters.tag = tg;
     try {
       const data = await listFiles(p, 50, filters, signal);
       if (signal?.aborted) return;
       loadedOnceRef.current = true;
       setFiles((prev) => (p === 1 ? data.files : [...prev, ...data.files]));
       setHasMore(p < data.pages);
+      if (p === 1) setTotalCount(data.total);
     } catch {
     } finally {
       setLoading(false);
@@ -177,18 +187,18 @@ function Home() {
     setHasMore(true);
     setInitialLoading(true);
     loadedOnceRef.current = false;
-    fetchPage(1, mimeGroup, searchQuery, directoryId, minWidth, minHeight, controller.signal);
+    fetchPage(1, mimeGroup, searchQuery, directoryId, minWidth, minHeight, hasAi, tag, controller.signal);
     return () => controller.abort();
-  }, [mimeGroup, searchQuery, directoryId, minWidth, minHeight]);
+  }, [mimeGroup, searchQuery, directoryId, minWidth, minHeight, hasAi, tag]);
 
   useEffect(() => {
     if (page === 1) return;
     if (abortRef.current) abortRef.current.abort();
     const controller = new AbortController();
     abortRef.current = controller;
-    fetchPage(page, mimeGroup, searchQuery, directoryId, minWidth, minHeight, controller.signal);
+    fetchPage(page, mimeGroup, searchQuery, directoryId, minWidth, minHeight, hasAi, tag, controller.signal);
     return () => controller.abort();
-  }, [page, mimeGroup, searchQuery, directoryId, minWidth, minHeight]);
+  }, [page, mimeGroup, searchQuery, directoryId, minWidth, minHeight, hasAi, tag]);
 
   useEffect(() => {
     const el = sentinelRef.current;
@@ -242,6 +252,13 @@ function Home() {
               </div>
             )}
 
+            {totalCount > 0 && (
+              <div className="home__count">
+                {totalCount} file{totalCount !== 1 ? "s" : ""}
+                {mimeGroup || directoryId || searchQuery || minWidth || minHeight || hasAi || tag ? " filtered" : ""}
+              </div>
+            )}
+
             <div className="home__filters">
               <input
                 className="home__search"
@@ -260,6 +277,13 @@ function Home() {
                     {g === "" ? "All" : g === "image" ? "Images" : "Videos"}
                   </button>
                 ))}
+                <button
+                  className={`home__mime-btn ${hasAi ? "home__mime-btn--active" : ""}`}
+                  onClick={() => setHasAi((p) => !p)}
+                  title="Only media with AI-generated tags, description, or search words"
+                >
+                  {hasAi ? "✦ AI" : "AI"}
+                </button>
               </div>
             </div>
 
@@ -279,6 +303,34 @@ function Home() {
                 ))}
               </div>
             </div>
+
+            <div className="home__tag-filter">
+              <select
+                className="home__tag-select"
+                value={tag}
+                onChange={(e) => setTag(e.target.value)}
+              >
+                <option value="">All tags</option>
+                {allTags.map((t) => (
+                  <option key={t} value={t}>{t}</option>
+                ))}
+              </select>
+            </div>
+
+            {mimeGroup || searchQuery || directoryId || minWidth || minHeight || hasAi || tag ? (
+              <button className="home__clear-btn" onClick={() => {
+                setMimeGroup("");
+                setSearchInput("");
+                setSearchQuery("");
+                setDirectoryId(null);
+                setMinWidth(null);
+                setMinHeight(null);
+                setHasAi(false);
+                setTag("");
+              }}>
+                Clear filters
+              </button>
+            ) : null}
           </header>
 
           {initialLoading && (
