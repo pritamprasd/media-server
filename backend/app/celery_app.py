@@ -17,8 +17,10 @@ celery.conf.update(
         "metadata": {},
         "ai_metadata": {},
         "thumbnail": {},
+        "import_queue": {},
     },
     task_routes={
+        "app.tasks.process_import_folder": {"queue": "import_queue"},
         "app.tasks.extract_file_metadata": {"queue": "metadata"},
         "app.tasks.generate_ai_metadata": {"queue": "ai_metadata"},
         "app.tasks.generate_thumbnail": {"queue": "thumbnail"},

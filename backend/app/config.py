@@ -21,6 +21,7 @@ class Config:
         "EDITED_IMAGES_DIR",
         os.path.join(os.path.expanduser("~"), "media-server-edited"),
     )
+    IMPORT_DEFAULT_PATH = os.environ.get("IMPORT_DEFAULT_PATH", "~")
 
 
 class DevelopmentConfig(Config):

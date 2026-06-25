@@ -1,64 +1,19 @@
 import os
-import mimetypes
 from datetime import datetime
 
 from flask import current_app, jsonify, request, send_file
 
 from app import db
 from app.api import api_bp
+from app.config import get_config
+from app.models.file_metadata import FileMetadata
 from app.models.import_session import ImportSession
 from app.models.imported_directory import ImportedDirectory
 from app.models.imported_file import ImportedFile
-from app.models.file_metadata import FileMetadata
-from app.tasks import extract_file_metadata, generate_ai_metadata, generate_thumbnail
+from app.tasks import extract_file_metadata, generate_ai_metadata, generate_thumbnail, process_import_folder
+from app.utility.file_system import traverse_directory
 
-MIME_GROUPS = {
-    "image": [
-        "image/jpeg", "image/png", "image/gif", "image/webp",
-        "image/bmp", "image/tiff", "image/svg+xml", "image/avif",
-    ],
-    "video": [
-        "video/mp4", "video/x-matroska", "video/webm",
-        "video/x-msvideo", "video/quicktime", "video/x-flv",
-        "video/x-ms-wmv", "video/ogg",
-    ],
-}
-
-EXT_TO_MIME = {
-    ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
-    ".png": "image/png",
-    ".gif": "image/gif",
-    ".webp": "image/webp",
-    ".bmp": "image/bmp",
-    ".tiff": "image/tiff", ".tif": "image/tiff",
-    ".svg": "image/svg+xml",
-    ".avif": "image/avif",
-    ".mp4": "video/mp4", ".m4v": "video/mp4",
-    ".mkv": "video/x-matroska",
-    ".webm": "video/webm",
-    ".avi": "video/x-msvideo",
-    ".mov": "video/quicktime",
-    ".flv": "video/x-flv",
-    ".wmv": "video/x-ms-wmv",
-    ".ogv": "video/ogg",
-}
-
-
-def guess_mime(filename):
-    ext = os.path.splitext(filename)[1].lower()
-    mime = EXT_TO_MIME.get(ext)
-    if mime:
-        return mime
-    guessed = mimetypes.guess_type(filename)[0]
-    return guessed or "application/octet-stream"
-
-
-def expand_mime_groups(groups):
-    types = set()
-    for g in groups:
-        types.update(MIME_GROUPS.get(g, []))
-    return types
-
+config = get_config()
 
 @api_bp.route("/status", methods=["GET"])
 def status():
@@ -86,33 +41,11 @@ def list_directories():
 def browse_fs():
     path = request.args.get("path", "").strip()
     if not path:
-        path = os.path.expanduser("~")
+        path = os.path.expanduser(config.IMPORT_DEFAULT_PATH)
     path = os.path.normpath(path)
     if not os.path.isdir(path):
         return jsonify({"error": "Directory not found"}), 404
-
-    try:
-        entries = sorted(os.listdir(path))
-    except PermissionError:
-        return jsonify({"error": "Permission denied"}), 403
-
-    dirs = []
-    files = []
-    for entry in entries:
-        if entry.startswith("."):
-            continue
-        full = os.path.join(path, entry)
-        if os.path.isdir(full):
-            dirs.append({"name": entry, "path": full})
-        else:
-            mime = guess_mime(entry)
-            if mime:
-                files.append({"name": entry, "path": full, "mime_type": mime})
-
-    parent = os.path.dirname(path)
-    if not parent:
-        parent = None
-
+    dirs, files, parent = traverse_directory(path)
     return jsonify({
         "path": path,
         "parent": parent,
@@ -134,134 +67,10 @@ def import_folder():
     if not os.path.isdir(folder_path):
         return jsonify({"error": f"Directory not found: {folder_path}"}), 404
 
-    allowed_mimes = expand_mime_groups(groups)
-
-    session = ImportSession.query.filter_by(root_path=folder_path).first()
-    if session:
-        root_dir = ImportedDirectory.query.filter_by(
-            session_id=session.id, path=""
-        ).first()
-        seen_dirs = set()
-        seen_files = set()
-    else:
-        session = ImportSession(
-            root_path=folder_path,
-            mime_groups=groups,
-        )
-        db.session.add(session)
-        db.session.flush()
-
-        root_dir = ImportedDirectory(
-            session_id=session.id,
-            path="",
-            name="",
-            parent_path=None,
-        )
-        db.session.add(root_dir)
-        seen_dirs = seen_files = None
-
-    db.session.flush()
-    dir_map = {"": root_dir.id if root_dir else None}
-    file_count = 0
-    file_infos = []
-
-    for root, dirs, filenames in os.walk(folder_path):
-        rel_root = os.path.relpath(root, folder_path)
-        if rel_root == ".":
-            rel_root = ""
-
-        for d in dirs:
-            child_rel = os.path.join(rel_root, d) if rel_root else d
-            parent_rel = rel_root
-            dir_entry = ImportedDirectory.query.filter_by(
-                session_id=session.id, path=child_rel
-            ).first()
-            if dir_entry:
-                dir_entry.name = d
-                dir_entry.parent_path = parent_rel
-            else:
-                dir_entry = ImportedDirectory(
-                    session_id=session.id,
-                    path=child_rel,
-                    name=d,
-                    parent_path=parent_rel,
-                )
-                db.session.add(dir_entry)
-            db.session.flush()
-            dir_map[child_rel] = dir_entry.id
-            if seen_dirs is not None:
-                seen_dirs.add(child_rel)
-
-        for filename in filenames:
-            full_path = os.path.join(root, filename)
-            mime = guess_mime(filename)
-            if mime not in allowed_mimes:
-                continue
-
-            rel_path = os.path.join(rel_root, filename) if rel_root else filename
-            stat = os.stat(full_path)
-
-            f = ImportedFile.query.filter_by(
-                session_id=session.id, file_path=full_path
-            ).first()
-            if f:
-                f.directory_id = dir_map.get(rel_root, root_dir.id)
-                f.filename = filename
-                f.relative_path = rel_path
-                f.mime_type = mime
-                f.size = stat.st_size
-                f.modified = datetime.fromtimestamp(stat.st_mtime)
-            else:
-                f = ImportedFile(
-                    session_id=session.id,
-                    directory_id=dir_map.get(rel_root, root_dir.id),
-                    filename=filename,
-                    file_path=full_path,
-                    relative_path=rel_path,
-                    mime_type=mime,
-                    size=stat.st_size,
-                    modified=datetime.fromtimestamp(stat.st_mtime),
-                )
-                db.session.add(f)
-            file_count += 1
-            if seen_files is not None:
-                seen_files.add(full_path)
-
-            db.session.flush()
-            file_infos.append({
-                "id": f.id,
-                "session_id": f.session_id,
-                "directory_id": f.directory_id,
-                "filename": f.filename,
-                "file_path": f.file_path,
-                "relative_path": f.relative_path,
-                "mime_type": f.mime_type,
-                "size": f.size,
-                "modified": f.modified.isoformat(),
-            })
-
-    session.mime_groups = groups
-    session.total_files = file_count
-    if seen_dirs is not None and seen_files is not None:
-        ImportedDirectory.query.filter(
-            ImportedDirectory.session_id == session.id,
-            ImportedDirectory.path != "",
-            ~ImportedDirectory.path.in_(seen_dirs),
-        ).delete(synchronize_session="fetch")
-        ImportedFile.query.filter(
-            ImportedFile.session_id == session.id,
-            ~ImportedFile.file_path.in_(seen_files),
-        ).delete(synchronize_session="fetch")
-    db.session.commit()
-
-    for file_info in file_infos:
-        extract_file_metadata.delay(file_info)
-        generate_thumbnail.delay(file_info)
-        generate_ai_metadata.delay(file_info)
-
+    process_import_folder.delay(folder_path, groups)
     return jsonify({
-        "session": session.to_dict(),
-        "message": f"Import completed. {file_count} file(s) imported.",
+        "session": "",
+        "message": f"Import initiated"
     }), 201
 
 
@@ -414,7 +223,6 @@ def get_file_thumbnail(file_id):
     meta = FileMetadata.query.filter_by(file_id=file_id).first()
     if not meta or not meta.thumbnail:
         return jsonify({"error": "Thumbnail not available"}), 404
-    import base64
     header, _, b64data = meta.thumbnail.partition(",")
     return jsonify({
         "thumbnail": meta.thumbnail,

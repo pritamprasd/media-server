@@ -112,6 +112,7 @@ Celery processes background tasks (metadata extraction, AI tagging, thumbnails).
 
 | Queue          | Task                         | Concurrency |
 | -------------- | ---------------------------- | ----------- |
+| `import_queue` | `process_import_folder`      | 1           |
 | `metadata`     | `extract_file_metadata`      | 4           |
 | `ai_metadata`  | `generate_ai_metadata`       | 2           |
 | `thumbnail`    | `generate_thumbnail`         | 3           |
@@ -122,6 +123,7 @@ Start separate workers per queue:
 cd backend
 source .venv/bin/activate
 
+celery -A app.tasks.celery worker -Q import_queue -l info --concurrency=1
 celery -A app.tasks.celery worker -Q metadata -l info --concurrency=10
 celery -A app.tasks.celery worker -Q ai_metadata -l info --concurrency=2
 celery -A app.tasks.celery worker -Q thumbnail -l info --concurrency=10
