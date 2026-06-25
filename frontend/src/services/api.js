@@ -63,6 +63,8 @@ export async function listFiles(page = 1, perPage = 50, filters = {}, signal) {
   if (filters.mimeGroup) params.mime_group = filters.mimeGroup;
   if (filters.q) params.q = filters.q;
   if (filters.directoryId) params.directory_id = filters.directoryId;
+  if (filters.minWidth != null) params.min_width = filters.minWidth;
+  if (filters.minHeight != null) params.min_height = filters.minHeight;
   const { data } = await client.get("/files", { params, signal });
   return data;
 }

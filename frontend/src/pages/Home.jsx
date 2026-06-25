@@ -82,6 +82,8 @@ function Home() {
   const [directories, setDirectories] = useState([]);
   const [directoryId, setDirectoryId] = useState(null);
   const [dirDialogOpen, setDirDialogOpen] = useState(false);
+  const [minWidth, setMinWidth] = useState(null);
+  const [minHeight, setMinHeight] = useState(null);
   const sentinelRef = useRef(null);
   const searchTimeout = useRef(null);
   const hasMoreRef = useRef(hasMore);
@@ -132,12 +134,27 @@ function Home() {
       .catch(() => {});
   }, []);
 
-  const fetchPage = useCallback(async (p, mime, q, dirId, signal) => {
+  const dimPresets = [
+    { label: "None", w: null, h: null },
+    { label: "VGA 640×480", w: 640, h: 480 },
+    { label: "HD 1280×720", w: 1280, h: 720 },
+    { label: "Full HD 1920×1080", w: 1920, h: 1080 },
+    { label: "4K 3840×2160", w: 3840, h: 2160 },
+  ];
+
+  const handleDimPreset = (preset) => {
+    setMinWidth(preset.w);
+    setMinHeight(preset.h);
+  };
+
+  const fetchPage = useCallback(async (p, mime, q, dirId, minW, minH, signal) => {
     setLoading(true);
     const filters = {};
     if (mime) filters.mimeGroup = mime;
     if (q) filters.q = q;
     if (dirId != null) filters.directoryId = dirId;
+    if (minW != null) filters.minWidth = minW;
+    if (minH != null) filters.minHeight = minH;
     try {
       const data = await listFiles(p, 50, filters, signal);
       if (signal?.aborted) return;
@@ -160,18 +177,18 @@ function Home() {
     setHasMore(true);
     setInitialLoading(true);
     loadedOnceRef.current = false;
-    fetchPage(1, mimeGroup, searchQuery, directoryId, controller.signal);
+    fetchPage(1, mimeGroup, searchQuery, directoryId, minWidth, minHeight, controller.signal);
     return () => controller.abort();
-  }, [mimeGroup, searchQuery, directoryId]);
+  }, [mimeGroup, searchQuery, directoryId, minWidth, minHeight]);
 
   useEffect(() => {
     if (page === 1) return;
     if (abortRef.current) abortRef.current.abort();
     const controller = new AbortController();
     abortRef.current = controller;
-    fetchPage(page, mimeGroup, searchQuery, directoryId, controller.signal);
+    fetchPage(page, mimeGroup, searchQuery, directoryId, minWidth, minHeight, controller.signal);
     return () => controller.abort();
-  }, [page, mimeGroup, searchQuery, directoryId]);
+  }, [page, mimeGroup, searchQuery, directoryId, minWidth, minHeight]);
 
   useEffect(() => {
     const el = sentinelRef.current;
@@ -215,9 +232,6 @@ function Home() {
       <div className="home__layout">
         <div className="home__main">
           <header className="home__header">
-            <h1>Media Server</h1>
-            <p className="home__subtitle">Your personal media hub</p>
-
             {directories.length > 0 && (
               <div className="home__dir-bar">
                 <button className="home__dir-trigger" onClick={() => setDirDialogOpen(true)}>
@@ -244,6 +258,23 @@ function Home() {
                     onClick={() => setMimeGroup(g)}
                   >
                     {g === "" ? "All" : g === "image" ? "Images" : "Videos"}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="home__dim-filters">
+              <span className="home__dim-label">
+                {mimeGroup === "video" ? "Min resolution:" : "Min dimension:"}
+              </span>
+              <div className="home__dim-presets">
+                {dimPresets.map((p) => (
+                  <button
+                    key={p.label}
+                    className={`home__dim-btn ${minWidth === p.w && minHeight === p.h ? "home__dim-btn--active" : ""}`}
+                    onClick={() => handleDimPreset(p)}
+                  >
+                    {p.label}
                   </button>
                 ))}
               </div>

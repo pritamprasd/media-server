@@ -17,18 +17,19 @@
 }
 
 .importer__input {
-  padding: 0.625rem 0.75rem;
-  border: 1px solid var(--color-secondary);
+  padding: 0.625rem 0.875rem;
+  border: none;
   border-radius: var(--radius);
   background: var(--color-surface);
   color: var(--color-text);
   font-size: 0.875rem;
   outline: none;
-  transition: border-color 0.2s;
+  box-shadow: var(--neu-inset);
+  transition: box-shadow 0.2s;
 }
 
 .importer__input:focus {
-  border-color: var(--color-primary);
+  box-shadow: var(--neu-inset), 0 0 0 2px var(--color-primary);
 }
 
 .importer__input::placeholder {
@@ -36,26 +37,32 @@
 }
 
 .importer__browse-toggle {
-  padding: 0.5rem 0.75rem;
-  border: 1px solid var(--color-secondary);
+  padding: 0.5rem 0.85rem;
+  border: none;
   border-radius: var(--radius);
   background: var(--color-surface);
   color: var(--color-text);
   font-size: 0.8125rem;
   cursor: pointer;
-  transition: background 0.15s;
+  box-shadow: var(--neu-raised-sm);
+  transition: all 0.15s;
   align-self: flex-start;
 }
 
 .importer__browse-toggle:hover {
-  background: var(--color-secondary);
+  box-shadow: var(--neu-flat);
+  color: var(--color-primary);
+}
+
+.importer__browse-toggle:active {
+  box-shadow: var(--neu-inset-sm);
 }
 
 .importer__browser {
-  border: 1px solid var(--color-secondary);
   border-radius: var(--radius);
   background: var(--color-surface);
   overflow: hidden;
+  box-shadow: var(--neu-raised-sm);
 }
 
 .importer__browse-header {
@@ -63,44 +70,55 @@
   align-items: center;
   gap: 0.5rem;
   padding: 0.5rem 0.75rem;
-  border-bottom: 1px solid var(--color-secondary);
-  background: var(--color-bg);
+  box-shadow: 0 1px 0 var(--neu-dark);
 }
 
 .importer__browse-use {
   flex-shrink: 0;
-  padding: 0.125rem 0.5rem;
-  border: 1px solid var(--color-primary);
-  border-radius: 4px;
-  background: none;
+  padding: 0.25rem 0.5rem;
+  border: none;
+  border-radius: 6px;
+  background: var(--color-surface);
   color: var(--color-primary);
   font-size: 0.75rem;
   font-weight: 600;
   cursor: pointer;
-  transition: background 0.15s, color 0.15s;
+  box-shadow: var(--neu-raised-sm);
+  transition: all 0.15s;
   line-height: 1.5;
 }
 
 .importer__browse-use:hover {
-  background: var(--color-primary);
-  color: #fff;
+  box-shadow: var(--neu-inset-sm);
+  color: var(--color-primary);
 }
 
 .importer__browse-up {
-  padding: 0.125rem 0.5rem;
-  border: 1px solid var(--color-secondary);
-  border-radius: 4px;
-  background: none;
+  padding: 0.25rem 0.5rem;
+  border: none;
+  border-radius: 6px;
+  background: var(--color-surface);
   color: var(--color-text);
   font-size: 1rem;
   cursor: pointer;
   flex-shrink: 0;
   line-height: 1.4;
+  box-shadow: var(--neu-raised-sm);
+  transition: all 0.15s;
+}
+
+.importer__browse-up:hover:not(:disabled) {
+  box-shadow: var(--neu-flat);
+}
+
+.importer__browse-up:active:not(:disabled) {
+  box-shadow: var(--neu-inset-sm);
 }
 
 .importer__browse-up:disabled {
   opacity: 0.3;
   cursor: default;
+  box-shadow: none;
 }
 
 .importer__browse-path {
@@ -116,7 +134,7 @@
 }
 
 .importer__browse-section + .importer__browse-section {
-  border-top: 1px solid var(--color-secondary);
+  box-shadow: 0 -1px 0 var(--neu-dark);
 }
 
 .importer__browse-label {
@@ -133,6 +151,9 @@
   align-items: center;
   gap: 0.375rem;
   padding: 0.25rem 0.5rem 0.25rem 0.75rem;
+  border-radius: 4px;
+  margin: 0 0.25rem;
+  transition: background 0.1s;
 }
 
 .importer__browse-row:hover {
@@ -175,32 +196,37 @@
 
 .importer__browse-copy {
   flex-shrink: 0;
-  width: 22px;
-  height: 22px;
-  border: 1px solid var(--color-secondary);
-  border-radius: 4px;
-  background: none;
+  width: 26px;
+  height: 26px;
+  border: none;
+  border-radius: 6px;
+  background: var(--color-surface);
   font-size: 0.75rem;
   line-height: 1;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: background 0.15s;
+  box-shadow: var(--neu-flat);
+  transition: all 0.15s;
   padding: 0;
 }
 
 .importer__browse-copy:hover {
-  background: var(--color-secondary);
+  box-shadow: var(--neu-raised-sm);
+}
+
+.importer__browse-copy:active {
+  box-shadow: var(--neu-inset-sm);
 }
 
 .importer__browse-pick {
   flex-shrink: 0;
-  width: 22px;
-  height: 22px;
-  border: 1px solid var(--color-primary);
-  border-radius: 4px;
-  background: none;
+  width: 26px;
+  height: 26px;
+  border: none;
+  border-radius: 6px;
+  background: var(--color-surface);
   color: var(--color-primary);
   font-size: 1rem;
   line-height: 1;
@@ -208,12 +234,12 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: background 0.15s, color 0.15s;
+  box-shadow: var(--neu-raised-sm);
+  transition: all 0.15s;
 }
 
 .importer__browse-pick:hover {
-  background: var(--color-primary);
-  color: #fff;
+  box-shadow: var(--neu-inset-sm);
 }
 
 .importer__browse-loading,
@@ -235,19 +261,21 @@
 .importer__browse-file {
   font-size: 0.6875rem;
   color: var(--color-text-muted);
-  background: var(--color-bg);
+  background: var(--color-surface);
   padding: 0.125rem 0.375rem;
-  border-radius: 3px;
+  border-radius: 4px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   max-width: 180px;
+  box-shadow: var(--neu-flat);
 }
 
 .importer__groups {
-  border: 1px solid var(--color-secondary);
   border-radius: var(--radius);
   padding: 0.75rem;
+  background: var(--color-surface);
+  box-shadow: var(--neu-raised-sm);
 }
 
 .importer__legend {
@@ -285,12 +313,18 @@
   color: #fff;
   font-weight: 600;
   font-size: 0.875rem;
-  transition: opacity 0.2s;
+  box-shadow: var(--neu-raised-sm);
+  transition: all 0.2s;
   align-self: flex-start;
+}
+
+.importer__btn:hover:not(:disabled) {
+  box-shadow: var(--neu-inset-sm);
 }
 
 .importer__btn:disabled {
   opacity: 0.5;
+  box-shadow: none;
 }
 
 .importer__error {
@@ -299,12 +333,14 @@
   background: var(--color-surface);
   border-radius: var(--radius);
   font-size: 0.875rem;
+  box-shadow: var(--neu-inset-sm);
 }
 
 .importer__result {
   padding: 0.75rem;
   background: var(--color-surface);
   border-radius: var(--radius);
+  box-shadow: var(--neu-inset-sm);
 }
 
 .importer__ok {
@@ -323,6 +359,7 @@
   border-radius: var(--radius);
   font-size: 0.8125rem;
   z-index: 1100;
+  box-shadow: var(--neu-raised);
   animation: importer-toast-in 0.2s ease-out;
 }
 

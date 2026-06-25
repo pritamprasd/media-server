@@ -145,9 +145,12 @@ def list_files():
     mime_group = request.args.get("mime_group")
     q = request.args.get("q", "").strip()
     directory_id = request.args.get("directory_id", type=int)
+    min_width = request.args.get("min_width", type=int)
+    min_height = request.args.get("min_height", type=int)
 
     query = db.session.query(
-        ImportedFile, FileMetadata.thumbnail, FileMetadata.thumbnail_status
+        ImportedFile, FileMetadata.thumbnail, FileMetadata.thumbnail_status,
+        FileMetadata.width, FileMetadata.height
     ).outerjoin(
         FileMetadata, ImportedFile.id == FileMetadata.file_id
     )
@@ -187,6 +190,15 @@ def list_files():
             )
         )
 
+    if min_width is not None:
+        query = query.filter(
+            db.or_(FileMetadata.width.is_(None), FileMetadata.width >= min_width)
+        )
+    if min_height is not None:
+        query = query.filter(
+            db.or_(FileMetadata.height.is_(None), FileMetadata.height >= min_height)
+        )
+
     pagination = query.order_by(
         ImportedFile.created_at.desc()
     ).paginate(
@@ -194,10 +206,12 @@ def list_files():
     )
 
     files = []
-    for f, thumb, thumb_status in pagination.items:
+    for f, thumb, thumb_status, w, h in pagination.items:
         d = f.to_dict()
         d["thumbnail"] = thumb
         d["thumbnail_status"] = thumb_status or "pending"
+        d["width"] = w
+        d["height"] = h
         d["created_at"] = f.created_at.isoformat() if f.created_at else None
         files.append(d)
 
