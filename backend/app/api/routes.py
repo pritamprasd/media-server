@@ -246,7 +246,6 @@ def list_files():
 @api_bp.route("/duplicates", methods=["GET"])
 def list_duplicates():
     type_ = request.args.get("type", "exact")
-
     if type_ == "exact":
         hashes = (
             db.session.query(FileMetadata.file_hash, db.func.count(FileMetadata.id))

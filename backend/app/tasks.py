@@ -26,6 +26,7 @@ def process_import_folder(self, folder_path, groups):
 
     dir_map = {"": root_dir.id if root_dir else None}
     file_count = 0
+    new_file_count = 0
     file_infos = []
 
     for root, dirs, filenames in os.walk(folder_path):
@@ -87,6 +88,7 @@ def process_import_folder(self, folder_path, groups):
                     modified=datetime.fromtimestamp(stat.st_mtime),
                 )
                 db.session.add(f)
+                new_file_count += 1
             file_count += 1
             if seen_files is not None:
                 seen_files.add(full_path)
@@ -122,6 +124,7 @@ def process_import_folder(self, folder_path, groups):
         extract_file_metadata.delay(file_info)
         generate_thumbnail.delay(file_info)
         generate_ai_metadata.delay(file_info)
+    print(f"Total file imported: {new_file_count} out of {file_count} files.")
 
 
 @celery.task(bind=True, max_retries=3)
@@ -130,8 +133,6 @@ def extract_file_metadata(self, file_info):
     file_path = file_info["file_path"]
     mime = file_info.get("mime_type", "")
     relative_path = file_info.get("relative_path", "")
-    # logger.info("extract_file_metadata: file_id=%s path=%s mime=%s", file_id, file_path, mime)
-    # logger.info("DB URL: %s", current_app.config.get("SQLALCHEMY_DATABASE_URI", "not set"))
     meta = get_or_create_metadata(file_id)
     meta.metadata_status = "extracting"
 
@@ -140,13 +141,11 @@ def extract_file_metadata(self, file_info):
         existing = meta.tags or []
         merged = list(dict.fromkeys(folder_tags + existing))
         meta.tags = merged
-
     db.session.commit()
 
     try:
         file_hash = compute_file_hash(file_path)
         meta.file_hash = file_hash
-
         if mime.startswith("image/"):
             extract_image_metadata(file_path, meta)
             dhash = compute_dhash(file_path)
@@ -158,7 +157,6 @@ def extract_file_metadata(self, file_info):
                 db.session.add(DHashBand(metadata_id=meta.id, band_index=bi, band_value=bv))
         elif mime.startswith("video/"):
             extract_video_metadata(file_path, meta)
-
         meta.metadata_status = "extracted"
     except Exception as exc:
         meta.metadata_status = "failed"
@@ -171,14 +169,10 @@ def extract_file_metadata(self, file_info):
 @celery.task(bind=True, max_retries=3)
 def generate_ai_metadata(self, file_info):
     from flask import current_app
-
     file_id = file_info["id"]
     file_path = file_info["file_path"]
     mime = file_info.get("mime_type", "")
     filename = file_info.get("filename", "")
-
-    # logger.info("generate_ai_metadata: file_id=%s path=%s mime=%s", file_id, file_path, mime)
-    # logger.info("DB URL: %s", current_app.config.get("SQLALCHEMY_DATABASE_URI", "not set"))
 
     meta = get_or_create_metadata(file_id)
     meta.metadata_status = "processing_ai"
@@ -186,7 +180,6 @@ def generate_ai_metadata(self, file_info):
 
     host = current_app.config.get("OLLAMA_BASE_URL", "http://localhost:11434")
     vision_model = current_app.config.get("OLLAMA_MODEL", "llava")
-    text_model = current_app.config.get("OLLAMA_TEXT_MODEL", "llama3.2")
     client = ollama.Client(host=host)
 
     system_prompt = (
@@ -222,16 +215,7 @@ def generate_ai_metadata(self, file_info):
                 )
                 used_model = vision_model
             else:
-                response = client.chat(
-                    model=text_model,
-                    messages=[
-                        {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": f"Filename: {filename}\n\nDescribe this file."},
-                    ],
-                    format=AI_METADATA_SCHEMA,
-                    options={"temperature": 0.3},
-                )
-                used_model = text_model
+                raise Exception("No frames extracted from video")
 
         raw = response["message"]["content"]
 
@@ -275,7 +259,6 @@ def generate_thumbnail(self, file_info):
             generate_image_thumbnail(file_path, meta)
         elif mime.startswith("video/"):
             generate_video_thumbnail(file_path, meta)
-
         meta.thumbnail_status = "completed" if meta.thumbnail else "failed"
     except Exception as exc:
         meta.thumbnail_status = "failed"
