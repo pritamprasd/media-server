@@ -58,7 +58,7 @@ def process_import_folder(self, folder_path, groups):
 
         for filename in filenames:
             full_path = os.path.join(root, filename)
-            mime = guess_mime(filename)
+            mime = guess_mime(full_path)
             if mime not in allowed_mimes:
                 print(f"Mime type mismatch | Import skipped: {full_path}")
                 continue
@@ -136,7 +136,7 @@ def extract_file_metadata(self, file_info):
     meta = get_or_create_metadata(file_id)
     meta.metadata_status = "extracting"
 
-    folder_tags = extract_folder_tags(relative_path)
+    folder_tags = extract_folder_tags(file_path)
     if folder_tags:
         existing = meta.tags or []
         merged = list(dict.fromkeys(folder_tags + existing))
