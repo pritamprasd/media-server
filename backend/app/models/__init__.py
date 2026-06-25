@@ -12,4 +12,4 @@ class BaseModel(db.Model):
 from app.models.import_session import ImportSession  # noqa: E402, F401
 from app.models.imported_directory import ImportedDirectory  # noqa: E402, F401
 from app.models.imported_file import ImportedFile  # noqa: E402, F401
-from app.models.file_metadata import FileMetadata  # noqa: E402, F401
+from app.models.file_metadata import FileMetadata, DHashBand  # noqa: E402, F401

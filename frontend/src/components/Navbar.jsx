@@ -11,6 +11,7 @@ function Navbar() {
       <NavLink to="/import" className="navbar__link">Import</NavLink>
       <NavLink to="/gallery" className="navbar__link">Imported Media</NavLink>
       <NavLink to="/favorites" className="navbar__link">Favorites</NavLink>
+      <NavLink to="/duplicates" className="navbar__link">Duplicates</NavLink>
 
       <button className="navbar__theme-btn" onClick={toggleTheme} aria-label="Toggle theme">
         {theme === "dark" ? "☀️" : "🌙"}

@@ -12,6 +12,7 @@ from app.utility.image_utility import extract_image_metadata, generate_image_thu
 from app.utility.llm_utility import parse_ai_response
 from app.utility.mime_utility import expand_mime_groups, guess_mime
 from app.utility.tags_utility import extract_folder_tags
+from app.utility.hash_utility import compute_file_hash, compute_dhash, dhash_to_bands
 from app.utility.video_utility import extract_video_metadata, extract_video_frames, generate_video_thumbnail
 import logging
 
@@ -143,8 +144,18 @@ def extract_file_metadata(self, file_info):
     db.session.commit()
 
     try:
+        file_hash = compute_file_hash(file_path)
+        meta.file_hash = file_hash
+
         if mime.startswith("image/"):
             extract_image_metadata(file_path, meta)
+            dhash = compute_dhash(file_path)
+            meta.dhash = dhash
+            bands = dhash_to_bands(dhash)
+            from app.models.file_metadata import DHashBand
+            DHashBand.query.filter_by(metadata_id=meta.id).delete()
+            for bi, bv in enumerate(bands):
+                db.session.add(DHashBand(metadata_id=meta.id, band_index=bi, band_value=bv))
         elif mime.startswith("video/"):
             extract_video_metadata(file_path, meta)
 

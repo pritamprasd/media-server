@@ -39,9 +39,6 @@ def create_app(testing=False):
 
     import app.models  # noqa: F401
 
-    with application.app_context():
-        db.create_all()
-
     from app.celery_app import init_celery
     init_celery(application)
     application.extensions["celery"] = True

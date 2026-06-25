@@ -21,18 +21,35 @@ media-server/
 │   │   ├── __init__.py                  # App factory + DB init + Celery init
 │   │   ├── config.py                    # Dev/Prod/Test configs
 │   │   ├── celery_app.py                # Celery app factory
-│   │   ├── tasks.py                     # Celery tasks (metadata extraction, AI)
+│   │   ├── tasks.py                     # Celery tasks (metadata extraction, AI, hashing)
 │   │   ├── api/
 │   │   │   ├── __init__.py
 │   │   │   └── routes.py                # API routes
-│   │   └── models/
-│   │       ├── __init__.py              # Base model + model imports
-│   │       ├── import_session.py        # ImportSession model
-│   │       ├── imported_directory.py    # ImportedDirectory model
-│   │       ├── imported_file.py         # ImportedFile model
-│   │       └── file_metadata.py         # FileMetadata model (EXIF, tags, AI data)
+│   │   ├── models/
+│   │   │   ├── __init__.py              # Base model + model imports
+│   │   │   ├── import_session.py
+│   │   │   ├── imported_directory.py
+│   │   │   ├── imported_file.py
+│   │   │   └── file_metadata.py         # FileMetadata + DHashBand models
+│   │   └── utility/
+│   │       ├── database_utility.py
+│   │       ├── file_system.py
+│   │       ├── hash_utility.py          # SHA256 + dhash + banding
+│   │       ├── image_utility.py
+│   │       ├── llm_utility.py
+│   │       ├── location_utility.py
+│   │       ├── mime_utility.py
+│   │       ├── tags_utility.py          # Folder-based tag extraction
+│   │       ├── type_utility.py
+│   │       └── video_utility.py
+│   ├── migrations/                      # Alembic migrations (Flask-Migrate)
+│   │   ├── versions/
+│   │   │   └── 403e10a21f62_initial_v2.py
+│   │   ├── alembic.ini
+│   │   ├── env.py
+│   │   └── script.py.mako
 │   ├── tests/
-│   │   └── test_api.py                  # 14+ API tests
+│   │   └── test_api.py                  # API tests
 │   ├── requirements.txt
 │   ├── run.py                           # Entry point
 │   └── .env.example
@@ -53,7 +70,9 @@ media-server/
 │   │   │   ├── Gallery.jsx              # Tree-view gallery (renamed to "Imported Media")
 │   │   │   ├── Gallery.css
 │   │   │   ├── Favorites.jsx            # Favorites grid
-│   │   │   └── Favorites.css
+│   │   │   ├── Favorites.css
+│   │   │   ├── Duplicates.jsx           # Exact + near duplicate detection page
+│   │   │   └── Duplicates.css
 │   │   ├── services/
 │   │   │   └── api.js                   # Axios API client
 │   │   ├── hooks/
@@ -104,7 +123,47 @@ pip install -r requirements.txt
 python run.py
 ```
 
-Server starts at **http://localhost:5000**. Tables are created automatically on first run.
+Server starts at **http://localhost:5000**. Apply database migrations before first run (see [Database Migrations](#database-migrations)).
+
+### Database Migrations
+
+Schema changes are managed with **Flask-Migrate** (Alembic). The `migrations/` directory contains the migration history.
+
+**Apply pending migrations** (after pulling new code or on a fresh database):
+
+```bash
+cd backend
+source .venv/bin/activate
+FLASK_APP=run.py flask db upgrade
+```
+
+**Create a new migration** (after modifying a model):
+
+```bash
+cd backend
+source .venv/bin/activate
+FLASK_APP=run.py flask db migrate -m "description of change"
+```
+
+Review the generated file in `migrations/versions/`, then apply it:
+
+```bash
+FLASK_APP=run.py flask db upgrade
+```
+
+**Rollback** one migration:
+
+```bash
+FLASK_APP=run.py flask db downgrade
+```
+
+**Check current revision**:
+
+```bash
+FLASK_APP=run.py flask db current
+```
+
+> The `FLASK_APP` variable tells Flask where to find the application. The database URL is read from the `DATABASE_URL` environment variable (configured in `.env`).
 
 ### Celery Workers (separate terminal)
 
@@ -210,8 +269,12 @@ App starts at **http://localhost:5173**. The Vite dev server proxies `/api` requ
 | GET     | `/api/files/<id>/metadata`    | Get file metadata (EXIF, GPS, tags, AI)  |
 | GET     | `/api/files/<id>/thumbnail`   | Get base64 thumbnail data URI            |
 | POST    | `/api/files/<id>/edit`        | Apply image edits (rotate, flip, grayscale) |
+| PATCH   | `/api/files/<id>/tags`        | Update tags on a file                    |
 | PATCH   | `/api/files/<id>/favorite`    | Toggle favorite status on a file         |
 | GET     | `/api/favorites`              | List all favorited files                 |
+| GET     | `/api/duplicates?type=exact`  | Group files by SHA256 hash (exact duplicates) |
+| GET     | `/api/duplicates?type=near`   | Pair images by perceptual hash (near-duplicates, Hamming ≤ 10) |
+| GET     | `/api/files/<id>/near-duplicates` | Find perceptually similar images for a given file |
 
 ## Features
 
@@ -233,12 +296,26 @@ Features:
 - **Image editing** — rotate, flip (H/V), grayscale directly in the viewer; edits save as new files
 - **Download** — download the original file with one click
 
+### Tags
+
+Tags are extracted automatically from parent folder names during import (e.g. a file under `2024/India/Mumbai/vacation/` gets tags `india`, `mumbai`, `vacation`). These are merged with AI-generated tags from Ollama. You can add or remove tags inline in the **File Viewer** sidebar.
+
+### Duplicate Detection
+
+Two types of duplicate detection are available on the **Duplicates** page:
+
+- **Exact duplicates** — files with identical SHA256 hashes, grouped for batch cleanup ("Keep first, remove rest")
+- **Near duplicates** — perceptually similar images (resized/cropped/re-encoded variants) detected via 64-bit difference hash with band-indexed lookup for performance at scale
+
+Perceptual hashes (dhash) and SHA256 hashes are computed during import for all supported media.
+
 ### Home Gallery
 
 The Home page shows an **infinite-scroll grid** of all imported media with:
 - **Thumbnails** — 400×400 previews (generated asynchronously by Celery)
-- **Search** — type to search across tags, description, and filename (400ms debounce)
+- **Search** — type to search across tags, description, filename (400ms debounce)
 - **Media type filters** — toggle between All / Images / Videos
+- **Dimension filter** — filter by minimum resolution (VGA, HD, Full HD, 4K) for both images and videos
 
 ### Thumbnails
 
@@ -248,20 +325,21 @@ Thumbnails are generated asynchronously by the `generate_thumbnail` Celery task:
 
 ## Database Schema
 
-Four tables store media metadata:
+Six tables store media metadata:
 
 | Table                 | Purpose                                          |
 | --------------------- | ------------------------------------------------ |
 | `import_sessions`     | Tracks each import operation                     |
 | `imported_directories`| Directory entries (for tree navigation)          |
 | `imported_files`      | File metadata (path, size, mime, is_favorite)    |
-| `file_metadata`       | EXIF data, GPS, tags, description, search words, thumbnail (base64 JPEG) |
+| `file_metadata`       | EXIF, GPS, tags, description, search words, thumbnail, file_hash, dhash |
+| `dhash_bands`         | 16-bit perceptual hash bands (indexed for near-duplicate lookup) |
 
 `imported_directories` uses a `parent_path` column enabling efficient lazy-load tree queries without scanning the entire file list.
 
 `file_metadata` is populated asynchronously by Celery tasks after each import or edit:
-- `extract_file_metadata` — reads EXIF (images via Pillow) or stream metadata (videos via ffprobe), stores GPS, dimensions, duration, date taken
-- `generate_ai_metadata` — sends the file to a local Ollama model (`llava` for images, `gemma4:12b` / `llama3.2` for videos), saves generated tags, description, and search keywords
+- `extract_file_metadata` — reads EXIF (images via Pillow) or stream metadata (videos via ffprobe), stores GPS, dimensions, duration, date taken; computes SHA256 hash (`file_hash`) for exact dedup and difference hash (`dhash`) for perceptual dedup
+- `generate_ai_metadata` — sends the file to a local Ollama model (`llava` for images, `gemma4:12b` / `llama3.2` for videos), saves generated tags, description, and search keywords; merges AI tags with folder-derived tags (extracted from the file's relative path)
 - `generate_thumbnail` — creates 400×400 base64 JPEG thumbnails
 
 ## Development
@@ -271,3 +349,32 @@ Four tables store media metadata:
 - Place reusable UI components in `frontend/src/components/`.
 - Place page-level components in `frontend/src/pages/`.
 - Update this README when adding new features.
+
+
+## Makefile
+```sh
+# venv + pip install + .env + db-create + db upgrade
+make backend-setup	
+# npm install + .env
+make frontend-setup	
+# flask db migrate -m "..."
+make db-migrate msg="new schema"
+# flask db upgrade	
+make db-upgrade	
+# flask db downgrade
+make db-downgrade	
+# flask db current
+make db-current	
+# python backend/run.py
+make backend	
+# npm run dev
+make frontend	
+# all-queues worker
+make celery
+# pytest	
+make test
+# ESLint
+make lint	
+# Vite production build
+make build	
+```

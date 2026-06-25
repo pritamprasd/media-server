@@ -38,6 +38,16 @@ export async function toggleFavorite(fileId) {
   return data;
 }
 
+export async function listDuplicates(type = "exact") {
+  const { data } = await client.get("/duplicates", { params: { type } });
+  return data;
+}
+
+export async function getNearDuplicates(fileId) {
+  const { data } = await client.get(`/files/${fileId}/near-duplicates`);
+  return data;
+}
+
 export async function listFavorites() {
   const { data } = await client.get("/favorites");
   return data;

@@ -22,6 +22,9 @@ class FileMetadata(db.Model):
     description = db.Column(db.Text, nullable=True)
     search_words = db.Column(db.Text, nullable=True)
 
+    file_hash = db.Column(db.String(64), nullable=True, index=True)
+    dhash = db.Column(db.String(16), nullable=True)
+
     thumbnail = db.Column(db.Text, nullable=True)
     thumbnail_status = db.Column(db.Text, default="pending", nullable=False)
 
@@ -45,6 +48,25 @@ class FileMetadata(db.Model):
             "tags": self.tags,
             "description": self.description,
             "search_words": self.search_words,
+            "file_hash": self.file_hash,
+            "dhash": self.dhash,
             "thumbnail": self.thumbnail,
             "thumbnail_status": self.thumbnail_status,
         }
+
+
+class DHashBand(db.Model):
+    __tablename__ = "dhash_bands"
+
+    id = db.Column(db.Integer, primary_key=True)
+    metadata_id = db.Column(
+        db.Integer, db.ForeignKey("file_metadata.id"), nullable=False
+    )
+    band_index = db.Column(db.Integer, nullable=False)
+    band_value = db.Column(db.Integer, nullable=False)
+
+    __table_args__ = (
+        db.Index("ix_dhash_band_lookup", "band_index", "band_value"),
+    )
+
+    metadata_rel = db.relationship("FileMetadata", backref="dhash_bands")
