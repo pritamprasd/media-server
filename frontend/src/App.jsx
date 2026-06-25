@@ -10,6 +10,8 @@ import Duplicates from "./pages/Duplicates";
 import Upload from "./pages/Upload";
 import Statistics from "./pages/Statistics";
 import Settings from "./pages/Settings";
+import MapPage from "./pages/Map";
+import "leaflet/dist/leaflet.css";
 import "./App.css";
 
 function App() {
@@ -17,6 +19,9 @@ function App() {
 
   useEffect(() => {
     getPref("defaultTab", "/").then(setDefaultTab);
+    getPref("accentColor", "#3498db").then((color) => {
+      document.documentElement.style.setProperty("--color-primary", color);
+    });
   }, []);
 
   if (defaultTab === null) {
@@ -46,6 +51,7 @@ function App() {
           <Route path="/upload" element={<Upload />} />
           <Route path="/statistics" element={<Statistics />} />
           <Route path="/settings" element={<Settings />} />
+          <Route path="/map" element={<MapPage />} />
         </Routes>
       </main>
     </>

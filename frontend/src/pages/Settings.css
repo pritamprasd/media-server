@@ -71,3 +71,32 @@
 .settings__btn:active {
   box-shadow: var(--neu-inset-sm);
 }
+
+.settings__card + .settings__card {
+  margin-top: 1rem;
+}
+
+.settings__colors {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.settings__color-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  cursor: pointer;
+  transition: all 0.15s;
+  box-shadow: var(--neu-raised-sm);
+}
+
+.settings__color-btn:hover {
+  transform: scale(1.15);
+}
+
+.settings__color-btn--active {
+  border-color: var(--color-text);
+  box-shadow: 0 0 0 2px var(--color-bg), 0 0 0 4px var(--color-text);
+}

@@ -986,3 +986,40 @@ def get_statistics():
             "files_with_nickname": files_with_nickname,
         },
     })
+
+
+@api_bp.route("/files/with-gps", methods=["GET"])
+def list_files_with_gps():
+    page = request.args.get("page", 1, type=int)
+    per_page = request.args.get("per_page", 200, type=int)
+    per_page = min(per_page, 1000)
+
+    query = ImportedFile.query.join(
+        FileMetadata, ImportedFile.id == FileMetadata.file_id
+    ).options(
+        db.contains_eager(ImportedFile.metadata)
+    ).filter(
+        ImportedFile.deleted != True,
+        FileMetadata.latitude.isnot(None),
+        FileMetadata.longitude.isnot(None),
+    ).order_by(ImportedFile.created_at.desc())
+
+    pag = query.paginate(page=page, per_page=per_page, error_out=False)
+    items = []
+    for f in pag.items:
+        items.append({
+            "id": f.id,
+            "filename": f.filename,
+            "latitude": f.metadata.latitude,
+            "longitude": f.metadata.longitude,
+            "thumbnail": f.metadata.thumbnail if f.metadata else None,
+            "mime_type": f.mime_type,
+            "created_at": f.created_at.isoformat() if f.created_at else None,
+        })
+    return jsonify({
+        "files": items,
+        "total": pag.total,
+        "page": pag.page,
+        "per_page": pag.per_page,
+        "pages": pag.pages,
+    }), 200

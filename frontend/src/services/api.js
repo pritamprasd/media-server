@@ -151,4 +151,9 @@ export async function listRecentFiles(prefix) {
   return data;
 }
 
+export async function listFilesWithGps(page = 1, perPage = 200) {
+  const { data } = await client.get("/files/with-gps", { params: { page, per_page: perPage } });
+  return data;
+}
+
 export default client;
