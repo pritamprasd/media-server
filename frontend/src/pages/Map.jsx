@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
 import L from "leaflet";
+import { X } from "lucide-react";
 import { listFilesWithGps } from "../services/api";
 import "./Map.css";
 
@@ -28,6 +30,7 @@ function Map() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [selected, setSelected] = useState(null);
+  const navigate = useNavigate();
 
   useEffect(() => {
     listFilesWithGps()
@@ -46,6 +49,7 @@ function Map() {
       <div className="map__header">
         <h2 className="map__title">Photo Locations</h2>
         <span className="map__count">{markers.length} file{markers.length !== 1 ? "s" : ""} with GPS</span>
+        <button className="map__close" onClick={() => navigate(-1)} title="Close"><X size={18} /></button>
       </div>
       <div className="map__container">
         <MapContainer
