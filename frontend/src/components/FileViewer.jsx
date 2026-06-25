@@ -11,6 +11,7 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete }) {
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [exifExpanded, setExifExpanded] = useState(window.innerWidth > 768);
   const overlayRef = useRef(null);
 
   useEffect(() => {
@@ -257,21 +258,26 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete }) {
                 )}
                 {meta.exif && (
                   <>
-                    <h3 className="viewer-meta-title viewer-meta-title--sub">Exif Data</h3>
-                    {Object.entries(meta.exif)
-                      .filter(([, v]) => {
-                        if (v == null || v === "") return false;
-                        const s = String(v);
-                        if (s.startsWith("b'") || s.startsWith('b"')) return false;
-                        if (s.length > 60) return false;
-                        return true;
-                      })
-                      .map(([k, v]) => (
-                        <div className="viewer-meta-row" key={k}>
-                          <span className="viewer-meta-label">{k}</span>
-                          <span className="viewer-meta-value">{String(v)}</span>
-                        </div>
-                      ))}
+                    <div className="viewer-exif-toggle" onClick={() => setExifExpanded((p) => !p)}>
+                      <h3 className="viewer-meta-title viewer-meta-title--sub">Exif Data</h3>
+                      <span className={`viewer-exif-arrow ${exifExpanded ? "viewer-exif-arrow--open" : ""}`}>&#9654;</span>
+                    </div>
+                    <div className={`viewer-exif-content ${exifExpanded ? "viewer-exif-content--expanded" : ""}`}>
+                      {Object.entries(meta.exif)
+                        .filter(([, v]) => {
+                          if (v == null || v === "") return false;
+                          const s = String(v);
+                          if (s.startsWith("b'") || s.startsWith('b"')) return false;
+                          if (s.length > 60) return false;
+                          return true;
+                        })
+                        .map(([k, v]) => (
+                          <div className="viewer-meta-row" key={k}>
+                            <span className="viewer-meta-label">{k}</span>
+                            <span className="viewer-meta-value">{String(v)}</span>
+                          </div>
+                        ))}
+                    </div>
                   </>
                 )}
                 <div className="viewer-meta-row">
