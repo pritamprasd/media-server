@@ -69,6 +69,11 @@ export async function listFiles(page = 1, perPage = 50, filters = {}, signal) {
   return data;
 }
 
+export async function updateTags(fileId, tags) {
+  const { data } = await client.patch(`/files/${fileId}/tags`, { tags });
+  return data;
+}
+
 export async function editFile(fileId, operations) {
   const { data } = await client.post(`/files/${fileId}/edit`, { operations });
   return data;

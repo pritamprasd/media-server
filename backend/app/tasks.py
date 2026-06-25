@@ -11,6 +11,7 @@ from app.utility.database_utility import get_or_create_metadata, get_or_create_s
 from app.utility.image_utility import extract_image_metadata, generate_image_thumbnail
 from app.utility.llm_utility import parse_ai_response
 from app.utility.mime_utility import expand_mime_groups, guess_mime
+from app.utility.tags_utility import extract_folder_tags
 from app.utility.video_utility import extract_video_metadata, extract_video_frames, generate_video_thumbnail
 import logging
 
@@ -127,10 +128,18 @@ def extract_file_metadata(self, file_info):
     file_id = file_info["id"]
     file_path = file_info["file_path"]
     mime = file_info.get("mime_type", "")
+    relative_path = file_info.get("relative_path", "")
     # logger.info("extract_file_metadata: file_id=%s path=%s mime=%s", file_id, file_path, mime)
     # logger.info("DB URL: %s", current_app.config.get("SQLALCHEMY_DATABASE_URI", "not set"))
     meta = get_or_create_metadata(file_id)
     meta.metadata_status = "extracting"
+
+    folder_tags = extract_folder_tags(relative_path)
+    if folder_tags:
+        existing = meta.tags or []
+        merged = list(dict.fromkeys(folder_tags + existing))
+        meta.tags = merged
+
     db.session.commit()
 
     try:
@@ -224,7 +233,10 @@ def generate_ai_metadata(self, file_info):
 
         metadata = parse_ai_response(raw)
         meta.description = metadata.description or raw.strip()[:500]
-        meta.tags = metadata.tags or []
+        ai_tags = metadata.tags or []
+        folder_tags = extract_folder_tags(file_info.get("relative_path", ""))
+        merged = list(dict.fromkeys(folder_tags + ai_tags))
+        meta.tags = merged
         meta.search_words = ", ".join(metadata.search_words) if metadata.search_words else ""
         meta.metadata_status = "completed"
 

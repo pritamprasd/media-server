@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from "react";
-import { toggleFavorite as toggleFavApi, getFileMetadata, editFile, deleteFile } from "../services/api";
+import { toggleFavorite as toggleFavApi, getFileMetadata, editFile, deleteFile, updateTags } from "../services/api";
 import "./FileViewer.css";
 
 function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete }) {
@@ -12,6 +12,8 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete }) {
   const [deleting, setDeleting] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [exifExpanded, setExifExpanded] = useState(window.innerWidth > 768);
+  const [tagInput, setTagInput] = useState("");
+  const [tagSaving, setTagSaving] = useState(false);
   const overlayRef = useRef(null);
 
   useEffect(() => {
@@ -107,6 +109,41 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete }) {
 
   const handleDeleteCancel = () => {
     if (!deleting) setShowDeleteConfirm(false);
+  };
+
+  const handleAddTag = async () => {
+    const t = tagInput.trim();
+    if (!t || !meta) return;
+    const updated = [...(meta.tags || []), t.toLowerCase()];
+    setTagSaving(true);
+    try {
+      const result = await updateTags(file.id, updated);
+      setMeta((prev) => ({ ...prev, tags: result.tags }));
+      setTagInput("");
+    } catch {
+    } finally {
+      setTagSaving(false);
+    }
+  };
+
+  const handleRemoveTag = async (tag) => {
+    if (!meta) return;
+    const updated = (meta.tags || []).filter((t) => t !== tag);
+    setTagSaving(true);
+    try {
+      const result = await updateTags(file.id, updated);
+      setMeta((prev) => ({ ...prev, tags: result.tags }));
+    } catch {
+    } finally {
+      setTagSaving(false);
+    }
+  };
+
+  const handleTagKeyDown = (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      handleAddTag();
+    }
   };
 
   const previewStyle = (() => {
@@ -244,12 +281,41 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete }) {
                     <span className="viewer-meta-value">{meta.description}</span>
                   </div>
                 )}
-                {meta.tags && meta.tags.length > 0 && (
-                  <div className="viewer-meta-row viewer-meta-row--block">
-                    <span className="viewer-meta-label">Tags</span>
-                    <span className="viewer-meta-value">{meta.tags.join(", ")}</span>
+                <div className="viewer-meta-row viewer-meta-row--block">
+                  <span className="viewer-meta-label">Tags</span>
+                  <div className="viewer-tags">
+                    {(meta.tags || []).map((t) => (
+                      <span key={t} className="viewer-tag">
+                        {t}
+                        <button
+                          className="viewer-tag-remove"
+                          onClick={() => handleRemoveTag(t)}
+                          disabled={tagSaving}
+                        >
+                          ✕
+                        </button>
+                      </span>
+                    ))}
+                    <span className="viewer-tag-input-wrap">
+                      <input
+                        className="viewer-tag-input"
+                        type="text"
+                        placeholder="Add tag..."
+                        value={tagInput}
+                        onChange={(e) => setTagInput(e.target.value)}
+                        onKeyDown={handleTagKeyDown}
+                        disabled={tagSaving}
+                      />
+                      <button
+                        className="viewer-tag-add"
+                        onClick={handleAddTag}
+                        disabled={tagSaving || !tagInput.trim()}
+                      >
+                        +
+                      </button>
+                    </span>
                   </div>
-                )}
+                </div>
                 {meta.search_words && (
                   <div className="viewer-meta-row viewer-meta-row--block">
                     <span className="viewer-meta-label">Search Words</span>

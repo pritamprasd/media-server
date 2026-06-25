@@ -127,6 +127,23 @@ def get_file_metadata(file_id):
     return jsonify(meta.to_dict()), 200
 
 
+@api_bp.route("/files/<int:file_id>/tags", methods=["PATCH"])
+def update_file_tags(file_id):
+    file_record = db.session.get(ImportedFile, file_id)
+    if not file_record:
+        return jsonify({"error": "File not found"}), 404
+    data = request.get_json(silent=True) or {}
+    tags = data.get("tags", [])
+    if not isinstance(tags, list):
+        return jsonify({"error": "tags must be a list"}), 400
+    meta = FileMetadata.query.filter_by(file_id=file_id).first()
+    if not meta:
+        return jsonify({"error": "Metadata not yet available"}), 404
+    meta.tags = tags
+    db.session.commit()
+    return jsonify({"tags": meta.tags}), 200
+
+
 @api_bp.route("/files/<int:file_id>/favorite", methods=["PATCH"])
 def toggle_favorite(file_id):
     file_record = db.session.get(ImportedFile, file_id)
@@ -150,7 +167,7 @@ def list_files():
 
     query = db.session.query(
         ImportedFile, FileMetadata.thumbnail, FileMetadata.thumbnail_status,
-        FileMetadata.width, FileMetadata.height
+        FileMetadata.width, FileMetadata.height, FileMetadata.tags
     ).outerjoin(
         FileMetadata, ImportedFile.id == FileMetadata.file_id
     )
@@ -206,12 +223,13 @@ def list_files():
     )
 
     files = []
-    for f, thumb, thumb_status, w, h in pagination.items:
+    for f, thumb, thumb_status, w, h, tags in pagination.items:
         d = f.to_dict()
         d["thumbnail"] = thumb
         d["thumbnail_status"] = thumb_status or "pending"
         d["width"] = w
         d["height"] = h
+        d["tags"] = tags
         d["created_at"] = f.created_at.isoformat() if f.created_at else None
         files.append(d)
 
