@@ -22,10 +22,8 @@ class Config:
         os.path.join(os.path.expanduser("~"), "media-server-edited"),
     )
     IMPORT_DEFAULT_PATH = os.environ.get("IMPORT_DEFAULT_PATH", "~")
-    UPLOAD_DIR = os.environ.get(
-        "UPLOAD_DIR",
-        os.path.join(os.path.expanduser("~"), "media-server-uploads"),
-    )
+    UPLOAD_DIR = os.environ.get("UPLOAD_DIR", os.path.join("/uploads"))
+
 
 
 class DevelopmentConfig(Config):
