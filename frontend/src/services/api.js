@@ -156,4 +156,24 @@ export async function listFilesWithGps(page = 1, perPage = 200) {
   return data;
 }
 
+export async function listLocations() {
+  const { data } = await client.get("/locations");
+  return data;
+}
+
+export async function createLocation(payload) {
+  const { data } = await client.post("/locations", payload);
+  return data;
+}
+
+export async function updateLocation(id, payload) {
+  const { data } = await client.put(`/locations/${id}`, payload);
+  return data;
+}
+
+export async function deleteLocation(id) {
+  const { data } = await client.delete(`/locations/${id}`);
+  return data;
+}
+
 export default client;

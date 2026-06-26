@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { NavLink } from "react-router-dom";
 import { useTheme } from "../contexts/ThemeContext";
-import { House, FileUp, FolderOpen, Heart, Upload, CopyCheck, BarChart3, Settings, MapPin, Sun, Moon, Menu, X } from "lucide-react";
+import { House, FileUp, FolderOpen, Heart, Upload, CopyCheck, BarChart3, Settings, MapPin, MapPinned, Sun, Moon, Menu, X } from "lucide-react";
 import "./Navbar.css";
 
 const LINKS = [
@@ -11,6 +11,7 @@ const LINKS = [
   { to: "/favorites", label: "Favorites", icon: Heart },
   { to: "/upload", label: "Upload", icon: Upload },
   { to: "/map", label: "Map", icon: MapPin },
+  { to: "/locations", label: "Locations", icon: MapPinned },
   { to: "/duplicates", label: "Duplicates", icon: CopyCheck },
   { to: "/statistics", label: "Statistics", icon: BarChart3 },
   { to: "/settings", label: "Settings", icon: Settings },

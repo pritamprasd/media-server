@@ -2,6 +2,8 @@ import io
 import os
 from datetime import datetime
 
+from sqlalchemy import func
+
 from flask import current_app, jsonify, request, send_file
 from werkzeug.utils import secure_filename
 
@@ -12,6 +14,7 @@ from app.models.file_metadata import FileMetadata, DHashBand
 from app.models.import_session import ImportSession
 from app.models.imported_directory import ImportedDirectory
 from app.models.imported_file import ImportedFile
+from app.models.location import SavedLocation
 from app.tasks import extract_file_metadata, generate_ai_metadata, generate_thumbnail, process_import_folder
 from app.utility.file_system import traverse_directory
 from app.utility.hash_utility import hamming_distance
@@ -1070,6 +1073,7 @@ def list_files_with_gps():
             "latitude": f.metadata.latitude,
             "longitude": f.metadata.longitude,
             "thumbnail": f.metadata.thumbnail if f.metadata else None,
+            "thumbnail_status": f.metadata.thumbnail_status if f.metadata else None,
             "mime_type": f.mime_type,
             "created_at": f.created_at.isoformat() if f.created_at else None,
         })
@@ -1080,3 +1084,65 @@ def list_files_with_gps():
         "per_page": pag.per_page,
         "pages": pag.pages,
     }), 200
+
+
+@api_bp.route("/locations", methods=["GET"])
+def list_locations():
+    locations = SavedLocation.query.order_by(SavedLocation.name).all()
+    result = []
+    for loc in locations:
+        d = loc.to_dict()
+        d["file_count"] = FileMetadata.query.filter(
+            FileMetadata.latitude.isnot(None),
+            FileMetadata.longitude.isnot(None),
+            FileMetadata.latitude.between(loc.latitude - loc.radius, loc.latitude + loc.radius),
+            FileMetadata.longitude.between(loc.longitude - loc.radius, loc.longitude + loc.radius),
+        ).count()
+        result.append(d)
+    return jsonify(result), 200
+
+
+@api_bp.route("/locations", methods=["POST"])
+def create_location():
+    data = request.get_json()
+    if not data or not data.get("name"):
+        return jsonify({"error": "Name is required"}), 400
+    loc = SavedLocation(
+        name=data["name"],
+        latitude=data.get("latitude"),
+        longitude=data.get("longitude"),
+        radius=data.get("radius", 0.09),
+    )
+    if loc.latitude is None or loc.longitude is None:
+        return jsonify({"error": "Latitude and longitude are required"}), 400
+    db.session.add(loc)
+    db.session.commit()
+    return jsonify(loc.to_dict()), 201
+
+
+@api_bp.route("/locations/<int:loc_id>", methods=["PUT"])
+def update_location(loc_id):
+    loc = db.session.get(SavedLocation, loc_id)
+    if not loc:
+        return jsonify({"error": "Location not found"}), 404
+    data = request.get_json()
+    if data.get("name") is not None:
+        loc.name = data["name"]
+    if data.get("latitude") is not None:
+        loc.latitude = data["latitude"]
+    if data.get("longitude") is not None:
+        loc.longitude = data["longitude"]
+    if data.get("radius") is not None:
+        loc.radius = data["radius"]
+    db.session.commit()
+    return jsonify(loc.to_dict()), 200
+
+
+@api_bp.route("/locations/<int:loc_id>", methods=["DELETE"])
+def delete_location(loc_id):
+    loc = db.session.get(SavedLocation, loc_id)
+    if not loc:
+        return jsonify({"error": "Location not found"}), 404
+    db.session.delete(loc)
+    db.session.commit()
+    return jsonify({"message": "Deleted"}), 200
