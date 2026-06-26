@@ -31,7 +31,22 @@ function buildDirTree(dirs) {
   return build("");
 }
 
-function DirTree({ trees, selectedId, onSelect, onClose }) {
+function flattenTree(nodes, query) {
+  const q = query.toLowerCase();
+  const result = [];
+  const walk = (list, depth) => {
+    for (const n of list) {
+      if (n.name.toLowerCase().includes(q)) {
+        result.push({ ...n, matchDepth: depth });
+      }
+      walk(n.children || [], depth + 1);
+    }
+  };
+  walk(nodes, 0);
+  return result;
+}
+
+function DirTree({ trees, selectedId, onSelect, onClose, search }) {
   const renderNode = (node, depth) => (
     <li key={node.id} className="home__dir-li">
       <button
@@ -50,6 +65,8 @@ function DirTree({ trees, selectedId, onSelect, onClose }) {
     </li>
   );
 
+  const flatResults = search ? flattenTree(trees, search) : null;
+
   return (
     <div className="home__dir-picker">
       <button
@@ -60,7 +77,30 @@ function DirTree({ trees, selectedId, onSelect, onClose }) {
         <span className="home__dir-all-label">All directories</span>
       </button>
 
-      {trees.length > 0 && (
+      {search && flatResults.length === 0 && (
+        <div className="home__dir-empty">No directories match "{search}"</div>
+      )}
+
+      {search && flatResults.length > 0 && (
+        <div className="home__dir-scroll">
+          <ul className="home__dir-ul">
+            {flatResults.map((n) => (
+              <li key={n.id} className="home__dir-li">
+                <button
+                  className={`home__dir-btn ${selectedId === n.id ? "home__dir-btn--active" : ""}`}
+                  style={{ paddingLeft: `${12 + n.matchDepth * 16}px` }}
+                  onClick={() => { onSelect(n.id); onClose?.(); }}
+                >
+                  <span className="home__dir-icon">📁</span>
+                  {n.name}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {!search && trees.length > 0 && (
         <div className="home__dir-scroll">
           <ul className="home__dir-ul">
             {trees.map((n) => renderNode(n, 0))}
@@ -84,6 +124,7 @@ function Home() {
   const [directories, setDirectories] = useState([]);
   const [directoryId, setDirectoryId] = useState(null);
   const [dirDialogOpen, setDirDialogOpen] = useState(false);
+  const [dirSearch, setDirSearch] = useState("");
   const [minWidth, setMinWidth] = useState(null);
   const [minHeight, setMinHeight] = useState(null);
   const [hasAi, setHasAi] = useState(false);
@@ -511,18 +552,35 @@ function Home() {
       )}
 
       {dirDialogOpen && (
-        <div className="home__dir-overlay" onClick={() => setDirDialogOpen(false)}>
+        <div className="home__dir-overlay" onClick={() => { setDirDialogOpen(false); setDirSearch(""); }}>
           <div className="home__dir-dialog" onClick={(e) => e.stopPropagation()}>
             <div className="home__dir-dialog-header">
               <span>Filter by directory</span>
-              <button className="home__dir-close" onClick={() => setDirDialogOpen(false)}>✕</button>
+              <button className="home__dir-close" onClick={() => { setDirDialogOpen(false); setDirSearch(""); }}>✕</button>
             </div>
             <div className="home__dir-dialog-body">
+              <div className="home__dir-search-wrap">
+                <Search size={14} className="home__dir-search-icon" />
+                <input
+                  className="home__dir-search-input"
+                  type="text"
+                  placeholder="Search directories…"
+                  value={dirSearch}
+                  onChange={(e) => setDirSearch(e.target.value)}
+                  autoFocus
+                />
+                {dirSearch && (
+                  <button className="home__dir-search-clear" onClick={() => setDirSearch("")}>
+                    <X size={14} />
+                  </button>
+                )}
+              </div>
               <DirTree
                 trees={dirTree}
                 selectedId={directoryId}
                 onSelect={setDirectoryId}
                 onClose={() => setDirDialogOpen(false)}
+                search={dirSearch}
               />
             </div>
           </div>

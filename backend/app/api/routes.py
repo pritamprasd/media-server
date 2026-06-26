@@ -548,7 +548,10 @@ def delete_file(file_id):
 
     file_path = file_record.file_path
 
-    FileMetadata.query.filter_by(file_id=file_id).delete()
+    meta = FileMetadata.query.filter_by(file_id=file_id).first()
+    if meta:
+        DHashBand.query.filter_by(metadata_id=meta.id).delete()
+        db.session.delete(meta)
 
     session = ImportSession.query.get(file_record.session_id)
     db.session.delete(file_record)
@@ -813,7 +816,14 @@ def list_recent_upload_files():
     else:
         query = query.filter(~ImportedFile.relative_path.like("%/%"))
     files = query.order_by(ImportedFile.created_at.desc()).limit(100).all()
-    return jsonify({"files": [f.to_dict() for f in files]}), 200
+    result = []
+    for f in files:
+        d = f.to_dict()
+        meta = FileMetadata.query.filter_by(file_id=f.id).first()
+        d["thumbnail"] = meta.thumbnail if meta else None
+        d["thumbnail_status"] = meta.thumbnail_status if meta else "pending"
+        result.append(d)
+    return jsonify({"files": result}), 200
 
 
 @api_bp.route("/upload/nicknames", methods=["GET"])
@@ -939,6 +949,10 @@ def get_statistics():
         FileMetadata.longitude.isnot(None),
     ).count()
 
+    files_with_exif = FileMetadata.query.filter(
+        FileMetadata.exif.isnot(None),
+    ).count()
+
     files_with_description = FileMetadata.query.filter(
         FileMetadata.description.isnot(None),
         FileMetadata.description != "",
@@ -1024,6 +1038,7 @@ def get_statistics():
         "dimension_ranges": dim_ranges,
         "coverage": {
             "files_with_gps": files_with_gps,
+            "files_with_exif": files_with_exif,
             "files_with_description": files_with_description,
             "files_with_nickname": files_with_nickname,
         },
