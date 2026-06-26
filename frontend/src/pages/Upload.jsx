@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import {
   Upload as UploadIcon, FolderPlus, Check, Trash2,
-  Folder, File, Image, Video, Search, X,
-  Grid3X3, List, ArrowUpDown, Plus,
+  Folder, FolderOpen, File, Image, Video, Search, X,
+  Grid3X3, List, ChevronDown, Plus, FileUp, Eye,
+  MoreVertical,
 } from "lucide-react";
 import { uploadFiles, listUploadDirs, createUploadDir, listNicknames, softDeleteFiles, softDeleteDir, listRecentFiles } from "../services/api";
 import { getPref, setPref } from "../services/db";
@@ -28,9 +29,11 @@ function Upload() {
   const [contextMenu, setContextMenu] = useState(null);
   const [previewFile, setPreviewFile] = useState(null);
   const [dragOver, setDragOver] = useState(false);
+  const [showNewMenu, setShowNewMenu] = useState(false);
   const inputRef = useRef(null);
   const fileInputRef = useRef(null);
-  const dropRef = useRef(null);
+  const folderInputRef = useRef(null);
+  const newMenuRef = useRef(null);
   const nicknameId = "upload-nickname-input";
 
   const refreshItems = useCallback(async (prefix) => {
@@ -52,6 +55,15 @@ function Upload() {
       .then((d) => setNicknames(d.nicknames || []))
       .catch(() => {});
   }, [refreshItems]);
+
+  useEffect(() => {
+    if (!showNewMenu) return;
+    const handler = (e) => {
+      if (newMenuRef.current && !newMenuRef.current.contains(e.target)) setShowNewMenu(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [showNewMenu]);
 
   const filtered = useMemo(() => {
     const q = searchQuery.toLowerCase().trim();
@@ -83,6 +95,7 @@ function Upload() {
       await createUploadDir(target);
       setNewFolderName("");
       setShowNewFolderInput(false);
+      setShowNewMenu(false);
       refreshItems(currentPrefix);
     } catch {
       setError("Failed to create directory");
@@ -110,8 +123,8 @@ function Upload() {
   };
 
   const handleDeleteSelected = async () => {
-    const dirs = filtered.filter((it) => selectedIds.has(it.id) && it.kind === "dir");
-    const fls = filtered.filter((it) => selectedIds.has(it.id) && it.kind === "file");
+    const dirs = filtered.filter((it) => selectedIds.has(it.id || it.path) && it.kind === "dir");
+    const fls = filtered.filter((it) => selectedIds.has(it.id || it.path) && it.kind === "file");
     const msg = [];
     if (dirs.length) msg.push(`${dirs.length} folder(s)`);
     if (fls.length) msg.push(`${fls.length} file(s)`);
@@ -124,11 +137,15 @@ function Upload() {
     refreshItems(currentPrefix);
   };
 
-  const handleFileChange = (e) => {
-    setFiles(Array.from(e.target.files || []));
+  const handleFilesPicked = useCallback((picked) => {
+    setFiles(Array.from(picked));
     setResult(null);
     setError("");
-  };
+    setShowNewMenu(false);
+  }, []);
+
+  const handleFileChange = (e) => handleFilesPicked(e.target.files);
+  const handleFolderChange = (e) => handleFilesPicked(e.target.files);
 
   const handleDrop = useCallback((e) => {
     e.preventDefault();
@@ -139,7 +156,10 @@ function Upload() {
   }, []);
 
   const handleDragOver = (e) => { e.preventDefault(); setDragOver(true); };
-  const handleDragLeave = () => setDragOver(false);
+  const handleDragLeave = (e) => {
+    if (e.currentTarget.contains(e.relatedTarget)) return;
+    setDragOver(false);
+  };
 
   const handleUpload = async () => {
     if (!nickname.trim()) { setError("Nickname is required"); return; }
@@ -187,7 +207,22 @@ function Upload() {
 
   const handleContextMenu = (e, item) => {
     e.preventDefault();
+    e.stopPropagation();
+    const id = item.id || item.path;
+    if (!selectedIds.has(id)) setSelectedIds(new Set([id]));
     setContextMenu({ x: e.clientX, y: e.clientY, item });
+  };
+
+  const handleShowActions = (e, item) => {
+    e.stopPropagation();
+    const rect = e.currentTarget.getBoundingClientRect();
+    const id = item.id || item.path;
+    if (!selectedIds.has(id)) setSelectedIds(new Set([id]));
+    if (contextMenu?.item === item) {
+      setContextMenu(null);
+    } else {
+      setContextMenu({ x: rect.right - 160, y: rect.bottom + 4, item });
+    }
   };
 
   const handleItemClick = (item) => {
@@ -212,94 +247,123 @@ function Upload() {
   };
 
   const breadcrumbs = currentPrefix ? currentPrefix.split("/") : [];
-
   const itemId = (it) => it.id || it.path;
+  const selCount = selectedIds.size;
 
   return (
-    <div className="upload" ref={dropRef} onDrop={handleDrop} onDragOver={handleDragOver} onDragLeave={handleDragLeave}>
-      <h2 className="upload__title">Upload Media</h2>
-
-      {/* Top bar: nickname + upload button */}
-      <div className="upload__topbar">
-        <div className="upload__nickname-wrap">
-          <label className="upload__label" htmlFor={nicknameId}>
-            Nickname <span className="upload__required">*</span>
-          </label>
-          <input
-            id={nicknameId}
-            className="upload__input"
-            type="text"
-            list="nickname-list"
-            placeholder="Who is uploading?"
-            value={nickname}
-            onChange={(e) => setNickname(e.target.value)}
-            disabled={uploading}
-            autoComplete="off"
-          />
-          <datalist id="nickname-list">
-            {nicknames.map((n) => <option key={n} value={n} />)}
-          </datalist>
+    <div
+      className={`upload ${dragOver ? "upload--drag-over" : ""}`}
+      onDrop={handleDrop}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onClick={() => { setContextMenu(null); setShowNewMenu(false); }}
+    >
+      <div className="upload__header">
+        <div className="upload__header-row">
+          <h2 className="upload__title">Upload Media</h2>
+          <div className="upload__header-actions">
+            <div className="upload__nickname-wrap">
+              <input
+                id={nicknameId}
+                className="upload__input upload__input--nickname"
+                type="text"
+                list="nickname-list"
+                placeholder="Nickname"
+                value={nickname}
+                onChange={(e) => setNickname(e.target.value)}
+                disabled={uploading}
+                autoComplete="off"
+              />
+              <datalist id="nickname-list">
+                {nicknames.map((n) => <option key={n} value={n} />)}
+              </datalist>
+            </div>
+            {files.length > 0 && (
+              <button className="upload__btn upload__btn--primary" onClick={handleUpload}
+                disabled={uploading || !nickname.trim()}>
+                {uploading ? `${progress}%` : <><UploadIcon size={15} /> Upload {files.length} file{files.length > 1 ? "s" : ""}</>}
+              </button>
+            )}
+          </div>
         </div>
-        <button className="upload__btn upload__btn--primary upload__upload-btn" onClick={handleUpload}
-          disabled={uploading || files.length === 0 || !nickname.trim()}>
-          {uploading ? <>Uploading {progress}%</> : <><UploadIcon size={16} /> Upload</>}
-        </button>
+        {uploading && (
+          <div className="upload__progress-wrap">
+            <div className="upload__progress-bar"><div className="upload__progress-fill" style={{ width: `${progress}%` }} /></div>
+            <span className="upload__progress-text">{progress}%</span>
+          </div>
+        )}
+        {error && <p className="upload__error">{error}</p>}
       </div>
 
-      {/* Breadcrumbs */}
+      <div className="upload__toolbar">
+        <div className="upload__search-wrap">
+          <Search size={15} className="upload__search-icon" />
+          <input className="upload__search-input" type="text" placeholder="Search in this folder..."
+            value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
+            onClick={(e) => e.stopPropagation()} />
+          {searchQuery && <button className="upload__search-clear" onClick={() => setSearchQuery("")}><X size={14} /></button>}
+        </div>
+        <div className="upload__toolbar-right">
+          <select className="upload__sort" value={sortBy} onChange={(e) => setSortBy(e.target.value)}
+            onClick={(e) => e.stopPropagation()}>
+            <option value="name">Name</option>
+            <option value="date">Newest</option>
+            <option value="size">Size</option>
+          </select>
+          <button className="upload__view-btn" onClick={(e) => { e.stopPropagation(); setViewMode(viewMode === "grid" ? "list" : "grid"); }}
+            title={viewMode === "grid" ? "List view" : "Grid view"}>
+            {viewMode === "grid" ? <List size={16} /> : <Grid3X3 size={16} />}
+          </button>
+          <div className="upload__new-wrap" ref={newMenuRef}>
+            <button className="upload__new-btn" onClick={(e) => { e.stopPropagation(); setShowNewMenu((v) => !v); }}>
+              <Plus size={16} /> New <ChevronDown size={12} />
+            </button>
+            {showNewMenu && (
+              <div className="upload__new-dropdown" onClick={(e) => e.stopPropagation()}>
+                <button onClick={() => { setShowNewFolderInput(true); setShowNewMenu(false); }}>
+                  <FolderPlus size={15} /> New folder
+                </button>
+                <button onClick={() => fileInputRef.current?.click()}>
+                  <FileUp size={15} /> File upload
+                </button>
+                <button onClick={() => folderInputRef.current?.click()}>
+                  <Folder size={15} /> Folder upload
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
       <div className="upload__breadcrumbs">
-        <span className="upload__crumb" onClick={() => navigateTo("")}>Root</span>
+        <span className="upload__crumb" onClick={(e) => { e.stopPropagation(); navigateTo(""); }}>My Drive</span>
         {breadcrumbs.map((part, i) => {
           const path = breadcrumbs.slice(0, i + 1).join("/");
           return (
             <span key={path} className="upload__crumb-row">
               <span className="upload__crumb-sep">/</span>
-              <span className="upload__crumb" onClick={() => navigateTo(path)}>{part}</span>
+              <span className="upload__crumb" onClick={(e) => { e.stopPropagation(); navigateTo(path); }}>{part}</span>
             </span>
           );
         })}
-        <span className="upload__crumb-filler" />
-        {selectedIds.size > 0 && (
-          <button className="upload__del-btn-selected" onClick={handleDeleteSelected} title="Delete selected">
-            <Trash2 size={13} /> {selectedIds.size}
+        {selCount > 0 && (
+          <button className="upload__del-selected" onClick={(e) => { e.stopPropagation(); handleDeleteSelected(); }}>
+            <Trash2 size={13} /> Delete {selCount} item{selCount > 1 ? "s" : ""}
           </button>
         )}
       </div>
 
-      {/* Toolbar: search + sort + view toggle + new folder */}
-      <div className="upload__toolbar">
-        <div className="upload__search-wrap">
-          <Search size={14} className="upload__search-icon" />
-          <input className="upload__search-input" type="text" placeholder="Filter files & folders…"
-            value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
-          {searchQuery && <button className="upload__search-clear" onClick={() => setSearchQuery("")}><X size={14} /></button>}
-        </div>
-        <select className="upload__sort" value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
-          <option value="name">Name</option>
-          <option value="date">Newest</option>
-          <option value="size">Size</option>
-        </select>
-        <button className="upload__view-btn" onClick={() => setViewMode(viewMode === "grid" ? "list" : "grid")}
-          title={viewMode === "grid" ? "List view" : "Grid view"}>
-          {viewMode === "grid" ? <List size={15} /> : <Grid3X3 size={15} />}
-        </button>
-        <button className="upload__dir-btn" onClick={() => { setShowNewFolderInput(p => !p); setNewFolderName(""); }}>
-          <FolderPlus size={15} /> New Folder
-        </button>
-      </div>
-
-      {/* New folder input */}
       {showNewFolderInput && (
-        <div className="upload__new-folder">
+        <div className="upload__new-folder" onClick={(e) => e.stopPropagation()}>
           <input className="upload__input" type="text" placeholder="Folder name"
             value={newFolderName} onChange={(e) => setNewFolderName(e.target.value)}
-            disabled={uploading} onKeyDown={(e) => e.key === "Enter" && handleCreateDir()} autoFocus />
+            onKeyDown={(e) => e.key === "Enter" && handleCreateDir()} autoFocus />
           <button className="upload__btn upload__btn--small" onClick={handleCreateDir}
-            disabled={uploading || !newFolderName.trim()}><Check size={14} /> Create</button>
+            disabled={!newFolderName.trim()}><Check size={14} /> Create</button>
+          <button className="upload__btn upload__btn--small" onClick={() => { setShowNewFolderInput(false); setNewFolderName(""); }}><X size={14} /> Cancel</button>
         </div>
       )}
 
-      {/* Items grid/list */}
       <div className={`upload__items ${viewMode === "grid" ? "upload__items--grid" : "upload__items--list"}`}>
         {filtered.length === 0 && (
           <div className="upload__empty">
@@ -311,122 +375,112 @@ function Upload() {
           const sel = selectedIds.has(id);
           if (it.kind === "dir") {
             return (
-              <div key={id} className={`upload__tile ${sel ? "upload__tile--sel" : ""}`}
-                onClick={() => toggleSelect(id)} onDoubleClick={() => navigateTo(it.path)}
+              <div key={id}
+                className={`upload__tile ${viewMode === "grid" ? "upload__tile--grid" : "upload__tile--list"} ${sel ? "upload__tile--sel" : ""}`}
+                onClick={(e) => { e.stopPropagation(); navigateTo(it.path); }}
                 onContextMenu={(e) => handleContextMenu(e, it)}>
-                <div className="upload__tile-thumb upload__tile-thumb--folder">
-                  <Folder size={viewMode === "grid" ? 36 : 20} />
+                <div className="upload__tile-thumb">
+                  <Folder size={viewMode === "grid" ? 48 : 20} />
                 </div>
-                <div className="upload__tile-info">
-                  <span className="upload__tile-name">{it.name}</span>
-                  <span className="upload__tile-meta">Folder</span>
+                <div className="upload__tile-name">{it.name}</div>
+                <div className={`upload__tile-check ${sel ? "upload__tile-check--visible" : ""}`}>
+                  <Check size={12} />
                 </div>
-                <button className="upload__tile-del" onClick={(e) => { e.stopPropagation(); handleDeleteDir(it.path, it.name); }}
-                  title="Delete folder"><Trash2 size={12} /></button>
+                <button className="upload__tile-actions" onClick={(e) => handleShowActions(e, it)} title="Actions">
+                  <MoreVertical size={14} />
+                </button>
+                {viewMode === "list" && <div className="upload__tile-meta">Folder</div>}
               </div>
             );
           }
           const isVideo = it.mime_type?.startsWith("video/");
           const thumbUrl = it.thumbnail && it.thumbnail_status === "completed" ? it.thumbnail : null;
           return (
-            <div key={id} className={`upload__tile ${sel ? "upload__tile--sel" : ""}`}
-              onClick={() => toggleSelect(id)} onDoubleClick={() => handleItemClick(it)}
+            <div key={id}
+              className={`upload__tile ${viewMode === "grid" ? "upload__tile--grid" : "upload__tile--list"} ${sel ? "upload__tile--sel" : ""}`}
+              onClick={(e) => { e.stopPropagation(); handleItemClick(it); }}
               onContextMenu={(e) => handleContextMenu(e, it)}>
               <div className="upload__tile-thumb">
                 {thumbUrl ? (
                   <img src={thumbUrl} alt="" className="upload__tile-img" loading="lazy" />
                 ) : isVideo ? (
-                  <Video size={viewMode === "grid" ? 36 : 20} />
+                  <Video size={viewMode === "grid" ? 48 : 20} />
                 ) : (
-                  <Image size={viewMode === "grid" ? 36 : 20} />
+                  <Image size={viewMode === "grid" ? 48 : 20} />
                 )}
               </div>
-              <div className="upload__tile-info">
-                <span className="upload__tile-name">{it.filename || it.name}</span>
-                <span className="upload__tile-meta">{formatSize(it.size)}{it.created_at ? ` · ${formatDate(it.created_at)}` : ""}{it.nickname ? ` · ${it.nickname}` : ""}</span>
+              <div className="upload__tile-name">{it.filename || it.name}</div>
+              <div className={`upload__tile-check ${sel ? "upload__tile-check--visible" : ""}`}>
+                <Check size={12} />
               </div>
-              <button className="upload__tile-del" onClick={(e) => { e.stopPropagation(); handleDeleteFile(it.id, it.filename); }}
-                title="Delete file"><Trash2 size={12} /></button>
+              <button className="upload__tile-actions" onClick={(e) => handleShowActions(e, it)} title="Actions">
+                <MoreVertical size={14} />
+              </button>
+              {viewMode === "list" && (
+                <div className="upload__tile-meta">
+                  {formatSize(it.size)}{it.created_at ? ` · ${formatDate(it.created_at)}` : ""}{it.nickname ? ` · ${it.nickname}` : ""}
+                </div>
+              )}
             </div>
           );
         })}
       </div>
 
-      {/* Context menu */}
       {contextMenu && (
         <div className="upload__ctx-overlay" onClick={() => setContextMenu(null)}>
-          <div className="upload__ctx-menu" style={{ left: contextMenu.x, top: contextMenu.y }}>
+          <div className="upload__ctx-menu" style={{ left: contextMenu.x, top: contextMenu.y }} onClick={(e) => e.stopPropagation()}>
             <button onClick={() => { const it = contextMenu.item; it.kind === "dir" ? navigateTo(it.path) : handleItemClick(it); setContextMenu(null); }}>
-              {contextMenu.item.kind === "dir" ? "Open" : "Preview"}
+              {contextMenu.item.kind === "dir" ? <><FolderOpen size={15} /> Open</> : <><Eye size={15} /> Preview</>}
+            </button>
+            <button onClick={() => { const it = contextMenu.item; const id = it.id || it.path; toggleSelect(id); setContextMenu(null); }}>
+              <Check size={15} /> {selectedIds.has(contextMenu.item.id || contextMenu.item.path) ? "Deselect" : "Select"}
             </button>
             <button onClick={() => { const it = contextMenu.item; it.kind === "dir" ? handleDeleteDir(it.path, it.name) : handleDeleteFile(it.id, it.filename); setContextMenu(null); }}>
-              Delete
+              <Trash2 size={15} /> Delete
             </button>
           </div>
         </div>
       )}
 
-      {/* Drop zone / file input */}
-      <div className={`upload__dropzone ${dragOver ? "upload__dropzone--active" : ""} ${files.length > 0 ? "upload__dropzone--has-files" : ""}`}
-        onClick={() => fileInputRef.current?.click()}>
-        {dragOver ? (
-          <p className="upload__dropzone-text">Drop files here</p>
-        ) : files.length > 0 ? (
-          <div className="upload__file-list">
-            {files.map((f, i) => (
-              <div key={i} className="upload__file-row">
-                <span className="upload__file-name">{f.name}</span>
-                <span className="upload__file-size">{formatSize(f.size)}</span>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <div className="upload__dropzone-placeholder">
-            <UploadIcon size={28} />
-            <p>Drag & drop files here or click to browse</p>
-            <span className="upload__dropzone-hint">Images &middot; Videos &middot; HEIC</span>
-          </div>
-        )}
-        <input ref={fileInputRef} className="upload__file-input-hidden" type="file" multiple
-          accept="image/*,video/*" onChange={handleFileChange} disabled={uploading} />
-      </div>
-
-      {/* Progress */}
-      {uploading && (
-        <div className="upload__progress-wrap">
-          <div className="upload__progress-bar"><div className="upload__progress-fill" style={{ width: `${progress}%` }} /></div>
-          <span className="upload__progress-text">{progress}%</span>
-        </div>
-      )}
-
-      {error && <p className="upload__error">{error}</p>}
-
-      {/* Result */}
       {result && (
         <div className="upload__result">
           <p className="upload__result-ok">
             Uploaded {result.saved?.length || 0} file(s)
             {result.errors?.length > 0 && `, ${result.errors.length} error(s)`}
           </p>
-          {result.saved?.length > 0 && (
-            <div className="upload__result-files">
-              {result.saved.map((f) => (
-                <div key={f.id} className="upload__file-row">
-                  <span className="upload__file-name">{f.filename}</span>
-                  <span className="upload__file-size">{formatSize(f.size)}</span>
-                </div>
-              ))}
-            </div>
-          )}
-          {result.errors?.length > 0 && (
-            <ul className="upload__error-list">
-              {result.errors.map((e, i) => <li key={i}>{e.filename}: {e.error}</li>)}
-            </ul>
-          )}
         </div>
       )}
 
-      {/* File preview */}
+      <input ref={fileInputRef} className="upload__hidden-input" type="file" multiple
+        accept="image/*,video/*" onChange={handleFileChange} />
+      <input ref={folderInputRef} className="upload__hidden-input" type="file" multiple
+        webkitdirectory="" onChange={handleFolderChange} />
+
+      {files.length > 0 && (
+        <div className="upload__bottom-bar">
+          <div className="upload__bottom-info">
+            <span className="upload__bottom-count">{files.length} file{files.length > 1 ? "s" : ""} selected</span>
+            <span className="upload__bottom-size">{formatSize(totalSize)}</span>
+          </div>
+          <div className="upload__bottom-files">
+            {files.map((f, i) => (
+              <div key={i} className="upload__bottom-file">
+                <span className="upload__bottom-fname">{f.name}</span>
+                <span className="upload__bottom-fsize">{formatSize(f.size)}</span>
+              </div>
+            ))}
+          </div>
+          <div className="upload__bottom-actions">
+            <button className="upload__btn upload__btn--primary" onClick={handleUpload}
+              disabled={uploading || !nickname.trim()}>
+              {uploading ? `Uploading ${progress}%` : <><UploadIcon size={15} /> Upload</>}
+            </button>
+            <button className="upload__btn" onClick={() => { setFiles([]); setResult(null); }}
+              disabled={uploading}><X size={14} /> Cancel</button>
+          </div>
+        </div>
+      )}
+
       {previewFile && <FileViewer file={previewFile} onClose={() => setPreviewFile(null)} />}
     </div>
   );

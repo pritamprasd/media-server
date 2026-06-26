@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
+import { Folder, ClipboardCopy, Plus, ArrowUp, ArrowRightToLine, Upload, Image, Video, Search } from "lucide-react";
 import { importFolder, browseFs } from "../services/api";
+import Spinner from "../components/Spinner";
 import "./Importer.css";
 
 const MIME_GROUPS = [
@@ -11,7 +13,7 @@ function DirEntry({ entry, onNavigate, onSelect, onCopyPath }) {
   return (
     <div className="importer__browse-row">
       <button className="importer__browse-name" onClick={() => onNavigate(entry.path)}>
-        <span className="importer__browse-icon">📁</span>
+        <span className="importer__browse-icon"><Folder size={15} /></span>
         <span>{entry.name}</span>
       </button>
       <div className="importer__browse-actions">
@@ -20,10 +22,10 @@ function DirEntry({ entry, onNavigate, onSelect, onCopyPath }) {
           onClick={() => onCopyPath(entry.path)}
           title="Copy path"
         >
-          📋
+          <ClipboardCopy size={14} />
         </button>
         <button className="importer__browse-pick" onClick={() => onSelect(entry.path)} title="Use this folder">
-          +
+          <ArrowRightToLine size={14} />
         </button>
       </div>
     </div>
@@ -133,7 +135,7 @@ function Importer() {
           className="importer__browse-toggle"
           onClick={() => setBrowseOpen((v) => !v)}
         >
-          {browseOpen ? "Hide browser" : "Browse filesystem"}
+          <Search size={14} /> {browseOpen ? "Hide browser" : "Browse filesystem"}
         </button>
 
         {browseOpen && (
@@ -145,7 +147,7 @@ function Importer() {
                 onClick={handleUp}
                 title="Parent directory"
               >
-                ↑
+                <ArrowUp size={14} />
               </button>
               <span className="importer__browse-path">{currentDir?.path || "Loading..."}</span>
               {currentDir?.path && (
@@ -155,12 +157,16 @@ function Importer() {
                   onClick={handleUseCurrent}
                   title="Set import path to current folder"
                 >
-                  Use
+                  <ArrowRightToLine size={14} /> Use
                 </button>
               )}
             </div>
 
-            {browseLoading && <p className="importer__browse-loading">Loading...</p>}
+            {browseLoading && (
+              <div className="importer__browse-loading">
+                <Spinner size={20} color="var(--color-text-muted)" />
+              </div>
+            )}
 
             {!browseLoading && dirs.length === 0 && files.length === 0 && (
               <p className="importer__browse-empty">Empty folder</p>
@@ -189,7 +195,7 @@ function Importer() {
                 <div className="importer__browse-files">
                   {files.map((f) => (
                     <span key={f.path} className="importer__browse-file">
-                      {f.mime_type?.startsWith("video/") ? "🎬" : "🖼️"} {f.name}
+                      {f.mime_type?.startsWith("video/") ? <Video size={12} /> : <Image size={12} />} {f.name}
                     </span>
                   ))}
                 </div>
@@ -219,7 +225,7 @@ function Importer() {
           type="submit"
           disabled={loading || !canSubmit}
         >
-          {loading ? "Importing..." : "Import"}
+          {loading ? <><Spinner size={14} color="currentColor" /> Importing</> : <><Upload size={14} /> Import</>}
         </button>
       </form>
 

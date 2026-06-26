@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+import { Heart } from "lucide-react";
 import { listFavorites, toggleFavorite, getFileThumbnail } from "../services/api";
 import FileViewer from "../components/FileViewer";
+import Spinner from "../components/Spinner";
 import "./Favorites.css";
 
 function Favorites() {
@@ -78,11 +80,11 @@ function Favorites() {
     <div className="favorites">
       <h2 className="favorites__title">Favorites</h2>
 
-      {loading && <p className="favorites__empty">Loading...</p>}
+      {loading && <div className="favorites__empty"><Spinner size={22} color="var(--color-text-muted)" /></div>}
 
       {!loading && files.length === 0 && (
         <p className="favorites__empty">
-          No favorites yet. Open a file in the Gallery and click ☆ to add it.
+          No favorites yet. Open a file in the Gallery and click the Heart icon to add it.
         </p>
       )}
 
@@ -109,7 +111,7 @@ function Favorites() {
                   }}
                   title="Remove from favorites"
                 >
-                  ★
+                  <Heart size={16} fill="currentColor" />
                 </button>
               </div>
             </div>

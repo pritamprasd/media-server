@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { MapPinned, Trash2, Plus, Loader2 } from "lucide-react";
+import { MapPinned, Trash2, Plus } from "lucide-react";
 import { listLocations, createLocation, deleteLocation } from "../services/api";
+import Spinner from "../components/Spinner";
 import "./Locations.css";
 
 const NEARBY_KM = Number(import.meta.env.VITE_MAP_NEARBY_KM) || 10;
@@ -58,7 +59,7 @@ function Locations() {
   if (loading) {
     return (
       <div className="locations">
-        <div className="home__spinner" />
+        <Spinner size={32} />
       </div>
     );
   }
@@ -100,7 +101,7 @@ function Locations() {
             required
           />
           <button className="locations__submit-btn" type="submit" disabled={saving}>
-            {saving ? <Loader2 size={14} className="locations__spin" /> : <Plus size={14} />}
+            {saving ? <Spinner size={14} color="currentColor" /> : <MapPinned size={14} />}
             Save
           </button>
         </form>

@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
-import { Search, List, Image, Video, Sparkles, FolderTree, ChevronDown, X, Hash, Columns2 } from "lucide-react";
+import { Search, List, Image, Video, Sparkles, FolderTree, Folder, FolderOpen, ChevronDown, X, Hash, Columns2, Heart } from "lucide-react";
 import { listFiles, listDirectories, toggleFavorite as toggleFavApi, listTags } from "../services/api";
 import { getPref, setPref } from "../services/db";
 import FileViewer from "../components/FileViewer";
+import Spinner from "../components/Spinner";
 import "./Home.css";
 
 function buildDirTree(dirs) {
@@ -54,7 +55,7 @@ function DirTree({ trees, selectedId, onSelect, onClose, search }) {
         style={{ paddingLeft: `${12 + depth * 16}px` }}
         onClick={() => { onSelect(node.id); onClose?.(); }}
       >
-        <span className="home__dir-icon">{node.children?.length ? "📂" : "📁"}</span>
+        <span className="home__dir-icon">{node.children?.length ? <FolderOpen size={15} /> : <Folder size={15} />}</span>
         {node.name}
       </button>
       {node.children?.length > 0 && (
@@ -73,7 +74,7 @@ function DirTree({ trees, selectedId, onSelect, onClose, search }) {
         className={`home__dir-all ${selectedId === null ? "home__dir-all--active" : ""}`}
         onClick={() => { onSelect(null); onClose?.(); }}
       >
-        <span className="home__dir-all-icon">🗂</span>
+        <span className="home__dir-all-icon"><FolderTree size={15} /></span>
         <span className="home__dir-all-label">All directories</span>
       </button>
 
@@ -91,7 +92,7 @@ function DirTree({ trees, selectedId, onSelect, onClose, search }) {
                   style={{ paddingLeft: `${12 + n.matchDepth * 16}px` }}
                   onClick={() => { onSelect(n.id); onClose?.(); }}
                 >
-                  <span className="home__dir-icon">📁</span>
+                  <span className="home__dir-icon"><Folder size={15} /></span>
                   {n.name}
                 </button>
               </li>
@@ -497,7 +498,7 @@ function Home() {
                       />
                     ) : (
                       <div className="home__thumb-placeholder">
-                        {file.mime_type && file.mime_type.startsWith("video/") ? "🎬" : "🖼️"}
+                        {file.mime_type && file.mime_type.startsWith("video/") ? <Video size={24} /> : <Image size={24} />}
                       </div>
                     )}
                     {file.mime_type && file.mime_type.startsWith("video/") && (
@@ -516,7 +517,7 @@ function Home() {
                       }}
                       title={file.is_favorite ? "Remove from favorites" : "Add to favorites"}
                     >
-                      {file.is_favorite ? "★" : "☆"}
+                      {file.is_favorite ? <Heart size={14} fill="currentColor" /> : <Heart size={14} />}
                     </button>
                   </div>
                 </div>
@@ -525,7 +526,7 @@ function Home() {
           )}
 
           <div ref={sentinelRef} className="home__sentinel">
-            {loading && <div className="home__spinner" />}
+            {loading && <Spinner size={20} />}
           </div>
         </div>
       </div>
@@ -556,7 +557,7 @@ function Home() {
           <div className="home__dir-dialog" onClick={(e) => e.stopPropagation()}>
             <div className="home__dir-dialog-header">
               <span>Filter by directory</span>
-              <button className="home__dir-close" onClick={() => { setDirDialogOpen(false); setDirSearch(""); }}>✕</button>
+              <button className="home__dir-close" onClick={() => { setDirDialogOpen(false); setDirSearch(""); }}><X size={14} /></button>
             </div>
             <div className="home__dir-dialog-body">
               <div className="home__dir-search-wrap">

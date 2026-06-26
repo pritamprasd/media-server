@@ -2,9 +2,10 @@ import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { MapContainer, TileLayer, Marker, Popup, useMap, useMapEvents } from "react-leaflet";
 import L from "leaflet";
-import { X, Grid3X3, BookmarkPlus } from "lucide-react";
+import { X, Grid3X3, BookmarkPlus, Eye, EyeOff, ChevronDown } from "lucide-react";
 import { listFilesWithGps, createLocation } from "../services/api";
 import FileViewer from "../components/FileViewer";
+import Spinner from "../components/Spinner";
 import "./Map.css";
 
 const NEARBY_KM = Number(import.meta.env.VITE_MAP_NEARBY_KM) || 10;
@@ -94,7 +95,13 @@ function Map() {
           pages = d.pages || 1;
           page++;
         }
-        setFiles(all);
+        const seen = new Set();
+        const deduped = all.filter((f) => {
+          if (seen.has(f.id)) return false;
+          seen.add(f.id);
+          return true;
+        });
+        setFiles(deduped);
       } catch {
         if (!cancelled) setError("Failed to load GPS data");
       } finally {
@@ -186,7 +193,7 @@ function Map() {
       ? `${filteredMarkers.length} file${filteredMarkers.length !== 1 ? "s" : ""} near this location`
       : "";
 
-  if (loading) return <div className="map"><div className="home__spinner" /></div>;
+  if (loading) return <div className="map"><Spinner size={36} /></div>;
   if (error) return <div className="map map--error"><p>{error}</p></div>;
 
   return (
@@ -219,7 +226,7 @@ function Map() {
                       <div className="map__popup-no-thumb" />
                     )}
                     <p className="map__popup-name">{f.filename}</p>
-                    <button className="map__popup-view" onClick={() => setPreviewFile({ id: f.id, filename: f.filename })}>View</button>
+                    <button className="map__popup-view" onClick={() => setPreviewFile({ id: f.id, filename: f.filename })}><Eye size={12} /> View</button>
                   </div>
                 </Popup>
               </Marker>
@@ -240,7 +247,7 @@ function Map() {
                       <BookmarkPlus size={14} /> Save
                     </button>
                   )}
-                  <button className="map__thumbs-clear" onClick={handleClearFilter}>Show all</button>
+                  <button className="map__thumbs-clear" onClick={handleClearFilter}><EyeOff size={12} /> Show all</button>
                 </div>
               </div>
             )}
@@ -262,7 +269,7 @@ function Map() {
             </div>
             {hasMore && (
               <button className="map__thumbs-more" onClick={() => setVisibleCount((v) => v + ITEMS_PER_PAGE)}>
-                Show more ({filteredMarkers.length - visibleCount} remaining)
+                <ChevronDown size={14} /> Show more ({filteredMarkers.length - visibleCount} remaining)
               </button>
             )}
             {filteredMarkers.length === 0 && (

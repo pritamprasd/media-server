@@ -5,6 +5,7 @@ import {
   AreaChart, Area,
 } from "recharts";
 import { getStats } from "../services/api";
+import Spinner from "../components/Spinner";
 import "./Statistics.css";
 
 const COLORS = ["#ff4757", "#2ecc71", "#3498db", "#f39c12", "#9b59b6", "#1abc9c", "#e74c3c", "#34495e"];
@@ -37,7 +38,7 @@ function Statistics() {
       .finally(() => setLoading(false));
   }, []);
 
-  if (loading) return <div className="stats stats--loading"><div className="home__spinner" /></div>;
+  if (loading) return <div className="stats stats--loading"><Spinner size={36} /></div>;
   if (error) return <div className="stats stats--error"><p>{error}</p></div>;
   if (!data) return null;
 

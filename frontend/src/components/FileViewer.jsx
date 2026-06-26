@@ -6,6 +6,7 @@ import {
   ZoomIn, ZoomOut,
 } from "lucide-react";
 import { toggleFavorite as toggleFavApi, getFileMetadata, editFile, deleteFile, updateTags } from "../services/api";
+import Spinner from "./Spinner";
 import "./FileViewer.css";
 
 function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete }) {
@@ -316,7 +317,7 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete }) {
             )}
           </div>
           <div className="viewer-sidebar">
-            {metaLoading && <div className="viewer-meta-loading">Loading metadata...</div>}
+            {metaLoading && <div className="viewer-meta-loading"><Spinner size={20} color="var(--color-text-muted)" /><span>Loading metadata...</span></div>}
             {meta && (
               <div className="viewer-meta">
                 <h3 className="viewer-meta-title">Metadata</h3>

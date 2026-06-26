@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
+import { ArrowDownToLine, X } from "lucide-react";
 import { getPref } from "./services/db";
 import Navbar from "./components/Navbar";
+import Spinner from "./components/Spinner";
 import Home from "./pages/Home";
 import Importer from "./pages/Importer";
 import Gallery from "./pages/Gallery";
@@ -55,7 +57,7 @@ function App() {
       <>
         <Navbar />
         <main className="main-content">
-          <div className="app__init-loader" />
+          <div className="app__init-loader"><Spinner size={36} /></div>
         </main>
       </>
     );
@@ -85,14 +87,14 @@ function App() {
         <div className="app__install-banner">
           <span>Install Media Server</span>
           <button className="app__install-btn" onClick={handleInstall}>
-            Install
+            <ArrowDownToLine size={16} /> Install
           </button>
           <button
             className="app__install-dismiss"
             onClick={() => setInstallAvailable(false)}
             aria-label="Dismiss"
           >
-            &times;
+            <X size={16} />
           </button>
         </div>
       )}

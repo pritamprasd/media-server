@@ -23,19 +23,6 @@
   font-size: 0.75rem;
 }
 
-.tree-node__spinner {
-  display: inline-block;
-  width: 0.625rem;
-  height: 0.625rem;
-  border: 2px solid var(--color-text-muted);
-  border-top-color: transparent;
-  border-radius: 50%;
-  animation: spin 0.6s linear infinite;
-}
-
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
 
 .tree-node__spacer {
   display: inline-block;

@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+import { CopyCheck, Shuffle, CheckCheck, Trash2, X, Image, Video } from "lucide-react";
 import { listDuplicates, deleteFile } from "../services/api";
 import FileViewer from "../components/FileViewer";
+import Spinner from "../components/Spinner";
 import "./Duplicates.css";
 
 function Duplicates() {
@@ -90,18 +92,18 @@ function Duplicates() {
             className={`duplicates__tab ${type === "exact" ? "duplicates__tab--active" : ""}`}
             onClick={() => setType("exact")}
           >
-            Exact Duplicates {groups.length > 0 && `(${groups.length})`}
+            Exact Duplicates <CopyCheck size={14} /> {groups.length > 0 && `(${groups.length})`}
           </button>
           <button
             className={`duplicates__tab ${type === "near" ? "duplicates__tab--active" : ""}`}
             onClick={() => setType("near")}
           >
-            Near Duplicates
+            Near Duplicates <Shuffle size={14} />
           </button>
         </div>
       </div>
 
-      {loading && <p className="duplicates__empty">Scanning...</p>}
+      {loading && <div className="duplicates__empty"><Spinner size={22} color="var(--color-text-muted)" /></div>}
 
       {!loading && type === "exact" && groups.length === 0 && (
         <p className="duplicates__empty">No exact duplicates found.</p>
@@ -121,7 +123,7 @@ function Duplicates() {
                   className="duplicates__keep-btn"
                   onClick={() => handleKeepOne(g.hash, g.files[0].file_id)}
                 >
-                  Keep first, remove rest
+                  Keep first, remove rest <CheckCheck size={14} />
                 </button>
               </div>
               <div className="duplicates__grid">
@@ -134,7 +136,7 @@ function Duplicates() {
                         <img className="duplicates__thumb" src={f.thumbnail} alt={f.filename} />
                       ) : (
                         <div className="duplicates__thumb-placeholder">
-                          {f.mime_type?.startsWith("video/") ? "🎬" : "🖼️"}
+                          {f.mime_type?.startsWith("video/") ? <Video size={24} /> : <Image size={24} />}
                         </div>
                       )}
                     </div>
@@ -146,7 +148,7 @@ function Duplicates() {
                         onClick={() => handleRemove(f.file_id)}
                         title="Remove from library"
                       >
-                        ✕
+                        <X size={14} />
                       </button>
                     </div>
                   </div>

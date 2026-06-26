@@ -1,4 +1,6 @@
 import { useState, useEffect } from "react";
+import { Folder, Image, Video } from "lucide-react";
+import Spinner from "./Spinner";
 import "./TreeNode.css";
 
 function TreeNode({ sessionId, path, name, loadDir, treeData, onFileClick }) {
@@ -26,11 +28,11 @@ function TreeNode({ sessionId, path, name, loadDir, treeData, onFileClick }) {
         }}
       >
         <span className="tree-node__arrow">
-          {loading && <span className="tree-node__spinner" />}
+          {loading && <Spinner size={10} color="var(--sk-color, #555)" />}
           {!loading && data && hasContent && (expanded ? "▾" : "▸")}
           {!loading && (isEmpty || !data) && <span className="tree-node__spacer" />}
         </span>
-        <span className="tree-node__icon">📁</span>
+        <span className="tree-node__icon"><Folder size={15} /></span>
         <span className="tree-node__name">{name}</span>
       </div>
 
@@ -53,7 +55,7 @@ function TreeNode({ sessionId, path, name, loadDir, treeData, onFileClick }) {
               className="tree-node__file"
               onClick={() => onFileClick(f)}
             >
-              <span className="tree-node__icon">{isVideo(f.mime_type) ? "🎬" : "🖼️"}</span>
+              <span className="tree-node__icon">{isVideo(f.mime_type) ? <Video size={13} /> : <Image size={13} />}</span>
               <span className="tree-node__name tree-node__name--file">
                 {f.filename}
               </span>

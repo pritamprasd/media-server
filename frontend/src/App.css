@@ -7,17 +7,10 @@
 }
 
 .app__init-loader {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   margin-top: 3rem;
-  width: 2rem;
-  height: 2rem;
-  border: 3px solid var(--color-text-muted);
-  border-top-color: var(--color-primary);
-  border-radius: 50%;
-  animation: app-spin 0.7s linear infinite;
-}
-
-@keyframes app-spin {
-  to { transform: rotate(360deg); }
 }
 
 .app__install-banner {

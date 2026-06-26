@@ -430,18 +430,6 @@
   width: 100%;
 }
 
-.home__spinner {
-  width: 28px;
-  height: 28px;
-  border: 3px solid var(--color-secondary);
-  border-top-color: var(--color-primary);
-  border-radius: 50%;
-  animation: spin 0.6s linear infinite;
-}
-
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
 
 .home__dir-picker {
   padding: 0.5rem;
