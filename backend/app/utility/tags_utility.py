@@ -16,5 +16,7 @@ def extract_folder_tags(relative_path):
         if len(cleaned) < 2:
             continue
         tags.append(cleaned.lower())
+    tags = tags[1:]
+    
     seen = set()
     return [t for t in tags if not (t in seen or seen.add(t))]

@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Settings as SettingsIcon, ArrowRight, Palette } from "lucide-react";
+import { Settings as SettingsIcon, ArrowRight, Palette, Save } from "lucide-react";
 import { getPref, setPref } from "../services/db";
 import "./Settings.css";
 
@@ -36,12 +36,14 @@ function Settings() {
   const [defaultTab, setDefaultTab] = useState("/");
   const [accentColor, setAccentColor] = useState("#3498db");
   const [columns, setColumnsState] = useState("auto");
+  const [savedNickname, setSavedNickname] = useState("");
   const navigate = useNavigate();
 
   useEffect(() => {
     getPref("defaultTab", "/").then(setDefaultTab);
     getPref("accentColor", "#3498db").then(setAccentColor);
     getPref("homeColumns", "auto").then(setColumnsState);
+    getPref("nickname", "").then(setSavedNickname);
   }, []);
 
   const handleTabChange = (e) => {
@@ -59,6 +61,10 @@ function Settings() {
   const setColumns = (val) => {
     setColumnsState(val);
     setPref("homeColumns", val);
+  };
+
+  const handleNicknameSave = () => {
+    setPref("nickname", savedNickname.trim());
   };
 
   return (
@@ -96,6 +102,25 @@ function Settings() {
               {opt.label}
             </button>
           ))}
+        </div>
+      </div>
+
+      <div className="settings__card">
+        <h3 className="settings__label">Default Nickname</h3>
+        <p className="settings__desc">
+          Set a default nickname that will be pre-filled on the Upload page.
+        </p>
+        <div className="settings__nickname-row">
+          <input
+            className="settings__input"
+            type="text"
+            placeholder="Enter your nickname"
+            value={savedNickname}
+            onChange={(e) => setSavedNickname(e.target.value)}
+          />
+          <button className="settings__btn" onClick={handleNicknameSave}>
+            <Save size={14} /> Save
+          </button>
         </div>
       </div>
 

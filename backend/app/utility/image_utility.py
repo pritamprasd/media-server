@@ -10,11 +10,42 @@ from app.utility.location_utility import dms_to_decimal
 
 THUMB_SIZE = (400, 400)
 
+HEIC_EXTS = {".heic", ".heif", ".heics", ".heifs"}
+
+
+def _open_image(path):
+    ext = os.path.splitext(path)[1].lower()
+    if ext in HEIC_EXTS:
+        buf = _convert_heic_to_jpeg_pipe(path)
+        if buf is not None:
+            return Image.open(buf)
+        return None
+    return Image.open(path)
+
+
+def _convert_heic_to_jpeg_pipe(path):
+    import subprocess as sp
+
+    for cmd in (["magick", "convert"], ["convert"]):
+        try:
+            result = sp.run(
+                [*cmd, "-define", "jpeg:preserve-exif=true", path, "jpeg:-"],
+                capture_output=True, timeout=30,
+            )
+            if result.returncode == 0 and result.stdout:
+                return io.BytesIO(result.stdout)
+        except Exception:
+            pass
+    return None
+
+
 def extract_image_metadata(path, meta):
     if not os.path.isfile(path):
         return
 
-    img = Image.open(path)
+    img = _open_image(path)
+    if img is None:
+        return
     meta.width, meta.height = img.size
 
     exif_data = img._getexif()
@@ -56,7 +87,9 @@ def generate_image_thumbnail(path, meta):
     if not os.path.isfile(path):
         return
 
-    img = Image.open(path)
+    img = _open_image(path)
+    if img is None:
+        return
     img = img.convert("RGB")
     img.thumbnail(THUMB_SIZE, Image.LANCZOS)
 

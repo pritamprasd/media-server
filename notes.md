@@ -15,3 +15,12 @@ export UID=$(id -u)
 export GID=$(id -g)
 docker compose up --build -d
 ```
+
+
+```sh
+Locally:
+cd backend && python scripts/regenerate_heic_thumbnails.py
+
+Docker:
+docker compose exec backend python scripts/regenerate_heic_thumbnails.py
+```

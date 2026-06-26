@@ -1,6 +1,25 @@
 import hashlib
+import io
+import os
 
 from PIL import Image
+
+HEIC_EXTS = {".heic", ".heif", ".heics", ".heifs"}
+
+
+def _open_image_safe(path):
+    ext = os.path.splitext(path)[1].lower()
+    if ext in HEIC_EXTS:
+        import subprocess as sp
+        for cmd in (["magick", "convert"], ["convert"]):
+            try:
+                result = sp.run([*cmd, "-define", "jpeg:preserve-exif=true", path, "jpeg:-"], capture_output=True, timeout=30)
+                if result.returncode == 0 and result.stdout:
+                    return Image.open(io.BytesIO(result.stdout))
+            except Exception:
+                pass
+        return None
+    return Image.open(path)
 
 
 def compute_file_hash(file_path):
@@ -15,7 +34,10 @@ def compute_file_hash(file_path):
 
 
 def compute_dhash(file_path, hash_size=8):
-    img = Image.open(file_path).convert("L")
+    img = _open_image_safe(file_path)
+    if img is None:
+        return "0" * (hash_size * hash_size // 4)
+    img = img.convert("L")
     img = img.resize((hash_size + 1, hash_size), Image.LANCZOS)
     pixels = list(img.getdata())
     w = hash_size + 1

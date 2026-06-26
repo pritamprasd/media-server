@@ -373,18 +373,14 @@
 }
 
 .viewer-exif-content {
-  overflow-y: auto;
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.2s ease-out;
 }
 
-@media (max-width: 768px) {
-  .viewer-exif-content {
-    max-height: 0;
-    transition: max-height 0.2s ease-out;
-  }
-
-  .viewer-exif-content--expanded {
-    max-height: 300px;
-  }
+.viewer-exif-content--expanded {
+  max-height: 300px;
+  overflow-y: auto;
 }
 
 .viewer-tags {

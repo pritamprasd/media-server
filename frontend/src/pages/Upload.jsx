@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { Upload as UploadIcon, FolderPlus, Check, Trash2, ArrowLeft, Folder, X } from "lucide-react";
 import { uploadFiles, listUploadDirs, createUploadDir, listNicknames, softDeleteFiles, softDeleteDir, listRecentFiles } from "../services/api";
+import { getPref, setPref } from "../services/db";
 import "./Upload.css";
 
 function Upload() {
@@ -30,6 +31,7 @@ function Upload() {
 
   useEffect(() => {
     refreshDirs("");
+    getPref("nickname", "").then((v) => setNickname(v));
     listNicknames()
       .then((d) => setNicknames(d.nicknames || []))
       .catch(() => {});
@@ -104,9 +106,13 @@ function Upload() {
         },
       );
       setResult(data);
+      setPref("nickname", nickname.trim());
       setFiles([]);
       if (inputRef.current) inputRef.current.value = "";
       refreshDirs(currentPrefix);
+      listNicknames()
+        .then((d) => setNicknames(d.nicknames || []))
+        .catch(() => {});
     } catch (err) {
       setError(err?.response?.data?.error || err.message || "Upload failed");
     } finally {

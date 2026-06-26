@@ -166,6 +166,19 @@ def extract_file_metadata(self, file_info):
     db.session.commit()
     return {"file_id": file_id, "status": meta.metadata_status}
 
+def _heic_to_jpeg_base64(path):
+    import base64
+    import subprocess as sp
+    for cmd in (["magick", "convert"], ["convert"]):
+        try:
+            result = sp.run([*cmd, "-define", "jpeg:preserve-exif=true", path, "jpeg:-"], capture_output=True, timeout=30)
+            if result.returncode == 0 and result.stdout:
+                return base64.b64encode(result.stdout).decode("utf-8")
+        except Exception:
+            pass
+    return None
+
+
 @celery.task(bind=True, max_retries=3)
 def generate_ai_metadata(self, file_info):
     from flask import current_app
@@ -191,11 +204,18 @@ def generate_ai_metadata(self, file_info):
 
     try:
         if mime.startswith("image/"):
+            images = [file_path]
+            if mime in ("image/heic", "image/heif"):
+                b64 = _heic_to_jpeg_base64(file_path)
+                if b64:
+                    images = [b64]
+                else:
+                    current_app.logger.warning("AI metadata: could not convert HEIC to JPEG for file %d", file_id)
             response = client.chat(
                 model=vision_model,
                 messages=[
                     {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": "Describe this image.", "images": [file_path]},
+                    {"role": "user", "content": "Describe this image.", "images": images},
                 ],
                 format=AI_METADATA_SCHEMA,
                 options={"temperature": 0.3},

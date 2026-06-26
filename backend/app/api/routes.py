@@ -1,3 +1,4 @@
+import io
 import os
 from datetime import datetime
 
@@ -501,6 +502,22 @@ def edit_file(file_id):
     return jsonify(f.to_dict()), 201
 
 
+def _convert_heic_to_jpeg(path):
+    import subprocess as sp
+
+    for cmd in (["magick", "convert"], ["convert"]):
+        try:
+            result = sp.run(
+                [*cmd, "-define", "jpeg:preserve-exif=true", path, "jpeg:-"],
+                capture_output=True, timeout=30,
+            )
+            if result.returncode == 0 and result.stdout:
+                return result.stdout
+        except Exception:
+            pass
+    return None
+
+
 @api_bp.route("/files/<int:file_id>/serve", methods=["GET"])
 def serve_file(file_id):
     file_record = db.session.get(ImportedFile, file_id)
@@ -508,6 +525,11 @@ def serve_file(file_id):
         return jsonify({"error": "File not found"}), 404
     if not os.path.isfile(file_record.file_path):
         return jsonify({"error": "File no longer exists on disk"}), 404
+    if file_record.mime_type in ("image/heic", "image/heif"):
+        jpeg_data = _convert_heic_to_jpeg(file_record.file_path)
+        if jpeg_data:
+            return send_file(io.BytesIO(jpeg_data), mimetype="image/jpeg", as_attachment=False)
+        return jsonify({"error": "Could not decode HEIC image"}), 500
     return send_file(
         file_record.file_path,
         mimetype=file_record.mime_type,
