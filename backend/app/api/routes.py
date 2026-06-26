@@ -769,8 +769,13 @@ def soft_delete_upload_dir():
 
 @api_bp.route("/upload/files/recent", methods=["GET"])
 def list_recent_upload_files():
+    upload_dir = current_app.config["UPLOAD_DIR"]
+    session, _root_dir = _get_or_create_upload_session(upload_dir)
     prefix = request.args.get("prefix", "").strip().strip("/")
-    query = ImportedFile.query.filter(ImportedFile.deleted != True)
+    query = ImportedFile.query.filter(
+        ImportedFile.deleted != True,
+        ImportedFile.session_id == session.id,
+    )
     if prefix:
         like = f"{prefix}/%"
         query = query.filter(
@@ -782,9 +787,15 @@ def list_recent_upload_files():
 
 @api_bp.route("/upload/nicknames", methods=["GET"])
 def list_nicknames():
+    upload_dir = current_app.config["UPLOAD_DIR"]
+    session, _root_dir = _get_or_create_upload_session(upload_dir)
     rows = (
         db.session.query(ImportedFile.nickname)
-        .filter(ImportedFile.nickname.isnot(None), ImportedFile.nickname != "")
+        .filter(
+            ImportedFile.nickname.isnot(None),
+            ImportedFile.nickname != "",
+            ImportedFile.session_id == session.id,
+        )
         .distinct()
         .order_by(ImportedFile.nickname)
         .all()
