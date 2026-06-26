@@ -778,9 +778,18 @@ def list_recent_upload_files():
     )
     if prefix:
         like = f"{prefix}/%"
+        no_sub = f"{prefix}/%/%"
         query = query.filter(
-            db.or_(ImportedFile.relative_path == prefix, ImportedFile.relative_path.like(like))
+            db.or_(
+                ImportedFile.relative_path == prefix,
+                db.and_(
+                    ImportedFile.relative_path.like(like),
+                    ~ImportedFile.relative_path.like(no_sub),
+                ),
+            )
         )
+    else:
+        query = query.filter(~ImportedFile.relative_path.like("%/%"))
     files = query.order_by(ImportedFile.created_at.desc()).limit(100).all()
     return jsonify({"files": [f.to_dict() for f in files]}), 200
 

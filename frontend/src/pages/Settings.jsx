@@ -15,6 +15,12 @@ const TABS = [
   { path: "/statistics", label: "Statistics" },
 ];
 
+const COLUMN_OPTIONS = [
+  { value: "auto", label: "Auto" },
+  { value: "1", label: "1 column" },
+  { value: "2", label: "2 columns" },
+];
+
 const ACCENT_COLORS = [
   { name: "Blue", value: "#3498db" },
   { name: "Green", value: "#2ecc71" },
@@ -29,11 +35,13 @@ const ACCENT_COLORS = [
 function Settings() {
   const [defaultTab, setDefaultTab] = useState("/");
   const [accentColor, setAccentColor] = useState("#3498db");
+  const [columns, setColumnsState] = useState("auto");
   const navigate = useNavigate();
 
   useEffect(() => {
     getPref("defaultTab", "/").then(setDefaultTab);
     getPref("accentColor", "#3498db").then(setAccentColor);
+    getPref("homeColumns", "auto").then(setColumnsState);
   }, []);
 
   const handleTabChange = (e) => {
@@ -46,6 +54,11 @@ function Settings() {
     setAccentColor(color);
     setPref("accentColor", color);
     document.documentElement.style.setProperty("--color-primary", color);
+  };
+
+  const setColumns = (val) => {
+    setColumnsState(val);
+    setPref("homeColumns", val);
   };
 
   return (
@@ -64,6 +77,24 @@ function Settings() {
               onClick={() => handleAccentChange(c.value)}
               title={c.name}
             />
+          ))}
+        </div>
+      </div>
+
+      <div className="settings__card">
+        <h3 className="settings__label">Home columns</h3>
+        <p className="settings__desc">
+          On mobile: choose 1 or 2 columns. On desktop: Auto fits 90% screen width with dynamic columns.
+        </p>
+        <div className="settings__column-btns">
+          {COLUMN_OPTIONS.map((opt) => (
+            <button
+              key={opt.value}
+              className={`settings__column-btn ${columns === opt.value ? "settings__column-btn--active" : ""}`}
+              onClick={() => setColumns(opt.value)}
+            >
+              {opt.label}
+            </button>
           ))}
         </div>
       </div>

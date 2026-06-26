@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
-import { Search, List, Image, Video, Sparkles, FolderTree, ChevronDown, X, Hash } from "lucide-react";
+import { Search, List, Image, Video, Sparkles, FolderTree, ChevronDown, X, Hash, Columns2 } from "lucide-react";
 import { listFiles, listDirectories, toggleFavorite as toggleFavApi, listTags } from "../services/api";
+import { getPref, setPref } from "../services/db";
 import FileViewer from "../components/FileViewer";
 import "./Home.css";
 
@@ -91,6 +92,7 @@ function Home() {
   const [showTagDropdown, setShowTagDropdown] = useState(false);
   const [tagSearch, setTagSearch] = useState("");
   const [totalCount, setTotalCount] = useState(0);
+  const [columns, setColumns] = useState("auto");
   const sentinelRef = useRef(null);
   const searchTimeout = useRef(null);
   const hasMoreRef = useRef(hasMore);
@@ -157,6 +159,7 @@ function Home() {
     listTags()
       .then((d) => setAllTags(d.tags || []))
       .catch(() => {});
+    getPref("homeColumns", "auto").then(setColumns);
   }, []);
 
   const dimPresets = [
@@ -257,7 +260,7 @@ function Home() {
 
   return (
     <div className="home">
-      <div className="home__layout">
+      <div className={`home__layout${columns === "auto" ? " home__layout--auto" : ""}`}>
         <div className="home__main">
           <header className="home__header">
             {directories.length > 0 && (
@@ -380,6 +383,31 @@ function Home() {
               </div>
             </div>
 
+            <div className="home__column-toggle">
+              <button
+                className={`home__column-btn ${columns === "auto" ? "home__column-btn--active" : ""}`}
+                onClick={() => { setColumns("auto"); setPref("homeColumns", "auto"); }}
+                title="Auto columns"
+              >
+                <Columns2 size={13} />
+                Auto
+              </button>
+              <button
+                className={`home__column-btn ${columns === "1" ? "home__column-btn--active" : ""}`}
+                onClick={() => { setColumns("1"); setPref("homeColumns", "1"); }}
+                title="1 column"
+              >
+                1
+              </button>
+              <button
+                className={`home__column-btn ${columns === "2" ? "home__column-btn--active" : ""}`}
+                onClick={() => { setColumns("2"); setPref("homeColumns", "2"); }}
+                title="2 columns"
+              >
+                2
+              </button>
+            </div>
+
             {mimeGroup || searchQuery || directoryId || minWidth || minHeight || hasAi || tag ? (
               <button className="home__clear-btn" onClick={() => {
                 setMimeGroup("");
@@ -397,7 +425,7 @@ function Home() {
           </header>
 
           {initialLoading && (
-            <div className="home__loading-grid">
+            <div className={`home__loading-grid${columns !== "auto" ? ` home__loading-grid--${columns}` : ""}`}>
               {Array.from({ length: 12 }).map((_, i) => (
                 <div key={i} className="home__skeleton" />
               ))}
@@ -411,7 +439,7 @@ function Home() {
           )}
 
           {files.length > 0 && (
-            <div className="home__grid">
+            <div className={`home__grid${columns !== "auto" ? ` home__grid--${columns}` : ""}`}>
               {files.map((file) => (
                 <div
                   key={file.id}
