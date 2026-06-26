@@ -1,16 +1,36 @@
 # Media Server
 
-A scalable system that supports a semantic searchable media viewer site for your media files. 
+A scalable semantic-searchable media viewer for your home media collection.
 
 ## Stack
 
 | Layer           | Technology                                                       |
 | --------------- | ---------------------------------------------------------------- |
-| Frontend        | React 19, React Router 7, Vite, Axios                           |
-| Backend         | Flask 3, SQLAlchemy, Flask-Migrate, Flask-CORS, gunicorn        |
-| Task Queue      | Celery 5 + Redis (broker & result backend)                      |
-| AI              | Ollama (local LLM, e.g. `llava` for vision)                     |
-| Database        | PostgreSQL (production), SQLite (testing / CI)                  |
+| Frontend        | React 19, React Router 7, Vite 6, Axios                         |
+| Backend         | Flask 3, SQLAlchemy, Flask-Migrate, Gunicorn                     |
+| Task Queue      | Celery 5 + Redis                                                 |
+| AI              | Ollama (vision + text models)                                    |
+| Database        | PostgreSQL                                                       |
+
+## Architecture
+
+```mermaid
+flowchart LR
+    U[User] --> F[Frontend<br/>React SPA]
+    F --> N[nginx<br/>HTTPS + Proxy]
+    N --> B[Flask API<br/>:5000]
+    B --> R[Redis<br/>:6379]
+    B --> P[(PostgreSQL)]
+    R --> W1[Celery Worker<br/>import_queue]
+    R --> W2[Celery Worker<br/>metadata]
+    R --> W3[Celery Worker<br/>ai_metadata]
+    R --> W4[Celery Worker<br/>thumbnail]
+    W1 --> P
+    W2 --> P
+    W3 --> O[Ollama API]
+    W4 --> P
+    B --> M[(Media Files<br/>on Disk)]
+```
 
 ## Project Structure
 
@@ -18,99 +38,41 @@ A scalable system that supports a semantic searchable media viewer site for your
 media-server/
 ├── backend/
 │   ├── app/
-│   │   ├── __init__.py                  # App factory + DB init + Celery init
-│   │   ├── config.py                    # Dev/Prod/Test configs
-│   │   ├── celery_app.py                # Celery app factory
-│   │   ├── tasks.py                     # Celery tasks (metadata extraction, AI, hashing)
-│   │   ├── api/
-│   │   │   ├── __init__.py
-│   │   │   └── routes.py                # API routes
-│   │   ├── models/
-│   │   │   ├── __init__.py              # Base model + model imports
-│   │   │   ├── import_session.py
-│   │   │   ├── imported_directory.py
-│   │   │   ├── imported_file.py
-│   │   │   └── file_metadata.py         # FileMetadata + DHashBand models
-│   │   └── utility/
-│   │       ├── database_utility.py
-│   │       ├── file_system.py
-│   │       ├── hash_utility.py          # SHA256 + dhash + banding
-│   │       ├── image_utility.py
-│   │       ├── llm_utility.py
-│   │       ├── location_utility.py
-│   │       ├── mime_utility.py
-│   │       ├── tags_utility.py          # Folder-based tag extraction
-│   │       ├── type_utility.py
-│   │       └── video_utility.py
-│   ├── migrations/                      # Alembic migrations (Flask-Migrate)
-│   │   ├── versions/
-│   │   │   └── 403e10a21f62_initial_v2.py
-│   │   ├── alembic.ini
-│   │   ├── env.py
-│   │   └── script.py.mako
-│   ├── tests/
-│   │   └── test_api.py                  # API tests
-│   ├── requirements.txt
-│   ├── run.py                           # Entry point
-│   └── .env.example
+│   │   ├── api/routes.py            # API routes
+│   │   ├── models/                  # SQLAlchemy models
+│   │   ├── utility/                 # Image, hash, location, video utilities
+│   │   ├── tasks.py                 # Celery task definitions
+│   │   ├── config.py                # App configuration
+│   │   └── __init__.py              # App factory
+│   ├── migrations/                  # Alembic migrations
+│   ├── scripts/
+│   │   └── regenerate_heic_thumbnails.py
+│   ├── Dockerfile
+│   └── requirements.txt
 ├── frontend/
 │   ├── src/
-│   │   ├── components/
-│   │   │   ├── Navbar.jsx               # Navigation tabs
-│   │   │   ├── Navbar.css
-│   │   │   ├── TreeNode.jsx             # Lazy-loaded tree node
-│   │   │   ├── TreeNode.css
-│   │   │   ├── FileViewer.jsx           # Image/video modal viewer
-│   │   │   └── FileViewer.css
-│   │   ├── pages/
-│   │   │   ├── Home.jsx                 # Infinite-scroll gallery grid with search & filters
-│   │   │   ├── Home.css
-│   │   │   ├── Importer.jsx             # Import media page
-│   │   │   ├── Importer.css
-│   │   │   ├── Gallery.jsx              # Tree-view gallery (renamed to "Imported Media")
-│   │   │   ├── Gallery.css
-│   │   │   ├── Favorites.jsx            # Favorites grid
-│   │   │   ├── Favorites.css
-│   │   │   ├── Duplicates.jsx           # Exact + near duplicate detection page
-│   │   │   └── Duplicates.css
-│   │   ├── services/
-│   │   │   └── api.js                   # Axios API client
-│   │   ├── hooks/
-│   │   │   └── useApi.js                # Generic fetch hook
-│   │   ├── App.jsx
-│   │   ├── App.css
-│   │   ├── main.jsx
-│   │   └── index.css
-│   ├── index.html
-│   ├── package.json
-│   └── vite.config.js
-├── README.md
-└── .gitignore
+│   │   ├── pages/                   # Home, Importer, Gallery, Settings, etc.
+│   │   ├── components/              # Navbar, FileViewer, TreeNode
+│   │   ├── services/                # API client, IndexedDB wrapper
+│   │   └── hooks/                   # useApi
+│   ├── public/
+│   │   ├── manifest.json            # PWA manifest
+│   │   ├── sw.js                    # Service worker (offline caching)
+│   │   ├── icon.svg, icon-192.png, icon-512.png
+│   ├── index.html                   # Entry point + loading animation
+│   ├── nginx.conf                   # HTTPS + API proxy
+│   └── Dockerfile
+├── docker-compose.yml
+└── README.md
 ```
 
-## Getting Started
+## Quick Start
 
 ### Prerequisites
 
-- Python 3.10+
-- Node.js 18+
-- PostgreSQL 14+ running locally on port 5432
-- Redis 6+ running locally on port 6379
-- [Ollama](https://ollama.ai) installed and running with a vision model (e.g. `llava`)
-
-Create the database:
-
-```bash
-createdb media_server
-# or:
-psql -c "CREATE DATABASE media_server;"
-```
-
-Pull the Ollama vision model:
-
-```bash
-ollama pull llava
-```
+- Python 3.10+, Node.js 18+
+- PostgreSQL 14+, Redis 6+
+- [Ollama](https://ollama.ai) with a vision model (`ollama pull llava`)
 
 ### Backend
 
@@ -118,268 +80,154 @@ ollama pull llava
 cd backend
 python -m venv .venv && source .venv/bin/activate
 cp .env.example .env
-# Edit .env with your PostgreSQL credentials if needed
 pip install -r requirements.txt
+flask db upgrade
 python run.py
 ```
 
-Server starts at **http://localhost:5000**. Apply database migrations before first run (see [Database Migrations](#database-migrations)).
-
-### Database Migrations
-
-Schema changes are managed with **Flask-Migrate** (Alembic). The `migrations/` directory contains the migration history.
-
-**Apply pending migrations** (after pulling new code or on a fresh database):
+### Celery Workers
 
 ```bash
-cd backend
-source .venv/bin/activate
-FLASK_APP=run.py flask db upgrade
-```
-
-**Create a new migration** (after modifying a model):
-
-```bash
-cd backend
-source .venv/bin/activate
-FLASK_APP=run.py flask db migrate -m "description of change"
-```
-
-Review the generated file in `migrations/versions/`, then apply it:
-
-```bash
-FLASK_APP=run.py flask db upgrade
-```
-
-**Rollback** one migration:
-
-```bash
-FLASK_APP=run.py flask db downgrade
-```
-
-**Check current revision**:
-
-```bash
-FLASK_APP=run.py flask db current
-```
-
-> The `FLASK_APP` variable tells Flask where to find the application. The database URL is read from the `DATABASE_URL` environment variable (configured in `.env`).
-
-### Celery Workers (separate terminal)
-
-Celery processes background tasks (metadata extraction, AI tagging, thumbnails). Tasks are routed to named queues so you can scale each type independently:
-
-| Queue          | Task                         | Concurrency |
-| -------------- | ---------------------------- | ----------- |
-| `import_queue` | `process_import_folder`      | 1           |
-| `metadata`     | `extract_file_metadata`      | 4           |
-| `ai_metadata`  | `generate_ai_metadata`       | 2           |
-| `thumbnail`    | `generate_thumbnail`         | 3           |
-
-Start separate workers per queue:
-
-```bash
-cd backend
-source .venv/bin/activate
-
-celery -A app.tasks.celery worker -Q import_queue -l info --concurrency=1
-celery -A app.tasks.celery worker -Q metadata -l info --concurrency=10
-celery -A app.tasks.celery worker -Q ai_metadata -l info --concurrency=2
-celery -A app.tasks.celery worker -Q thumbnail -l info --concurrency=10
-```
-
-Or a single worker handling all queues:
-
-```bash
-celery -A app.tasks.celery worker -Q celery,metadata,ai_metadata,thumbnail -l info
-```
-
-Tasks are dispatched automatically when files are imported or edited:
-
-- `extract_file_metadata` — extracts EXIF/ffprobe data (dimensions, duration, GPS, date taken)
-- `generate_ai_metadata` — calls Ollama for tags, description, and search keywords
-- `generate_thumbnail` — generates 400×400 JPEG thumbnails (Pillow for images, ffmpeg for videos)
-
-> **Note**: In testing mode, Celery runs tasks synchronously (`CELERY_TASK_ALWAYS_EAGER = True`), so no Redis or worker process is needed for tests.
-
-### Flower (Celery monitoring UI)
-
-Install and run:
-
-```sh
-pip install flower
-celery -A app.tasks.celery flower --port=5555
-```
-
-Open **http://localhost:5555**.
-
-**Filtering tasks**:
-- Use the search box in the **Tasks** tab — type task name (`extract_file_metadata`), state (`SUCCESS`, `FAILURE`, `RECEIVED`, `STARTED`), worker hostname, or any substring
-- Click column headers (**Name**, **State**, **Received**, **Worker**) to sort ascending/descending
-- URL query params: `?state=FAILURE` or `?task=app.tasks.extract_file_metadata`
-
-**Monitor per queue**:
-- The **Broker** tab shows queue depths (pending tasks in each queue)
-
-#### Purge all tasks
-```sh
-celery -A app.tasks.celery purge
+celery -A app.tasks.celery worker -Q import_queue,metadata,ai_metadata,thumbnail -l info
 ```
 
 ### Frontend
 
 ```bash
 cd frontend
-cp .env.example .env
 npm install
 npm run dev
 ```
 
-App starts at **http://localhost:5173**. The Vite dev server proxies `/api` requests to the Flask backend.
+Frontend starts at **http://localhost:5173** (proxies `/api` to backend).
 
-## Available Scripts
+## PWA & Offline
 
-### Backend
+The app is installable as a Progressive Web App.
 
-| Command                    | Description            |
-| -------------------------- | ---------------------- |
-| `python run.py`            | Start dev server       |
-| `source .venv/bin/activate && pytest tests/` | Run 14 tests |
+### Install
 
-### Frontend
+| Platform | URL                                           |
+| -------- | --------------------------------------------- |
+| Dev      | `http://localhost:5173` (install prompt)      |
+| Docker   | `https://homeserver.local:3443` (accept self-signed cert once) |
 
-| Command           | Description          |
-| ----------------- | -------------------- |
-| `npm run dev`     | Start dev server     |
-| `npm run build`   | Production build     |
-| `npm run preview` | Preview build        |
-| `npm run lint`    | Lint source code     |
+### Offline Strategy
 
-## API Endpoints
+```mermaid
+flowchart LR
+    subgraph Service Worker
+        SW[sw.js]
+    end
+    subgraph Cache Stores
+        Shell["Shell Cache<br/>(/, /assets/*)"]
+        API["API Cache<br/>(GET /api/*)"]
+        Media["Media Cache<br/>(/api/files/*/serve)"]
+    end
+    subgraph Network
+        N[Network]
+    end
+    R[Request] --> SW
+    SW --> Shell
+    SW --> API
+    SW --> Media
+    SW --> N
+    N -- success --> SW
+    N -- fail --> SW
+    SW -- cached response --> R
+```
 
-| Method  | Path                          | Description                              |
-| ------- | ----------------------------- | ---------------------------------------- |
-| GET     | `/health`                     | Health check                            |
-| GET     | `/api/status`                 | API status check                        |
-| POST    | `/api/import`                 | Import media files from a folder          |
-| GET     | `/api/sessions`               | List all import sessions                 |
-| GET     | `/api/sessions/<id>/browse`   | Browse files/dirs in a session (lazy)    |
-| GET     | `/api/files`                   | List files (paginated, with `?mime_group=`, `?q=` search) |
-| GET     | `/api/files/<id>/serve`       | Serve the actual file for viewing        |
-| GET     | `/api/files/<id>/metadata`    | Get file metadata (EXIF, GPS, tags, AI)  |
-| GET     | `/api/files/<id>/thumbnail`   | Get base64 thumbnail data URI            |
-| POST    | `/api/files/<id>/edit`        | Apply image edits (rotate, flip, grayscale) |
-| PATCH   | `/api/files/<id>/tags`        | Update tags on a file                    |
-| PATCH   | `/api/files/<id>/favorite`    | Toggle favorite status on a file         |
-| GET     | `/api/favorites`              | List all favorited files                 |
-| GET     | `/api/duplicates?type=exact`  | Group files by SHA256 hash (exact duplicates) |
-| GET     | `/api/duplicates?type=near`   | Pair images by perceptual hash (near-duplicates, Hamming ≤ 10) |
-| GET     | `/api/files/<id>/near-duplicates` | Find perceptually similar images for a given file |
+| Cache       | Strategy        | Contents                                   |
+| ----------- | --------------- | ------------------------------------------ |
+| Shell       | Cache-first     | App shell, JS, CSS (precached on install)  |
+| API         | Network-first   | File listings, metadata, tags, stats       |
+| Media       | Network-first   | Images (full), videos (≤50 MB, background) |
+
+As you scroll the gallery, each page of results and every image you view is cached automatically for offline access. Videos are cached in the background after first play.
+
+### Loading Animation
+
+When the PWA launches, a fluid animated loading screen (dark gradient blobs, rotating rings, pulsing icon) is shown until React mounts.
+
+## HEIC/HEIF Support
+
+HEIC files (iPhone default) are supported throughout the app via ImageMagick conversion.
+
+| Feature                 | Approach                              |
+| ----------------------- | ------------------------------------- |
+| Image display           | ImageMagick `convert` → JPEG stream   |
+| EXIF extraction         | ImageMagick (with `libheif` delegate) |
+| Thumbnail generation    | ImageMagick → Pillow                  |
+| AI metadata (Ollama)    | ImageMagick → JPEG base64             |
+| Perceptual hashing      | ImageMagick → Pillow                  |
+
+### Regenerate Thumbnails
+
+```bash
+# Local
+python backend/scripts/regenerate_heic_thumbnails.py
+
+# Docker
+docker compose exec backend python scripts/regenerate_heic_thumbnails.py
+```
 
 ## Features
 
 ### Media Importer
+Recursively scans directories, filters by MIME type, persists metadata without copying files. Each import creates a new session.
 
-Enter a folder path and select media types (Images / Videos). Click **Import** and the backend recursively scans the directory, filters files by MIME type (extension-based), and persists metadata (path, size, type, timestamps) to PostgreSQL — without copying file contents. Each import creates a new session.
+### Gallery & File Viewer
+- **Tree view** — lazy-loaded directory browser organized by import session
+- **Infinite-scroll grid** — Home page with search, media type/dimension filters
+- **Overlay viewer** — zoom, rotate, flip, grayscale, favorite, download
+- **Metadata panel** — EXIF, GPS, dimensions, duration, date taken, AI tags and description
 
-### Gallery Tree View
-
-Browse imported files in a **lazy-loaded tree view**. Directories and files are fetched from the database on demand (no disk access during browsing). Each import session is selectable from a dropdown.
-
-### File Viewer
-
-Click any file in the gallery tree to open an **overlay modal**. Images are rendered inline; videos play with native controls. Files are served from their original disk location via the API.
-
-Features:
-- **Favorite toggle** — mark files with a star; view all favorites on the Favorites page
-- **Metadata panel** — see EXIF, GPS, dimensions, duration, date taken, AI-generated tags and description in a sidebar
-- **Image editing** — rotate, flip (H/V), grayscale directly in the viewer; edits save as new files
-- **Download** — download the original file with one click
-
-### Tags
-
-Tags are extracted automatically from parent folder names during import (e.g. a file under `2024/India/Mumbai/vacation/` gets tags `india`, `mumbai`, `vacation`). These are merged with AI-generated tags from Ollama. You can add or remove tags inline in the **File Viewer** sidebar.
+### AI Metadata (Ollama)
+Files are sent to a local Ollama model for automatic tagging, description, and search keyword generation. Tags from parent folder names are merged with AI tags.
 
 ### Duplicate Detection
+- **Exact duplicates** — SHA256 hash grouping
+- **Near duplicates** — 64-bit difference hash with band-indexed lookup (Hamming distance ≤ 10)
 
-Two types of duplicate detection are available on the **Duplicates** page:
+### Nickname Persistence
+Upload nickname is saved to IndexedDB and editable from Settings, providing a consistent default across sessions.
 
-- **Exact duplicates** — files with identical SHA256 hashes, grouped for batch cleanup ("Keep first, remove rest")
-- **Near duplicates** — perceptually similar images (resized/cropped/re-encoded variants) detected via 64-bit difference hash with band-indexed lookup for performance at scale
+### Database Migrations
 
-Perceptual hashes (dhash) and SHA256 hashes are computed during import for all supported media.
-
-### Home Gallery
-
-The Home page shows an **infinite-scroll grid** of all imported media with:
-- **Thumbnails** — 400×400 previews (generated asynchronously by Celery)
-- **Search** — type to search across tags, description, filename (400ms debounce)
-- **Media type filters** — toggle between All / Images / Videos
-- **Dimension filter** — filter by minimum resolution (VGA, HD, Full HD, 4K) for both images and videos
-
-### Thumbnails
-
-Thumbnails are generated asynchronously by the `generate_thumbnail` Celery task:
-- **Images** — Pillow `thumbnail()` resized to 400×400, saved as base64 JPEG data URI in the database
-- **Videos** — ffmpeg extracts a frame at 30% duration, resized to 400×400
-
-## Database Schema
-
-Six tables store media metadata:
-
-| Table                 | Purpose                                          |
-| --------------------- | ------------------------------------------------ |
-| `import_sessions`     | Tracks each import operation                     |
-| `imported_directories`| Directory entries (for tree navigation)          |
-| `imported_files`      | File metadata (path, size, mime, is_favorite)    |
-| `file_metadata`       | EXIF, GPS, tags, description, search words, thumbnail, file_hash, dhash |
-| `dhash_bands`         | 16-bit perceptual hash bands (indexed for near-duplicate lookup) |
-
-`imported_directories` uses a `parent_path` column enabling efficient lazy-load tree queries without scanning the entire file list.
-
-`file_metadata` is populated asynchronously by Celery tasks after each import or edit:
-- `extract_file_metadata` — reads EXIF (images via Pillow) or stream metadata (videos via ffprobe), stores GPS, dimensions, duration, date taken; computes SHA256 hash (`file_hash`) for exact dedup and difference hash (`dhash`) for perceptual dedup
-- `generate_ai_metadata` — sends the file to a local Ollama model (`llava` for images, `gemma4:12b` / `llama3.2` for videos), saves generated tags, description, and search keywords; merges AI tags with folder-derived tags (extracted from the file's relative path)
-- `generate_thumbnail` — creates 400×400 base64 JPEG thumbnails
-
-## Development
-
-- Follow the existing file structure when adding new features.
-- Add new API routes in `backend/app/api/routes.py` or create new route modules.
-- Place reusable UI components in `frontend/src/components/`.
-- Place page-level components in `frontend/src/pages/`.
-- Update this README when adding new features.
-
-
-## Makefile
-```sh
-# venv + pip install + .env + db-create + db upgrade
-make backend-setup	
-# npm install + .env
-make frontend-setup	
-# flask db migrate -m "..."
-make db-migrate msg="new schema"
-# flask db upgrade	
-make db-upgrade	
-# flask db downgrade
-make db-downgrade	
-# flask db current
-make db-current	
-# python backend/run.py
-make backend	
-# npm run dev
-make frontend	
-# all-queues worker
-make celery
-# pytest	
-make test
-# ESLint
-make lint	
-# Vite production build
-make build	
+```bash
+flask db upgrade              # Apply pending migrations
+flask db migrate -m "desc"    # Create new migration
+flask db downgrade            # Rollback one migration
 ```
 
-## Features TODO:
-1. Add single/multi media upload feature.
-2. Fix bugs for unsupported media formats.
-3. Improve UX in mobile device.
+### Available Scripts
+
+| Command                              | Description               |
+| ------------------------------------ | ------------------------- |
+| `make backend` / `make frontend`     | Start dev servers         |
+| `make test`                          | Run backend tests         |
+| `npm run build`                      | Production frontend build |
+| `make build`                         | Vite production build     |
+| `flask db upgrade`                   | Apply database migrations |
+
+## API Endpoints
+
+| Method | Path                              | Description                          |
+| ------ | --------------------------------- | ------------------------------------ |
+| GET    | `/health`                         | Health check                         |
+| GET    | `/api/status`                     | API status                           |
+| POST   | `/api/import`                     | Import media folder                   |
+| GET    | `/api/files`                      | Paginated file list (with filters)   |
+| GET    | `/api/files/<id>/serve`           | Serve image/video file               |
+| GET    | `/api/files/<id>/metadata`        | EXIF, GPS, tags, AI description      |
+| GET    | `/api/files/<id>/thumbnail`       | Base64 thumbnail                     |
+| GET    | `/api/files/<id>/near-duplicates` | Perceptually similar images          |
+| PATCH  | `/api/files/<id>/tags`            | Update tags                          |
+| PATCH  | `/api/files/<id>/favorite`        | Toggle favorite                      |
+| POST   | `/api/files/<id>/edit`            | Apply image edits                    |
+| GET    | `/api/directories`                | List imported directories            |
+| GET    | `/api/duplicates`                 | Exact and near-duplicate groups      |
+| GET    | `/api/favorites`                  | Favorited files                      |
+| GET    | `/api/tags`                       | Tag frequency list                   |
+| GET    | `/api/stats`                      | System statistics                    |
+| POST   | `/api/upload`                     | Upload files                         |
