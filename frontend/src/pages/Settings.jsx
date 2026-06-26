@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Settings as SettingsIcon, ArrowRight, Palette, Save } from "lucide-react";
+import { Settings as SettingsIcon, ArrowRight, Palette, Save, Trash2 } from "lucide-react";
 import { getPref, setPref } from "../services/db";
 import "./Settings.css";
 
@@ -37,6 +37,7 @@ function Settings() {
   const [accentColor, setAccentColor] = useState("#3498db");
   const [columns, setColumnsState] = useState("auto");
   const [savedNickname, setSavedNickname] = useState("");
+  const [cacheStatus, setCacheStatus] = useState("idle");
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -66,6 +67,26 @@ function Settings() {
   const handleNicknameSave = () => {
     setPref("nickname", savedNickname.trim());
   };
+
+  const handleClearCache = () => {
+    if (!("serviceWorker" in navigator) || !navigator.serviceWorker.controller) {
+      setCacheStatus("no-sw");
+      return;
+    }
+    setCacheStatus("clearing");
+    navigator.serviceWorker.controller.postMessage({ type: "CLEAR_CACHES" });
+  };
+
+  useEffect(() => {
+    const onMsg = (e) => {
+      if (e.data.type === "CACHES_CLEARED") {
+        setCacheStatus("done");
+        setTimeout(() => setCacheStatus("idle"), 2000);
+      }
+    };
+    navigator.serviceWorker.addEventListener("message", onMsg);
+    return () => navigator.serviceWorker.removeEventListener("message", onMsg);
+  }, []);
 
   return (
     <div className="settings">
@@ -121,6 +142,20 @@ function Settings() {
           <button className="settings__btn" onClick={handleNicknameSave}>
             <Save size={14} /> Save
           </button>
+        </div>
+      </div>
+
+      <div className="settings__card">
+        <h3 className="settings__label">Offline Cache</h3>
+        <p className="settings__desc">
+          Clear all cached files and data. The app will re-fetch everything from the server on next request.
+        </p>
+        <div className="settings__cache-row">
+          <button className="settings__btn settings__btn--danger" onClick={handleClearCache} disabled={cacheStatus === "clearing"}>
+            <Trash2 size={14} /> {cacheStatus === "clearing" ? "Clearing..." : "Clear Cache"}
+          </button>
+          {cacheStatus === "done" && <span className="settings__cache-ok">&checkmark; Cleared!</span>}
+          {cacheStatus === "no-sw" && <span className="settings__cache-err">Service worker not available</span>}
         </div>
       </div>
 

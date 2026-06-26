@@ -90,6 +90,32 @@
   box-shadow: var(--neu-inset);
 }
 
+.settings__btn--danger {
+  background: var(--color-danger, #e74c3c);
+}
+
+.settings__btn--danger:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.settings__cache-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.settings__cache-ok {
+  font-size: 0.8125rem;
+  color: var(--color-success, #2ecc71);
+  font-weight: 600;
+}
+
+.settings__cache-err {
+  font-size: 0.8125rem;
+  color: var(--color-danger, #e74c3c);
+}
+
 .settings__card + .settings__card {
   margin-top: 1rem;
 }

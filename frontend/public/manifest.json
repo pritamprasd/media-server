@@ -3,9 +3,16 @@
   "short_name": "MediaServer",
   "description": "Home media server",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
+  "display_override": ["window-controls-overlay", "standalone"],
+  "orientation": "any",
   "background_color": "#1a1a2e",
   "theme_color": "#1a1a2e",
+  "categories": ["media", "photos", "utilities"],
+  "launch_handler": {
+    "client_mode": "auto"
+  },
   "icons": [
     {
       "src": "/icon-192.png",
@@ -31,6 +38,5 @@
       "type": "image/svg+xml",
       "purpose": "any"
     }
-  ],
-  "categories": ["media", "photos", "utilities"]
+  ]
 }

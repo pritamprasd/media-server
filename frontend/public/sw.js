@@ -152,6 +152,18 @@ async function serveRange(cachedResponse, rangeHeader) {
   });
 }
 
+// ── Message handler ──────────────────────────────────────────────────
+self.addEventListener("message", (e) => {
+  if (e.data.type === "CLEAR_CACHES") {
+    (async () => {
+      const keys = await caches.keys();
+      await Promise.all(keys.map((k) => caches.delete(k)));
+      const clients = await self.clients.matchAll();
+      clients.forEach((c) => c.postMessage({ type: "CACHES_CLEARED" }));
+    })();
+  }
+});
+
 // ── Fetch dispatch ───────────────────────────────────────────────────
 self.addEventListener("fetch", (e) => {
   const { request } = e;
