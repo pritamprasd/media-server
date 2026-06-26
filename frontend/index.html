@@ -5,10 +5,261 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#1a1a2e" />
     <meta name="description" content="Media Server" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="icon" type="image/svg+xml" href="/icon.svg" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png" />
+    <link rel="icon" type="image/png" sizes="512x512" href="/icon-512.png" />
+    <link rel="apple-touch-icon" href="/icon-192.png" />
     <title>Media Server</title>
+    <style id="pwa-loader-style">
+      @keyframes driftA {
+        0%, 100% { transform: translate(0, 0) scale(1); }
+        25% { transform: translate(120px, -80px) scale(1.12); }
+        50% { transform: translate(-60px, 140px) scale(0.88); }
+        75% { transform: translate(80px, 60px) scale(1.06); }
+      }
+      @keyframes driftB {
+        0%, 100% { transform: translate(0, 0) scale(1); }
+        25% { transform: translate(-100px, 60px) scale(1.08); }
+        50% { transform: translate(80px, -120px) scale(0.92); }
+        75% { transform: translate(-40px, -80px) scale(1.04); }
+      }
+      @keyframes driftC {
+        0%, 100% { transform: translate(0, 0) scale(1); }
+        33% { transform: translate(90px, 90px) scale(1.05); }
+        66% { transform: translate(-70px, -60px) scale(0.95); }
+      }
+      @keyframes spin { to { transform: rotate(360deg); } }
+      @keyframes spinRev { to { transform: rotate(-360deg); } }
+      @keyframes breathe {
+        0%, 100% { transform: scale(1); opacity: 0.9; }
+        50% { transform: scale(1.04); opacity: 1; }
+      }
+      @keyframes ringDash {
+        0% { stroke-dashoffset: 566; }
+        50% { stroke-dashoffset: 0; }
+        100% { stroke-dashoffset: -566; }
+      }
+      @keyframes fadePulse {
+        0%, 100% { opacity: 0.35; transform: translateY(0); }
+        50% { opacity: 0.7; transform: translateY(-2px); }
+      }
+      @keyframes dots {
+        0% { width: 0; }
+        25% { width: 4px; }
+        50% { width: 8px; }
+        75% { width: 12px; }
+        100% { width: 0; }
+      }
+      @keyframes appear {
+        0% { opacity: 0; transform: scale(0.9); }
+        100% { opacity: 1; transform: scale(1); }
+      }
+
+      #pwa-loader {
+        position: fixed;
+        inset: 0;
+        z-index: 99999;
+        background: #1a1a2e;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+        overflow: hidden;
+        animation: appear 0.4s ease-out both;
+      }
+
+      /* ── Background blobs ── */
+      .pwa-blob {
+        position: absolute;
+        border-radius: 50%;
+        filter: blur(90px);
+        will-change: transform;
+        opacity: 0.35;
+      }
+      .pwa-blob.a {
+        width: 520px; height: 520px;
+        background: radial-gradient(circle, #e94560 0%, transparent 70%);
+        top: -15%; left: -12%;
+        animation: driftA 20s ease-in-out infinite;
+      }
+      .pwa-blob.b {
+        width: 440px; height: 440px;
+        background: radial-gradient(circle, #0f3460 0%, transparent 70%);
+        bottom: -12%; right: -10%;
+        animation: driftB 24s ease-in-out infinite;
+        animation-delay: -6s;
+      }
+      .pwa-blob.c {
+        width: 360px; height: 360px;
+        background: radial-gradient(circle, #533483 0%, transparent 70%);
+        top: 35%; left: 55%;
+        animation: driftC 18s ease-in-out infinite;
+        animation-delay: -10s;
+      }
+      .pwa-blob.d {
+        width: 300px; height: 300px;
+        background: radial-gradient(circle, #16213e 0%, transparent 70%);
+        bottom: 25%; left: 25%;
+        animation: driftA 22s ease-in-out infinite;
+        animation-delay: -14s;
+      }
+
+      /* ── Center stage ── */
+      .pwa-stage {
+        position: relative;
+        z-index: 1;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .pwa-icon-wrap {
+        position: relative;
+        width: 112px; height: 112px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        animation: breathe 3.5s ease-in-out infinite;
+      }
+
+      /* Glow behind icon */
+      .pwa-glow {
+        position: absolute;
+        width: 160px; height: 160px;
+        border-radius: 50%;
+        background: radial-gradient(circle, rgba(233,69,96,0.15) 0%, transparent 70%);
+        animation: breathe 3.5s ease-in-out infinite reverse;
+      }
+
+      /* ── Rings ── */
+      .pwa-rings {
+        position: absolute;
+        inset: -20px;
+        animation: spin 4s linear infinite;
+      }
+      .pwa-rings.rev {
+        animation: spinRev 6s linear infinite;
+      }
+
+      .pwa-rings svg {
+        display: block;
+      }
+
+      /* ── Orbiting dots ── */
+      .pwa-orbit {
+        position: absolute;
+        inset: -38px;
+        animation: spin 8s linear infinite;
+      }
+      .pwa-orbit .dot {
+        position: absolute;
+        width: 5px; height: 5px;
+        border-radius: 50%;
+        background: #e94560;
+        opacity: 0.7;
+      }
+      .pwa-orbit .dot:nth-child(1) { top: -2.5px; left: 50%; margin-left: -2.5px; }
+      .pwa-orbit .dot:nth-child(2) { bottom: -2.5px; left: 50%; margin-left: -2.5px; animation-delay: 4s; }
+      .pwa-orbit .dot:nth-child(3) { left: -2.5px; top: 50%; margin-top: -2.5px; animation-delay: 2s; }
+      .pwa-orbit .dot:nth-child(4) { right: -2.5px; top: 50%; margin-top: -2.5px; animation-delay: 6s; }
+      .pwa-orbit .dot { animation: fadePulse 2s ease-in-out infinite; }
+
+      /* ── Icon SVG ── */
+      .pwa-icon-svg {
+        width: 64px; height: 64px;
+        display: block;
+        position: relative;
+        z-index: 1;
+      }
+
+      /* ── Loading text ── */
+      .pwa-text {
+        position: relative;
+        z-index: 1;
+        margin-top: 100px;
+        color: rgba(255,255,255,0.4);
+        font-size: 12px;
+        font-weight: 500;
+        letter-spacing: 5px;
+        text-transform: uppercase;
+      }
+      .pwa-text span {
+        display: inline-block;
+        width: 16px;
+        text-align: left;
+        overflow: hidden;
+        vertical-align: bottom;
+        letter-spacing: 0;
+      }
+      .pwa-text span::after {
+        content: "...";
+        animation: dots 1.8s steps(3) infinite;
+        letter-spacing: 2px;
+      }
+    </style>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <div id="pwa-loader">
+        <div class="pwa-blob a"></div>
+        <div class="pwa-blob b"></div>
+        <div class="pwa-blob c"></div>
+        <div class="pwa-blob d"></div>
+
+        <div class="pwa-stage">
+          <div class="pwa-icon-wrap">
+            <div class="pwa-glow"></div>
+
+            <!-- Outer dashed ring -->
+            <div class="pwa-rings">
+              <svg width="152" height="152" viewBox="0 0 152 152">
+                <circle cx="76" cy="76" r="68" fill="none" stroke="#e94560" stroke-width="1.5" stroke-dasharray="4 8" opacity="0.4" />
+              </svg>
+            </div>
+
+            <!-- Inner solid ring -->
+            <div class="pwa-rings rev">
+              <svg width="136" height="136" viewBox="0 0 136 136">
+                <circle cx="68" cy="68" r="60" fill="none" stroke="#0f3460" stroke-width="2" opacity="0.5" />
+              </svg>
+            </div>
+
+            <!-- Orbit dots -->
+            <div class="pwa-orbit">
+              <div class="dot"></div>
+              <div class="dot"></div>
+              <div class="dot"></div>
+              <div class="dot"></div>
+            </div>
+
+            <!-- Center icon -->
+            <svg class="pwa-icon-svg" viewBox="0 0 512 512" fill="none">
+              <rect x="128" y="128" width="256" height="256" rx="32" stroke="#e94560" stroke-width="20" stroke-linejoin="round"/>
+              <circle cx="222" cy="242" r="22" fill="#e94560"/>
+              <path d="M370 310l-48-56-56 56-40-32-52 56" stroke="#e94560" stroke-width="20" stroke-linecap="round" stroke-linejoin="round"/>
+              <circle cx="362" cy="190" r="18" fill="#0f3460"/>
+            </svg>
+          </div>
+
+          <div class="pwa-text">
+            LOADING<span></span>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <script type="module" src="/src/main.jsx"></script>
+    <script>
+      if ("serviceWorker" in navigator) {
+        window.addEventListener("load", () => {
+          navigator.serviceWorker.register("/sw.js");
+        });
+      }
+    </script>
   </body>
 </html>

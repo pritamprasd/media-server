@@ -90,6 +90,7 @@ services:
       dockerfile: frontend/Dockerfile
     ports:
       - "18000:80"
+      - "3443:443"
     networks:
       - default-network
     dns:
