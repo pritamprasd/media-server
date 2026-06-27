@@ -19,6 +19,7 @@ from app.models.import_session import ImportSession
 from app.models.imported_directory import ImportedDirectory
 from app.models.imported_file import ImportedFile
 from app.models.location import SavedLocation
+from app.models.filter_preset import FilterPreset
 from app.tasks import extract_file_metadata, generate_ai_metadata, generate_thumbnail, process_import_folder
 from app.utility.file_system import traverse_directory
 from app.utility.hash_utility import hamming_distance
@@ -428,6 +429,77 @@ def get_file_thumbnail(file_id):
     }), 200
 
 
+@api_bp.route("/files/<int:file_id>/regenerate-ai", methods=["POST"])
+def regenerate_ai_metadata(file_id):
+    file_record = db.session.get(ImportedFile, file_id)
+    if not file_record:
+        return jsonify({"error": "File not found"}), 404
+
+    meta = FileMetadata.query.filter_by(file_id=file_id).first()
+    if not meta:
+        meta = FileMetadata(file_id=file_id)
+        db.session.add(meta)
+
+    meta.description = None
+    meta.tags = None
+    meta.search_words = None
+    meta.metadata_status = "pending"
+    db.session.commit()
+
+    file_info = _make_file_info(file_record)
+    generate_ai_metadata.delay(file_info)
+    return jsonify({"message": "AI metadata regeneration initiated"}), 202
+
+
+@api_bp.route("/files/<int:file_id>/regenerate-exif", methods=["POST"])
+def regenerate_exif(file_id):
+    file_record = db.session.get(ImportedFile, file_id)
+    if not file_record:
+        return jsonify({"error": "File not found"}), 404
+
+    meta = FileMetadata.query.filter_by(file_id=file_id).first()
+    if not meta:
+        meta = FileMetadata(file_id=file_id)
+        db.session.add(meta)
+
+    DHashBand.query.filter_by(metadata_id=meta.id).delete()
+    meta.metadata_status = "pending"
+    meta.exif = None
+    meta.latitude = None
+    meta.longitude = None
+    meta.date_taken = None
+    meta.width = None
+    meta.height = None
+    meta.duration = None
+    meta.file_hash = None
+    meta.dhash = None
+    db.session.commit()
+
+    file_info = _make_file_info(file_record)
+    extract_file_metadata.delay(file_info)
+    return jsonify({"message": "EXIF regeneration initiated"}), 202
+
+
+@api_bp.route("/files/<int:file_id>/regenerate-thumbnail", methods=["POST"])
+def regenerate_thumbnail(file_id):
+    file_record = db.session.get(ImportedFile, file_id)
+    if not file_record:
+        return jsonify({"error": "File not found"}), 404
+
+    meta = FileMetadata.query.filter_by(file_id=file_id).first()
+    if not meta:
+        meta = FileMetadata(file_id=file_id)
+        db.session.add(meta)
+
+    meta.thumbnail = None
+    meta.thumbnail_status = "pending"
+    db.session.commit()
+
+    file_info = _make_file_info(file_record)
+    generate_thumbnail.delay(file_info)
+    return jsonify({"message": "Thumbnail regeneration initiated"}), 202
+
+
 def _adjust_highlights_shadows(img, mode, amount):
     if amount == 0:
         return img
@@ -488,6 +560,20 @@ def _apply_vignette(img, amount):
     b.putdata(b_vals)
     return Image.merge("RGB", (r, g, b))
 
+def _make_file_info(file_record):
+    return {
+        "id": file_record.id,
+        "session_id": file_record.session_id,
+        "directory_id": file_record.directory_id,
+        "filename": file_record.filename,
+        "file_path": file_record.file_path,
+        "relative_path": file_record.relative_path,
+        "mime_type": file_record.mime_type,
+        "size": file_record.size,
+        "modified": file_record.modified.isoformat() if file_record.modified else None,
+    }
+
+
 def _apply_filter_preset(img, name):
     presets = {
         "vivid": lambda i: ImageEnhance.Contrast(ImageEnhance.Color(i).enhance(1.4)).enhance(1.25),
@@ -504,6 +590,61 @@ def _apply_filter_preset(img, name):
         return fn(img)
     return img
 
+
+def _edit_video_file(file_record, operations):
+    from app.utility.video_utility import edit_video
+
+    edited_dir = current_app.config["EDITED_IMAGES_DIR"]
+    os.makedirs(edited_dir, exist_ok=True)
+
+    stem, ext = os.path.splitext(file_record.filename)
+    ts = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+    save_name = f"{stem}_edited_{ts}.mp4"
+    save_path = os.path.join(edited_dir, save_name)
+
+    edit_video(file_record.file_path, save_path, operations)
+
+    session = ImportSession.query.filter_by(root_path=edited_dir).first()
+    if not session:
+        session = ImportSession(root_path=edited_dir, mime_groups=["image", "video"])
+        db.session.add(session)
+        db.session.flush()
+        root_dir = ImportedDirectory(
+            session_id=session.id, path="", name="", parent_path=None,
+        )
+        db.session.add(root_dir)
+        db.session.flush()
+    else:
+        root_dir = ImportedDirectory.query.filter_by(
+            session_id=session.id, path=""
+        ).first()
+
+    stat = os.stat(save_path)
+    f = ImportedFile(
+        session_id=session.id,
+        directory_id=root_dir.id,
+        filename=save_name,
+        file_path=save_path,
+        relative_path=save_name,
+        mime_type="video/mp4",
+        size=stat.st_size,
+        modified=datetime.fromtimestamp(stat.st_mtime),
+    )
+    db.session.add(f)
+    db.session.flush()
+
+    session.total_files = (session.total_files or 0) + 1
+    db.session.commit()
+
+    file_info = _make_file_info(f)
+
+    extract_file_metadata.delay(file_info)
+    generate_thumbnail.delay(file_info)
+    generate_ai_metadata.delay(file_info)
+
+    return jsonify(f.to_dict()), 201
+
+
 @api_bp.route("/files/<int:file_id>/edit", methods=["POST"])
 def edit_file(file_id):
     data = request.get_json(silent=True) or {}
@@ -514,6 +655,9 @@ def edit_file(file_id):
         return jsonify({"error": "File not found"}), 404
     if not os.path.isfile(file_record.file_path):
         return jsonify({"error": "Original file no longer exists"}), 404
+
+    if file_record.mime_type and file_record.mime_type.startswith("video/"):
+        return _edit_video_file(file_record, operations)
 
     img = Image.open(file_record.file_path)
     img = img.convert("RGB")
@@ -552,6 +696,12 @@ def edit_file(file_id):
             img = _apply_vignette(img, op.get("value", 0))
         elif op_type == "filter":
             img = _apply_filter_preset(img, op.get("name", ""))
+        elif op_type == "crop":
+            x = int(op.get("x", 0) * img.width)
+            y = int(op.get("y", 0) * img.height)
+            w = int(op.get("width", 1) * img.width)
+            h = int(op.get("height", 1) * img.height)
+            img = img.crop((x, y, x + w, y + h))
 
     edited_dir = current_app.config["EDITED_IMAGES_DIR"]
     os.makedirs(edited_dir, exist_ok=True)
@@ -1156,6 +1306,47 @@ def get_statistics():
             "files_with_nickname": files_with_nickname,
         },
     })
+
+
+@api_bp.route("/filters", methods=["GET"])
+def list_filters():
+    presets = FilterPreset.query.order_by(FilterPreset.name).all()
+    return jsonify([p.to_dict() for p in presets]), 200
+
+
+@api_bp.route("/filters", methods=["POST"])
+def create_filter():
+    data = request.get_json(silent=True) or {}
+    name = data.get("name", "").strip()
+    operations = data.get("operations", [])
+    file_id = data.get("file_id")
+
+    if not name:
+        return jsonify({"error": "Name is required"}), 400
+    if not operations:
+        return jsonify({"error": "At least one operation is required"}), 400
+
+    existing = FilterPreset.query.filter_by(name=name).first()
+    if existing:
+        existing.operations = operations
+        existing.file_id = file_id
+        db.session.commit()
+        return jsonify(existing.to_dict()), 200
+
+    preset = FilterPreset(name=name, operations=operations, file_id=file_id)
+    db.session.add(preset)
+    db.session.commit()
+    return jsonify(preset.to_dict()), 201
+
+
+@api_bp.route("/filters/<int:filter_id>", methods=["DELETE"])
+def delete_filter(filter_id):
+    preset = db.session.get(FilterPreset, filter_id)
+    if not preset:
+        return jsonify({"error": "Filter not found"}), 404
+    db.session.delete(preset)
+    db.session.commit()
+    return jsonify({"message": "Deleted"}), 200
 
 
 @api_bp.route("/files/with-gps", methods=["GET"])

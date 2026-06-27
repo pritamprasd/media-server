@@ -121,3 +121,64 @@ def generate_video_thumbnail(path, meta):
 
     b64 = base64.b64encode(pipe.stdout).decode("utf-8")
     meta.thumbnail = f"data:image/jpeg;base64,{b64}"
+
+
+def edit_video(input_path, output_path, operations):
+    filter_parts = []
+    trim_start = None
+    trim_end = None
+    rotate_deg = None
+
+    for op in operations:
+        t = op.get("type")
+        if t == "trim":
+            if op.get("start") is not None:
+                trim_start = float(op["start"])
+            if op.get("end") is not None:
+                trim_end = float(op["end"])
+        elif t == "rotate":
+            rotate_deg = int(op.get("degrees", 0))
+        elif t == "brightness":
+            v = op.get("value", 1.0)
+            if v != 1.0:
+                filter_parts.append(f"eq=brightness={v - 1.0:.2f}")
+        elif t == "contrast":
+            v = op.get("value", 1.0)
+            if v != 1.0:
+                filter_parts.append(f"eq=contrast={v:.2f}")
+        elif t == "saturation":
+            v = op.get("value", 1.0)
+            if v != 1.0:
+                filter_parts.append(f"eq=saturation={v:.2f}")
+
+    cmd = ["ffmpeg", "-y", "-v", "error"]
+
+    if trim_start is not None and trim_start > 0:
+        cmd.extend(["-ss", f"{trim_start:.2f}"])
+    cmd.extend(["-i", input_path])
+    if trim_end is not None and trim_end > 0:
+        cmd.extend(["-to", f"{trim_end:.2f}"])
+
+    video_filters = []
+    if rotate_deg == 90:
+        video_filters.append("transpose=1")
+    elif rotate_deg == -90 or rotate_deg == 270:
+        video_filters.append("transpose=2")
+    elif rotate_deg == 180:
+        video_filters.append("vflip,hflip")
+
+    video_filters.extend(filter_parts)
+
+    needs_reencode = len(video_filters) > 0
+
+    if video_filters:
+        cmd.extend(["-vf", ",".join(video_filters)])
+
+    if needs_reencode:
+        cmd.extend(["-c:v", "libx264", "-preset", "medium", "-crf", "23", "-c:a", "aac"])
+    else:
+        cmd.extend(["-c:v", "copy", "-c:a", "copy"])
+
+    cmd.append(output_path)
+
+    subprocess.run(cmd, check=True, timeout=600)

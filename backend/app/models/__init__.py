@@ -14,3 +14,4 @@ from app.models.imported_directory import ImportedDirectory  # noqa: E402, F401
 from app.models.imported_file import ImportedFile  # noqa: E402, F401
 from app.models.file_metadata import FileMetadata, DHashBand  # noqa: E402, F401
 from app.models.location import SavedLocation  # noqa: E402, F401
+from app.models.filter_preset import FilterPreset  # noqa: E402, F401

@@ -178,4 +178,34 @@ export async function deleteLocation(id) {
   return data;
 }
 
+export async function regenerateAiMetadata(fileId) {
+  const { data } = await client.post(`/files/${fileId}/regenerate-ai`);
+  return data;
+}
+
+export async function regenerateExif(fileId) {
+  const { data } = await client.post(`/files/${fileId}/regenerate-exif`);
+  return data;
+}
+
+export async function regenerateThumbnail(fileId) {
+  const { data } = await client.post(`/files/${fileId}/regenerate-thumbnail`);
+  return data;
+}
+
+export async function listFilters() {
+  const { data } = await client.get("/filters");
+  return data;
+}
+
+export async function createFilter(payload) {
+  const { data } = await client.post("/filters", payload);
+  return data;
+}
+
+export async function deleteFilter(filterId) {
+  const { data } = await client.delete(`/filters/${filterId}`);
+  return data;
+}
+
 export default client;
