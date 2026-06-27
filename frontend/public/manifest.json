@@ -4,7 +4,7 @@
   "description": "Home media server",
   "start_url": "/",
   "scope": "/",
-  "display": "standalone",
+  "display": "fullscreen",
   "display_override": ["window-controls-overlay", "standalone"],
   "orientation": "any",
   "background_color": "#1a1a2e",
