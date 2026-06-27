@@ -2,6 +2,10 @@ import io
 import os
 from datetime import datetime
 
+from PIL import Image, ImageEnhance
+import pillow_heif
+pillow_heif.register_heif_opener()
+
 from sqlalchemy import func
 
 from flask import current_app, jsonify, request, send_file
@@ -179,6 +183,8 @@ def list_files():
     directory_id = request.args.get("directory_id", type=int)
     min_width = request.args.get("min_width", type=int)
     min_height = request.args.get("min_height", type=int)
+    sort_by = request.args.get("sort_by", "created_at")
+    sort_dir = request.args.get("sort_dir", "desc")
 
     query = db.session.query(
         ImportedFile, FileMetadata.thumbnail, FileMetadata.thumbnail_status,
@@ -245,8 +251,16 @@ def list_files():
             db.or_(FileMetadata.height.is_(None), FileMetadata.height >= min_height)
         )
 
+    sort_map = {
+        "created_at": ImportedFile.created_at,
+        "filename": ImportedFile.filename,
+        "size": ImportedFile.size,
+    }
+    sort_col = sort_map.get(sort_by, ImportedFile.created_at)
+    sort_fn = sort_col.desc if sort_dir == "desc" else sort_col.asc
+
     pagination = query.order_by(
-        ImportedFile.created_at.desc()
+        sort_fn()
     ).paginate(
         page=page, per_page=per_page, error_out=False
     )
@@ -414,10 +428,84 @@ def get_file_thumbnail(file_id):
     }), 200
 
 
+def _adjust_highlights_shadows(img, mode, amount):
+    if amount == 0:
+        return img
+    img = img.convert("RGB")
+    r, g, b = img.split()
+    factor = amount / 100.0
+    def curve(v):
+        if mode == "highlights":
+            return min(255, max(0, int(v + (255 - v) * factor)))
+        return min(255, max(0, int(v - v * factor)))
+    lut = [curve(i) for i in range(256)]
+    r = r.point(lut)
+    g = g.point(lut)
+    b = b.point(lut)
+    return Image.merge("RGB", (r, g, b))
+
+def _adjust_warmth(img, amount):
+    if amount == 0:
+        return img
+    img = img.convert("RGB")
+    r, g, b = img.split()
+    f = amount / 100.0
+    r_lut = [min(255, max(0, int(i + i * f * 0.15))) for i in range(256)]
+    b_lut = [min(255, max(0, int(i - i * f * 0.15))) for i in range(256)]
+    r = r.point(r_lut)
+    b = b.point(b_lut)
+    return Image.merge("RGB", (r, g, b))
+
+def _apply_vignette(img, amount):
+    if amount <= 0:
+        return img
+    w, h = img.size
+    cx, cy = w // 2, h // 2
+    max_dist = ((cx ** 2 + cy ** 2) ** 0.5) or 1
+    intensity = amount / 100.0 * 0.6
+    r, g, b = img.split()
+    def vignette_px(dist):
+        fac = 1.0 - (dist / max_dist) * intensity
+        if fac < 0: fac = 0
+        return fac
+    r_vals = []
+    g_vals = []
+    b_vals = []
+    r_data = list(r.getdata())
+    g_data = list(g.getdata())
+    b_data = list(b.getdata())
+    idx = 0
+    for y in range(h):
+        for x in range(w):
+            dist = ((x - cx) ** 2 + (y - cy) ** 2) ** 0.5
+            fac = vignette_px(dist)
+            r_vals.append(min(255, max(0, int(r_data[idx] * fac))))
+            g_vals.append(min(255, max(0, int(g_data[idx] * fac))))
+            b_vals.append(min(255, max(0, int(b_data[idx] * fac))))
+            idx += 1
+    r.putdata(r_vals)
+    g.putdata(g_vals)
+    b.putdata(b_vals)
+    return Image.merge("RGB", (r, g, b))
+
+def _apply_filter_preset(img, name):
+    presets = {
+        "vivid": lambda i: ImageEnhance.Contrast(ImageEnhance.Color(i).enhance(1.4)).enhance(1.25),
+        "dramatic": lambda i: ImageEnhance.Contrast(i).enhance(1.6),
+        "vintage": lambda i: _adjust_warmth(ImageEnhance.Color(i).enhance(0.7), 25),
+        "noir": lambda i: ImageEnhance.Contrast(i.convert("L").convert("RGB")).enhance(1.3),
+        "soft": lambda i: ImageEnhance.Brightness(i).enhance(1.1),
+        "clarity": lambda i: ImageEnhance.Sharpness(ImageEnhance.Contrast(i).enhance(1.15)).enhance(1.3),
+        "warm": lambda i: _adjust_warmth(i, 40),
+        "cool": lambda i: _adjust_warmth(i, -40),
+    }
+    fn = presets.get(name)
+    if fn:
+        return fn(img)
+    return img
+
 @api_bp.route("/files/<int:file_id>/edit", methods=["POST"])
 def edit_file(file_id):
-    from PIL import Image
-
     data = request.get_json(silent=True) or {}
     operations = data.get("operations", [])
 
@@ -442,6 +530,28 @@ def edit_file(file_id):
                 img = img.transpose(Image.FLIP_TOP_BOTTOM)
         elif op_type == "grayscale":
             img = img.convert("L").convert("RGB")
+        elif op_type == "brightness":
+            v = op.get("value", 1.0)
+            img = ImageEnhance.Brightness(img).enhance(v)
+        elif op_type == "contrast":
+            v = op.get("value", 1.0)
+            img = ImageEnhance.Contrast(img).enhance(v)
+        elif op_type == "saturation":
+            v = op.get("value", 1.0)
+            img = ImageEnhance.Color(img).enhance(v)
+        elif op_type == "sharpness":
+            v = op.get("value", 1.0)
+            img = ImageEnhance.Sharpness(img).enhance(v)
+        elif op_type == "highlights":
+            img = _adjust_highlights_shadows(img, "highlights", op.get("value", 0))
+        elif op_type == "shadows":
+            img = _adjust_highlights_shadows(img, "shadows", op.get("value", 0))
+        elif op_type == "warmth":
+            img = _adjust_warmth(img, op.get("value", 0))
+        elif op_type == "vignette":
+            img = _apply_vignette(img, op.get("value", 0))
+        elif op_type == "filter":
+            img = _apply_filter_preset(img, op.get("name", ""))
 
     edited_dir = current_app.config["EDITED_IMAGES_DIR"]
     os.makedirs(edited_dir, exist_ok=True)

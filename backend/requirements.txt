@@ -9,6 +9,7 @@ psycopg2==2.9.12
 celery==5.4.0
 redis==5.2.1
 Pillow==11.1.0
+pillow-heif==0.22.0
 ollama==0.6.2
 pydantic==2.13.4
 filetype==1.2.0

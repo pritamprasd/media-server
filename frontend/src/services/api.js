@@ -77,6 +77,8 @@ export async function listFiles(page = 1, perPage = 50, filters = {}, signal) {
   if (filters.minHeight != null) params.min_height = filters.minHeight;
   if (filters.hasAi) params.has_ai = true;
   if (filters.tag) params.tag = filters.tag;
+  if (filters.sortBy) params.sort_by = filters.sortBy;
+  if (filters.sortDir) params.sort_dir = filters.sortDir;
   const { data } = await client.get("/files", { params, signal });
   return data;
 }

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
-import { Search, List, Image, Video, Sparkles, FolderTree, Folder, FolderOpen, ChevronDown, X, Hash, Columns2, Heart } from "lucide-react";
+import { Search, List, Image, Video, Sparkles, FolderTree, Folder, FolderOpen, ChevronDown, X, Hash, Columns2, Heart, ArrowUpDown } from "lucide-react";
 import { listFiles, listDirectories, toggleFavorite as toggleFavApi, listTags } from "../services/api";
 import { getPref, setPref } from "../services/db";
 import FileViewer from "../components/FileViewer";
@@ -134,6 +134,8 @@ function Home() {
   const [showTagDropdown, setShowTagDropdown] = useState(false);
   const [tagSearch, setTagSearch] = useState("");
   const [totalCount, setTotalCount] = useState(0);
+  const [sortBy, setSortBy] = useState("created_at");
+  const [sortDir, setSortDir] = useState("desc");
   const [columns, setColumns] = useState("auto");
   const sentinelRef = useRef(null);
   const searchTimeout = useRef(null);
@@ -144,6 +146,17 @@ function Home() {
   const loadedOnceRef = useRef(false);
   hasMoreRef.current = hasMore;
   loadingRef.current = loading;
+
+  const handleSort = useCallback((col) => {
+    setSortBy((prev) => {
+      if (prev === col) {
+        setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+        return prev;
+      }
+      setSortDir("desc");
+      return col;
+    });
+  }, []);
 
   const closeViewer = useCallback(() => {
     if (viewerOpenRef.current) {
@@ -217,7 +230,7 @@ function Home() {
     setMinHeight(preset.h);
   };
 
-  const fetchPage = useCallback(async (p, mime, q, dirId, minW, minH, ai, tg, signal) => {
+  const fetchPage = useCallback(async (p, mime, q, dirId, minW, minH, ai, tg, sb, sd, signal) => {
     setLoading(true);
     const filters = {};
     if (mime) filters.mimeGroup = mime;
@@ -227,6 +240,8 @@ function Home() {
     if (minH != null) filters.minHeight = minH;
     if (ai) filters.hasAi = true;
     if (tg) filters.tag = tg;
+    if (sb) filters.sortBy = sb;
+    if (sd) filters.sortDir = sd;
     try {
       const data = await listFiles(p, 50, filters, signal);
       if (signal?.aborted) return;
@@ -250,18 +265,18 @@ function Home() {
     setHasMore(true);
     setInitialLoading(true);
     loadedOnceRef.current = false;
-    fetchPage(1, mimeGroup, searchQuery, directoryId, minWidth, minHeight, hasAi, tag, controller.signal);
+    fetchPage(1, mimeGroup, searchQuery, directoryId, minWidth, minHeight, hasAi, tag, sortBy, sortDir, controller.signal);
     return () => controller.abort();
-  }, [mimeGroup, searchQuery, directoryId, minWidth, minHeight, hasAi, tag]);
+  }, [mimeGroup, searchQuery, directoryId, minWidth, minHeight, hasAi, tag, sortBy, sortDir]);
 
   useEffect(() => {
     if (page === 1) return;
     if (abortRef.current) abortRef.current.abort();
     const controller = new AbortController();
     abortRef.current = controller;
-    fetchPage(page, mimeGroup, searchQuery, directoryId, minWidth, minHeight, hasAi, tag, controller.signal);
+    fetchPage(page, mimeGroup, searchQuery, directoryId, minWidth, minHeight, hasAi, tag, sortBy, sortDir, controller.signal);
     return () => controller.abort();
-  }, [page, mimeGroup, searchQuery, directoryId, minWidth, minHeight, hasAi, tag]);
+  }, [page, mimeGroup, searchQuery, directoryId, minWidth, minHeight, hasAi, tag, sortBy, sortDir]);
 
   useEffect(() => {
     const el = sentinelRef.current;
@@ -425,6 +440,42 @@ function Home() {
               </div>
             </div>
 
+            <div className="home__sort">
+              <button
+                className={`home__sort-btn ${sortBy === "filename" ? "home__sort-btn--active" : ""}`}
+                onClick={() => handleSort("filename")}
+                title="Sort by name"
+              >
+                <ArrowUpDown size={11} />
+                Name
+                {sortBy === "filename" && (
+                  <span className="home__sort-dir">{sortDir === "asc" ? "\u2191" : "\u2193"}</span>
+                )}
+              </button>
+              <button
+                className={`home__sort-btn ${sortBy === "created_at" ? "home__sort-btn--active" : ""}`}
+                onClick={() => handleSort("created_at")}
+                title="Sort by date"
+              >
+                <ArrowUpDown size={11} />
+                Date
+                {sortBy === "created_at" && (
+                  <span className="home__sort-dir">{sortDir === "asc" ? "\u2191" : "\u2193"}</span>
+                )}
+              </button>
+              <button
+                className={`home__sort-btn ${sortBy === "size" ? "home__sort-btn--active" : ""}`}
+                onClick={() => handleSort("size")}
+                title="Sort by size"
+              >
+                <ArrowUpDown size={11} />
+                Size
+                {sortBy === "size" && (
+                  <span className="home__sort-dir">{sortDir === "asc" ? "\u2191" : "\u2193"}</span>
+                )}
+              </button>
+            </div>
+
             <div className="home__column-toggle">
               <button
                 className={`home__column-btn ${columns === "auto" ? "home__column-btn--active" : ""}`}
@@ -450,7 +501,7 @@ function Home() {
               </button>
             </div>
 
-            {mimeGroup || searchQuery || directoryId || minWidth || minHeight || hasAi || tag ? (
+            {mimeGroup || searchQuery || directoryId || minWidth || minHeight || hasAi || tag || sortBy !== "created_at" || sortDir !== "desc" ? (
               <button className="home__clear-btn" onClick={() => {
                 setMimeGroup("");
                 setSearchInput("");
@@ -460,6 +511,8 @@ function Home() {
                 setMinHeight(null);
                 setHasAi(false);
                 setTag("");
+                setSortBy("created_at");
+                setSortDir("desc");
               }}>
                 <X size={14} /> Clear
               </button>
