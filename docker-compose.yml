@@ -9,7 +9,7 @@ services:
     env_file: ./backend/.env
     command: sh -c "flask db upgrade && gunicorn -w 4 -b 0.0.0.0:5000 run:app"
     volumes:
-      - edited_images:/root/media-server-edited
+      - /home/pritam/media_server_files/edited:/edited
       - ${MEDIA_PATH:-/media}:/media:ro
       - /home/pritam/media_server_files:/media_files
       - /home/pritam/media_server_files/uploads:/uploads
@@ -27,6 +27,7 @@ services:
     env_file: ./backend/.env
     command: celery -A app.tasks.celery worker -Q import_queue -l info --concurrency=1
     volumes:
+      - /home/pritam/media_server_files/edited:/edited
       - ${MEDIA_PATH:-/media}:/media:ro
       - /home/pritam/media_server_files:/media_files
       - /home/pritam/media_server_files/uploads:/uploads
@@ -43,6 +44,7 @@ services:
     env_file: ./backend/.env
     command: celery -A app.tasks.celery worker -Q metadata -l info --concurrency=3
     volumes:
+      - /home/pritam/media_server_files/edited:/edited
       - ${MEDIA_PATH:-/media}:/media:ro
       - /home/pritam/media_server_files:/media_files
       - /home/pritam/media_server_files/uploads:/uploads
@@ -59,6 +61,7 @@ services:
     env_file: ./backend/.env
     command: celery -A app.tasks.celery worker -Q ai_metadata -l info --concurrency=1
     volumes:
+      - /home/pritam/media_server_files/edited:/edited
       - ${MEDIA_PATH:-/media}:/media:ro
       - /home/pritam/media_server_files:/media_files
       - /home/pritam/media_server_files/uploads:/uploads
@@ -75,6 +78,7 @@ services:
     env_file: ./backend/.env
     command: celery -A app.tasks.celery worker -Q thumbnail -l info --concurrency=3
     volumes:
+      - /home/pritam/media_server_files/edited:/edited
       - ${MEDIA_PATH:-/media}:/media:ro
       - /home/pritam/media_server_files:/media_files
       - /home/pritam/media_server_files/uploads:/uploads
@@ -95,6 +99,7 @@ services:
       - FACE_DET_THRESH=0.3
     command: celery -A app.tasks.celery worker -Q face_detection -l info --concurrency=1
     volumes:
+      - /home/pritam/media_server_files/edited:/edited
       - ${MEDIA_PATH:-/media}:/media:ro
       - /home/pritam/media_server_files:/media_files
       - /home/pritam/media_server_files/uploads:/uploads
@@ -117,9 +122,6 @@ services:
       - default-network
     dns:
       - 172.17.0.1
-
-volumes:
-  edited_images:
 
 networks:
   default-network:
