@@ -1,15 +1,20 @@
 import { useEffect, useRef, useState, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Heart, Download, Trash2, X, RotateCcw, RotateCw, ArrowLeftRight,
   ArrowUpDown, Contrast, Image, FileJson, MapPin,
   Hash, Tag, AlignLeft, Clock, Maximize2, Camera,
   ZoomIn, ZoomOut, Save, Filter, SlidersHorizontal, Sun,
-  Sparkles, Undo2, Paintbrush, FlipHorizontal,
+  Sparkles, Undo2, Paintbrush, FlipHorizontal, Search, IdCard, FolderOpen,
+  ChevronLeft, ChevronRight,
 } from "lucide-react";
 import {
   toggleFavorite as toggleFavApi, getFileMetadata, editFile, deleteFile, updateTags,
   regenerateAiMetadata, regenerateExif, regenerateThumbnail,
   listFilters, createFilter, deleteFilter,
+  listFileFaces,
+  updateFace,
+  detectFaces,
 } from "../services/api";
 import Spinner from "./Spinner";
 import "./FileViewer.css";
@@ -26,7 +31,54 @@ const FILTERS = [
   { name: "cool", label: "Cool", css: "saturate(0.9) hue-rotate(200deg) brightness(1.05)" },
 ];
 
-function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete }) {
+function FaceNameTag({ face, onNameChange }) {
+  const [editing, setEditing] = useState(false);
+  const [inputVal, setInputVal] = useState(face.person_name || "");
+  const [saving, setSaving] = useState(false);
+
+  const handleSave = async () => {
+    const val = inputVal.trim();
+    if (!val && !face.person_name) return;
+    if (val === (face.person_name || "")) { setEditing(false); return; }
+    setSaving(true);
+    try {
+      await onNameChange(val || null);
+      setEditing(false);
+    } catch {
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleKeyDown = (e) => {
+    if (e.key === "Enter") handleSave();
+    if (e.key === "Escape") { setInputVal(face.person_name || ""); setEditing(false); }
+  };
+
+  if (editing) {
+    return (
+      <div className="viewer-face-item">
+        {face.thumbnail && <img src={face.thumbnail} alt="" className="viewer-face-thumb" />}
+        <div className="viewer-face-edit">
+          <input className="viewer-face-input" type="text" value={inputVal} onChange={(e) => setInputVal(e.target.value)} onKeyDown={handleKeyDown} placeholder="Name..." autoFocus disabled={saving} />
+          <button className="viewer-face-save" onClick={handleSave} disabled={saving}>{saving ? <Spinner size={10} /> : <IdCard size={11} />}</button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="viewer-face-item" onClick={() => { setInputVal(face.person_name || ""); setEditing(true); }}>
+      {face.thumbnail && <img src={face.thumbnail} alt="" className="viewer-face-thumb" />}
+      <span className={`viewer-face-name ${face.person_name ? "" : "viewer-face-name--unnamed"}`}>
+        {face.person_name || "Name..."}
+      </span>
+    </div>
+  );
+}
+
+function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete, onNavigatePrev, onNavigateNext }) {
+  const navigate = useNavigate();
   const [isFav, setIsFav] = useState(file.is_favorite);
   const [meta, setMeta] = useState(null);
   const [metaLoading, setMetaLoading] = useState(true);
@@ -55,14 +107,16 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete }) {
   const [savingFilter, setSavingFilter] = useState(false);
   const [showSaveFilter, setShowSaveFilter] = useState(false);
   const [customFilterName, setCustomFilterName] = useState("");
-  const [regenerating, setRegenerating] = useState({ ai: false, exif: false, thumb: false });
+  const [regenerating, setRegenerating] = useState({ ai: false, exif: false, thumb: false, faces: false });
   const [videoTrim, setVideoTrim] = useState({ start: 0, end: 0 });
   const [crop, setCrop] = useState(null);
   const [cropAspect, setCropAspect] = useState("free");
   const [cropDrag, setCropDrag] = useState(null);
+  const [fileFaces, setFileFaces] = useState([]);
   const pinchRef = useRef(null);
   const overlayRef = useRef(null);
   const imgRef = useRef(null);
+  const pollRef = useRef(null);
 
   const isVideo = file.mime_type && file.mime_type.startsWith("video/");
   const fileUrl = `/api/files/${file.id}/serve`;
@@ -108,6 +162,11 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete }) {
         } else {
           onClose();
         }
+        return;
+      }
+      if (!editMode && e.target.tagName !== "INPUT" && e.target.tagName !== "TEXTAREA") {
+        if (e.key === "ArrowLeft" && onNavigatePrev) { e.preventDefault(); onNavigatePrev(); }
+        if (e.key === "ArrowRight" && onNavigateNext) { e.preventDefault(); onNavigateNext(); }
       }
     };
     document.addEventListener("keydown", handleKey);
@@ -116,11 +175,15 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete }) {
       .then(setMeta)
       .catch(() => setMeta(null))
       .finally(() => setMetaLoading(false));
+    listFileFaces(file.id)
+      .then(setFileFaces)
+      .catch(() => setFileFaces([]));
     return () => {
       document.removeEventListener("keydown", handleKey);
       document.body.style.overflow = "";
+      if (pollRef.current) clearInterval(pollRef.current);
     };
-  }, [file.id, onClose, editMode]);
+  }, [file.id, onClose, editMode, onNavigatePrev, onNavigateNext]);
 
   const handleOverlayClick = (e) => {
     if (e.target === overlayRef.current) {
@@ -303,8 +366,30 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete }) {
       if (type === "ai") await regenerateAiMetadata(file.id);
       else if (type === "exif") await regenerateExif(file.id);
       else if (type === "thumb") await regenerateThumbnail(file.id);
+      else if (type === "faces") await detectFaces(file.id);
     } catch {} finally {
       setRegenerating((p) => ({ ...p, [type]: false }));
+    }
+    if (type === "faces") {
+      if (pollRef.current) clearInterval(pollRef.current);
+      let attempts = 0;
+      const maxAttempts = 15;
+      pollRef.current = setInterval(async () => {
+        attempts++;
+        try {
+          const faces = await listFileFaces(file.id);
+          if (faces.length > 0 || attempts >= maxAttempts) {
+            clearInterval(pollRef.current);
+            pollRef.current = null;
+            setFileFaces(faces);
+          }
+        } catch {
+          if (attempts >= maxAttempts) {
+            clearInterval(pollRef.current);
+            pollRef.current = null;
+          }
+        }
+      }, 2000);
     }
   };
 
@@ -492,6 +577,11 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete }) {
                 <button className="viewer-btn viewer-btn--edit" onClick={() => setEditMode(true)} title={isVideo ? "Edit video" : "Edit image"}>
                   <Paintbrush size={14} /> Edit
                 </button>
+                {file.directory_id != null && (
+                  <button className="viewer-btn viewer-btn--folder" onClick={(e) => { e.stopPropagation(); navigate("/", { state: { directoryId: file.directory_id } }); }} title="Show in folder">
+                    <FolderOpen size={14} /> Browse Folder
+                  </button>
+                )}
                 <a className="viewer-btn viewer-btn--download" href={fileUrl} download title="Download file"><Download size={15} /></a>
                 <button className="viewer-btn viewer-btn--delete" onClick={handleDeleteClick} title="Delete file"><Trash2 size={15} /></button>
                 <button className={`viewer-fav ${isFav ? "viewer-fav--active" : ""}`} onClick={handleToggleFav} title={isFav ? "Remove from favorites" : "Add to favorites"}>
@@ -540,6 +630,16 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete }) {
                 </button>
                 <button className="viewer-float-btn viewer-float-btn--close" onClick={onClose} title="Close"><X size={18} /></button>
               </div>
+            )}
+            {!editMode && onNavigatePrev && (
+              <button className="viewer-nav-btn viewer-nav-btn--prev" onClick={(e) => { e.stopPropagation(); onNavigatePrev(); }} title="Previous (←)">
+                <ChevronLeft size={28} />
+              </button>
+            )}
+            {!editMode && onNavigateNext && (
+              <button className="viewer-nav-btn viewer-nav-btn--next" onClick={(e) => { e.stopPropagation(); onNavigateNext(); }} title="Next (→)">
+                <ChevronRight size={28} />
+              </button>
             )}
           </div>
 
@@ -818,6 +918,35 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete }) {
                         <button className="viewer-tag-add" onClick={handleAddTag} disabled={tagSaving || !tagInput.trim()}>+</button>
                       </span>
                     </div>
+                  </div>
+                  <div className="viewer-meta-row viewer-meta-row--block">
+                    <span className="viewer-meta-label"><Search size={12} /> People</span>
+                    {fileFaces.length > 0 ? (
+                      <div className="viewer-face-list">
+                        {fileFaces.map((face) => (
+                          <FaceNameTag
+                            key={face.id}
+                            face={face}
+                            onNameChange={async (name) => {
+                              try {
+                                const updated = await updateFace(face.id, { name });
+                                setFileFaces((prev) => prev.map((f) => f.id === face.id ? { ...f, person_name: updated.person_name, person_id: updated.person_id } : f));
+                              } catch (e) {
+                                console.error("Failed to update face name:", e);
+                              }
+                            }}
+                          />
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="viewer-meta-row">
+                        <span className="viewer-meta-value">No faces detected</span>
+                        <button className="viewer-regen-btn" onClick={() => handleRegenerate("faces")} disabled={regenerating.faces}>
+                          {regenerating.faces ? <Spinner size={12} /> : <Search size={12} />}
+                          Detect Faces
+                        </button>
+                      </div>
+                    )}
                   </div>
                   {meta.search_words && (
                     <div className="viewer-meta-row viewer-meta-row--block">

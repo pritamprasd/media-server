@@ -164,6 +164,50 @@ def detect_faces_for_file(file_id):
     return jsonify({"message": "Face detection queued"}), 202
 
 
+@api_bp.route("/faces/<int:face_id>", methods=["PUT"])
+def update_face(face_id):
+    face = db.session.get(DetectedFace, face_id)
+    if not face:
+        return jsonify({"error": "Face not found"}), 404
+    data = request.get_json(silent=True) or {}
+    name = data.get("name", "").strip() or None
+
+    if not name:
+        face.person_id = None
+        db.session.commit()
+        return jsonify({"message": "Face unassigned", "face_id": face.id}), 200
+
+    person = Person.query.filter_by(name=name).first()
+    if not person:
+        person = Person(name=name, face_count=1)
+        from app.utility.face_utility import compute_average_encoding
+        if face.encoding:
+            person.avg_encoding = compute_average_encoding([face.encoding])
+        db.session.add(person)
+        db.session.flush()
+    else:
+        person.face_count = (person.face_count or 0) + 1
+        if face.encoding and person.avg_encoding:
+            from app.utility.face_utility import compute_average_encoding
+            person.avg_encoding = compute_average_encoding([person.avg_encoding, face.encoding])
+
+    face.person_id = person.id
+
+    from app.models.file_metadata import FileMetadata
+    meta = FileMetadata.query.filter_by(file_id=face.file_id).first()
+    if meta:
+        tags = meta.tags or []
+        if name not in tags:
+            tags.append(name)
+            meta.tags = tags
+
+    db.session.commit()
+    result = face.to_dict()
+    result["person_name"] = person.name
+    result["person_id"] = person.id
+    return jsonify(result), 200
+
+
 @api_bp.route("/faces", methods=["GET"])
 def list_recent_faces():
     page = request.args.get("page", 1, type=int)
@@ -184,6 +228,77 @@ def list_recent_faces():
         "total": pagination.total,
         "pages": pagination.pages,
     }), 200
+
+
+@api_bp.route("/persons/merge", methods=["POST"])
+def merge_persons():
+    data = request.get_json(silent=True) or {}
+    person_ids = data.get("person_ids", [])
+    target_name = data.get("name", "").strip() or None
+    if len(person_ids) < 2:
+        return jsonify({"error": "At least 2 person IDs required"}), 400
+    persons = Person.query.filter(Person.id.in_(person_ids)).all()
+    if len(persons) < 2:
+        return jsonify({"error": "At least 2 valid persons required"}), 400
+    persons.sort(key=lambda p: p.id)
+    target = persons[0]
+    others = persons[1:]
+    face_count = target.face_count or 0
+    all_encodings = []
+    if target.avg_encoding:
+        all_encodings.append(target.avg_encoding)
+    for other in others:
+        DetectedFace.query.filter_by(person_id=other.id).update(
+            {DetectedFace.person_id: target.id}, synchronize_session="fetch"
+        )
+        face_count += other.face_count or 0
+        if other.avg_encoding:
+            all_encodings.append(other.avg_encoding)
+        db.session.delete(other)
+    from app.utility.face_utility import compute_average_encoding
+    from app.models.file_metadata import FileMetadata
+    target.face_count = face_count
+    if all_encodings:
+        target.avg_encoding = compute_average_encoding(all_encodings)
+    if target_name:
+        old_name = target.name
+        target.name = target_name
+        face_file_ids = db.session.query(DetectedFace.file_id).filter(
+            DetectedFace.person_id == target.id
+        ).distinct().all()
+        face_file_ids = [r[0] for r in face_file_ids]
+        for fid in face_file_ids:
+            meta = FileMetadata.query.filter_by(file_id=fid).first()
+            if not meta:
+                continue
+            tags = meta.tags or []
+            if old_name and old_name in tags:
+                tags = [t for t in tags if t != old_name]
+            if target_name and target_name not in tags:
+                tags.append(target_name)
+            meta.tags = tags
+    db.session.commit()
+    return jsonify(target.to_dict()), 200
+
+
+@api_bp.route("/files/<int:file_id>/faces", methods=["GET"])
+def list_file_faces(file_id):
+    file_record = db.session.get(ImportedFile, file_id)
+    if not file_record:
+        return jsonify({"error": "File not found"}), 404
+    faces = DetectedFace.query.filter_by(file_id=file_id).order_by(
+        DetectedFace.confidence.desc()
+    ).all()
+    result = []
+    for f in faces:
+        d = f.to_dict()
+        if f.person:
+            d["person_name"] = f.person.name
+            d["person_id"] = f.person.id
+        else:
+            d["person_name"] = None
+        result.append(d)
+    return jsonify(result), 200
 
 
 @api_bp.route("/faces/stats", methods=["GET"])

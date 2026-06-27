@@ -148,6 +148,21 @@ export async function softDeleteDir(path) {
   return data;
 }
 
+export async function moveUploadItems(paths, target) {
+  const { data } = await client.post("/upload/move", { paths, target });
+  return data;
+}
+
+export async function copyUploadItems(paths, target) {
+  const { data } = await client.post("/upload/copy", { paths, target });
+  return data;
+}
+
+export async function renameUploadItem(path, newName) {
+  const { data } = await client.post("/upload/rename", { path, new_name: newName });
+  return data;
+}
+
 export async function listRecentFiles(prefix) {
   const { data } = await client.get("/upload/files/recent", { params: { prefix } });
   return data;
@@ -256,6 +271,21 @@ export async function listFaces(personId, page = 1, perPage = 50) {
 
 export async function getFaceStats() {
   const { data } = await client.get("/faces/stats");
+  return data;
+}
+
+export async function listFileFaces(fileId) {
+  const { data } = await client.get(`/files/${fileId}/faces`);
+  return data;
+}
+
+export async function mergePersons(personIds, name) {
+  const { data } = await client.post("/persons/merge", { person_ids: personIds, name });
+  return data;
+}
+
+export async function updateFace(faceId, payload) {
+  const { data } = await client.put(`/faces/${faceId}`, payload);
   return data;
 }
 

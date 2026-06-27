@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback } from "react";
-import { Eye, EyeOff, Search, UserPlus, UserMinus, IdCard, Scan, Image, SlidersHorizontal, X, ChevronLeft, ChevronRight, Tags } from "lucide-react";
+import { Eye, EyeOff, Search, UserPlus, UserMinus, IdCard, Scan, Image, SlidersHorizontal, X, ChevronLeft, ChevronRight, Tags, GitMerge, CheckSquare, Square, ChevronDown, Users } from "lucide-react";
 import Spinner from "../components/Spinner";
 import FileViewer from "../components/FileViewer";
-import { listPersons, updatePerson, deletePerson, scanAllFaces, listPersonFiles, getFaceStats } from "../services/api";
+import { listPersons, updatePerson, deletePerson, scanAllFaces, listPersonFiles, getFaceStats, mergePersons } from "../services/api";
 import "./Faces.css";
 
 function Faces() {
@@ -20,7 +20,11 @@ function Faces() {
   const [nameValue, setNameValue] = useState("");
   const [viewerFile, setViewerFile] = useState(null);
   const [sortBy, setSortBy] = useState("face_count");
-  const [showUnnamed, setShowUnnamed] = useState(true);
+  const [filterMode, setFilterMode] = useState("all");
+  const [selectedIds, setSelectedIds] = useState(new Set());
+  const [merging, setMerging] = useState(false);
+  const [mergeName, setMergeName] = useState("");
+  const [scanResult, setScanResult] = useState(null);
 
   const loadPersons = useCallback(async () => {
     try {
@@ -39,7 +43,8 @@ function Faces() {
   const handleScan = async () => {
     setScanning(true);
     try {
-      await scanAllFaces();
+      const data = await scanAllFaces();
+      setScanResult(data);
       setTimeout(loadPersons, 2000);
     } catch (e) {
       console.error("Scan failed:", e);
@@ -94,9 +99,34 @@ function Faces() {
     try {
       await deletePerson(person.id);
       if (selectedPerson?.id === person.id) setSelectedPerson(null);
+      setSelectedIds((prev) => { const next = new Set(prev); next.delete(person.id); return next; });
       await loadPersons();
     } catch (e) {
       console.error("Failed to delete person:", e);
+    }
+  };
+
+  const toggleSelect = (id) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const handleMerge = async () => {
+    if (selectedIds.size < 2) return;
+    const name = mergeName.trim() || null;
+    setMerging(true);
+    try {
+      await mergePersons(Array.from(selectedIds), name);
+      setSelectedIds(new Set());
+      setMergeName("");
+      await loadPersons();
+    } catch (e) {
+      console.error("Merge failed:", e);
+    } finally {
+      setMerging(false);
     }
   };
 
@@ -109,7 +139,12 @@ function Faces() {
     if (sortBy === "face_count") return (b.face_count || 0) - (a.face_count || 0);
     if (sortBy === "name") return (a.name || "???").localeCompare(b.name || "???");
     return (b.id || 0) - (a.id || 0);
-  }).filter((p) => showUnnamed || p.name);
+  }).filter((p) => {
+    if (filterMode === "all") return true;
+    if (filterMode === "named") return !!p.name;
+    if (filterMode === "unnamed") return !p.name;
+    return true;
+  });
 
   if (loading) {
     return (
@@ -144,14 +179,26 @@ function Faces() {
             {scanning ? <Spinner size={14} /> : <Scan size={14} />}
             {scanning ? "Scanning..." : "Scan All Faces"}
           </button>
-          <button
-            className={`faces-btn faces-btn--toggle`}
-            onClick={() => setShowUnnamed((p) => !p)}
-            title={showUnnamed ? "Hide unnamed" : "Show unnamed"}
-          >
-            {showUnnamed ? <Eye size={14} /> : <EyeOff size={14} />}
-            {showUnnamed ? "Show all" : "Named only"}
-          </button>
+          {selectedIds.size >= 2 && (
+            <div className="faces-merge-bar">
+              <input
+                className="faces-merge-input"
+                type="text"
+                placeholder="Name for merged person"
+                value={mergeName}
+                onChange={(e) => setMergeName(e.target.value)}
+              />
+              <button className="faces-btn faces-btn--merge" onClick={handleMerge} disabled={merging}>
+                {merging ? <Spinner size={14} /> : <GitMerge size={14} />}
+                Merge {selectedIds.size}
+              </button>
+            </div>
+          )}
+          <div className="faces-filter-group">
+            <button className={`faces-filter-btn ${filterMode === "all" ? "faces-filter-btn--active" : ""}`} onClick={() => setFilterMode("all")} title="Show all persons"><Users size={13} /> All</button>
+            <button className={`faces-filter-btn ${filterMode === "named" ? "faces-filter-btn--active" : ""}`} onClick={() => setFilterMode("named")} title="Named only"><Eye size={13} /> Named</button>
+            <button className={`faces-filter-btn ${filterMode === "unnamed" ? "faces-filter-btn--active" : ""}`} onClick={() => setFilterMode("unnamed")} title="Unnamed only"><EyeOff size={13} /> Unnamed</button>
+          </div>
           <div className="faces-sort">
             <SlidersHorizontal size={13} />
             <select value={sortBy} onChange={(e) => setSortBy(e.target.value)} className="faces-sort-select">
@@ -159,6 +206,7 @@ function Faces() {
               <option value="name">Name A-Z</option>
               <option value="newest">Newest</option>
             </select>
+            <ChevronDown size={12} className="faces-sort-arrow" />
           </div>
         </div>
       </div>
@@ -179,18 +227,21 @@ function Faces() {
               {sortedPersons.map((person) => (
                 <div
                   key={person.id}
-                  className={`faces-card ${selectedPerson?.id === person.id ? "faces-card--selected" : ""}`}
+                  className={`faces-card ${selectedPerson?.id === person.id ? "faces-card--selected" : ""} ${selectedIds.has(person.id) ? "faces-card--checked" : ""}`}
                   onClick={() => handleSelectPerson(person)}
                 >
+                  <div className="faces-card-check" onClick={(e) => { e.stopPropagation(); toggleSelect(person.id); }}>
+                    {selectedIds.has(person.id) ? <CheckSquare size={14} /> : <Square size={14} />}
+                  </div>
                   <div className="faces-card-thumb">
                     {person.thumbnail ? (
                       <img src={person.thumbnail} alt="" className="faces-card-img" />
                     ) : (
                       <div className="faces-card-placeholder"><UserPlus size={28} /></div>
                     )}
-                    <div className="faces-card-badge">{person.face_count}</div>
+                    <div className="faces-card-badge" title="Number of images containing this person">{person.face_count}</div>
                     {person.meta_info?.age && (
-                      <div className="faces-card-age">{person.meta_info.age}y</div>
+                      <div className="faces-card-age" title="Estimated age">{person.meta_info.age}y</div>
                     )}
                   </div>
                   <div className="faces-card-info">
@@ -222,8 +273,8 @@ function Faces() {
                       </div>
                     )}
                     <div className="faces-card-meta">
-                      {person.meta_info?.gender === 0 ? "♀ " : person.meta_info?.gender === 1 ? "♂ " : ""}
-                      {person.id}
+                      {person.meta_info?.gender === 0 ? <span title="Female">♀</span> : person.meta_info?.gender === 1 ? <span title="Male">♂</span> : ""}
+                      <span title="Database ID">#{person.id}</span>
                     </div>
                   </div>
                 </div>
@@ -287,6 +338,23 @@ function Faces() {
           onClose={() => setViewerFile(null)}
           onRefresh={() => { if (selectedPerson) loadFiles(selectedPerson.id, filesPage); }}
         />
+      )}
+
+      {scanResult && (
+        <div className="faces-modal-overlay" onClick={() => setScanResult(null)}>
+          <div className="faces-modal" onClick={(e) => e.stopPropagation()}>
+            <h3 className="faces-modal-title"><Scan size={18} /> Scan Complete</h3>
+            <div className="faces-modal-stats">
+              <div className="faces-modal-stat">
+                <span className="faces-modal-num">{scanResult.message?.match(/\d+/)?.[0] || 0}</span>
+                <span className="faces-modal-label">images queued for face detection</span>
+              </div>
+            </div>
+            <button className="faces-btn faces-btn--modal-close" onClick={() => setScanResult(null)}>
+              OK
+            </button>
+          </div>
+        </div>
       )}
     </div>
   );

@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { useLocation } from "react-router-dom";
 import { Search, List, Image, Video, Sparkles, FolderTree, Folder, FolderOpen, ChevronDown, X, Hash, Columns2, Heart, ArrowUpDown } from "lucide-react";
 import { listFiles, listDirectories, toggleFavorite as toggleFavApi, listTags } from "../services/api";
 import { getPref, setPref } from "../services/db";
@@ -113,6 +114,7 @@ function DirTree({ trees, selectedId, onSelect, onClose, search }) {
 }
 
 function Home() {
+  const location = useLocation();
   const [files, setFiles] = useState([]);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
@@ -144,6 +146,7 @@ function Home() {
   const abortRef = useRef(null);
   const viewerOpenRef = useRef(false);
   const loadedOnceRef = useRef(false);
+  const viewerFileRef = useRef(null);
   hasMoreRef.current = hasMore;
   loadingRef.current = loading;
 
@@ -161,6 +164,7 @@ function Home() {
   const closeViewer = useCallback(() => {
     if (viewerOpenRef.current) {
       viewerOpenRef.current = false;
+      viewerFileRef.current = null;
       setViewerFile(null);
     }
   }, []);
@@ -181,8 +185,31 @@ function Home() {
       viewerOpenRef.current = true;
       window.history.pushState({ viewer: true }, "");
     }
+    viewerFileRef.current = file;
     setViewerFile(file);
   }, []);
+
+  const handleNavigatePrev = useCallback(() => {
+    const currentId = viewerFileRef.current?.id;
+    if (currentId == null) return;
+    const idx = files.findIndex((f) => f.id === currentId);
+    if (idx > 0) {
+      const prev = files[idx - 1];
+      viewerFileRef.current = prev;
+      setViewerFile(prev);
+    }
+  }, [files]);
+
+  const handleNavigateNext = useCallback(() => {
+    const currentId = viewerFileRef.current?.id;
+    if (currentId == null) return;
+    const idx = files.findIndex((f) => f.id === currentId);
+    if (idx >= 0 && idx < files.length - 1) {
+      const next = files[idx + 1];
+      viewerFileRef.current = next;
+      setViewerFile(next);
+    }
+  }, [files]);
 
   const dirTree = useMemo(() => buildDirTree(directories), [directories]);
 
@@ -217,19 +244,6 @@ function Home() {
     getPref("homeColumns", "auto").then(setColumns);
   }, []);
 
-  const dimPresets = [
-    { label: "None", w: null, h: null },
-    { label: "VGA 640×480", w: 640, h: 480 },
-    { label: "HD 1280×720", w: 1280, h: 720 },
-    { label: "Full HD 1920×1080", w: 1920, h: 1080 },
-    { label: "4K 3840×2160", w: 3840, h: 2160 },
-  ];
-
-  const handleDimPreset = (preset) => {
-    setMinWidth(preset.w);
-    setMinHeight(preset.h);
-  };
-
   const fetchPage = useCallback(async (p, mime, q, dirId, minW, minH, ai, tg, sb, sd, signal) => {
     setLoading(true);
     const filters = {};
@@ -255,6 +269,37 @@ function Home() {
       setInitialLoading(false);
     }
   }, []);
+
+  useEffect(() => {
+    const dirId = location.state?.directoryId;
+    if (dirId != null) {
+      setDirectoryId(dirId);
+      closeViewer();
+      window.history.replaceState({}, "");
+      if (abortRef.current) abortRef.current.abort();
+      const controller = new AbortController();
+      abortRef.current = controller;
+      setPage(1);
+      setFiles([]);
+      setHasMore(true);
+      setInitialLoading(true);
+      loadedOnceRef.current = false;
+      fetchPage(1, mimeGroup, searchQuery, dirId, minWidth, minHeight, hasAi, tag, sortBy, sortDir, controller.signal);
+    }
+  }, [location, closeViewer, mimeGroup, searchQuery, minWidth, minHeight, hasAi, tag, sortBy, sortDir, fetchPage]);
+
+  const dimPresets = [
+    { label: "None", w: null, h: null },
+    { label: "VGA 640×480", w: 640, h: 480 },
+    { label: "HD 1280×720", w: 1280, h: 720 },
+    { label: "Full HD 1920×1080", w: 1920, h: 1080 },
+    { label: "4K 3840×2160", w: 3840, h: 2160 },
+  ];
+
+  const handleDimPreset = (preset) => {
+    setMinWidth(preset.w);
+    setMinHeight(preset.h);
+  };
 
   useEffect(() => {
     if (abortRef.current) abortRef.current.abort();
@@ -602,6 +647,8 @@ function Home() {
             setFiles((prev) => prev.filter((f) => f.id !== fileId));
             closeViewer();
           }}
+          onNavigatePrev={handleNavigatePrev}
+          onNavigateNext={handleNavigateNext}
         />
       )}
 

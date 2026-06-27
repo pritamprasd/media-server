@@ -1,5 +1,6 @@
 import io
 import os
+import shutil
 from datetime import datetime
 
 from PIL import Image, ImageEnhance
@@ -1057,6 +1058,272 @@ def soft_delete_upload_dir():
     db.session.commit()
 
     return jsonify({"message": f"Deleted path '{path}'", "deleted_dirs": len(dirs) + len(subdirs)}), 200
+
+
+@api_bp.route("/upload/move", methods=["POST"])
+def move_upload_items():
+    data = request.get_json(silent=True) or {}
+    paths = data.get("paths", [])
+    target = data.get("target", "").strip().strip("/")
+    if not paths:
+        return jsonify({"error": "paths is required"}), 400
+
+    upload_dir = current_app.config["UPLOAD_DIR"]
+    session, _root_dir = _get_or_create_upload_session(upload_dir)
+    target_dir = _ensure_upload_subdir(session, target) if target else _root_dir
+    target_fs = os.path.join(upload_dir, target) if target else upload_dir
+    os.makedirs(target_fs, exist_ok=True)
+
+    moved_files = []
+    moved_dirs = []
+
+    for src_path in paths:
+        src_path = src_path.strip().strip("/")
+        src_fs = os.path.join(upload_dir, src_path)
+        name = os.path.basename(src_path)
+        dst_fs = os.path.join(target_fs, name)
+
+        if os.path.isdir(src_fs):
+            os.renames(src_fs, dst_fs)
+            moved_dirs.append(src_path)
+        elif os.path.isfile(src_fs):
+            os.renames(src_fs, dst_fs)
+            moved_files.append(src_path)
+
+    rel_target = target + "/" if target else ""
+
+    for src_path in moved_dirs:
+        old_prefix = src_path + "/"
+        new_prefix = rel_target + os.path.basename(src_path) + "/"
+        dirs = ImportedDirectory.query.filter(
+            ImportedDirectory.session_id == session.id,
+            db.or_(ImportedDirectory.path == src_path, ImportedDirectory.path.like(f"{old_prefix}%")),
+        ).all()
+        for d in dirs:
+            if d.path == src_path:
+                d.path = rel_target + os.path.basename(src_path)
+                d.parent_path = target
+            else:
+                suffix = d.path[len(old_prefix):]
+                d.path = new_prefix + suffix
+                d.parent_path = "/".join(d.path.split("/")[:-1])
+        files = ImportedFile.query.filter(
+            ImportedFile.session_id == session.id,
+            db.or_(ImportedFile.relative_path == src_path, ImportedFile.relative_path.like(f"{old_prefix}%")),
+        ).all()
+        for f in files:
+            if f.relative_path == src_path:
+                f.relative_path = rel_target + os.path.basename(src_path)
+            else:
+                suffix = f.relative_path[len(old_prefix):]
+                f.relative_path = new_prefix + suffix
+            dir_name = os.path.dirname(f.relative_path)
+            dir_entry = _ensure_upload_subdir(session, dir_name) if dir_name else _root_dir
+            f.directory_id = dir_entry.id
+
+    for src_path in moved_files:
+        file_entry = ImportedFile.query.filter_by(
+            session_id=session.id, relative_path=src_path
+        ).first()
+        if file_entry:
+            new_rel = rel_target + os.path.basename(src_path)
+            file_entry.relative_path = new_rel
+            dir_name = os.path.dirname(new_rel)
+            new_dir = _ensure_upload_subdir(session, dir_name) if dir_name else _root_dir
+            file_entry.directory_id = new_dir.id
+
+    db.session.commit()
+    return jsonify({"message": "Items moved"}), 200
+
+
+@api_bp.route("/upload/copy", methods=["POST"])
+def copy_upload_items():
+    data = request.get_json(silent=True) or {}
+    paths = data.get("paths", [])
+    target = data.get("target", "").strip().strip("/")
+    if not paths:
+        return jsonify({"error": "paths is required"}), 400
+
+    upload_dir = current_app.config["UPLOAD_DIR"]
+    session, root_dir = _get_or_create_upload_session(upload_dir)
+    target_dir = _ensure_upload_subdir(session, target) if target else root_dir
+    target_fs = os.path.join(upload_dir, target) if target else upload_dir
+    os.makedirs(target_fs, exist_ok=True)
+
+    for src_path in paths:
+        src_path = src_path.strip().strip("/")
+        src_fs = os.path.join(upload_dir, src_path)
+        name = os.path.basename(src_path)
+        dst_fs = os.path.join(target_fs, name)
+
+        if os.path.isdir(src_fs):
+            _copy_directory_tree(upload_dir, src_path, target, session, root_dir)
+        elif os.path.isfile(src_fs):
+            _copy_single_file(upload_dir, src_path, target, session, root_dir)
+
+    db.session.commit()
+    return jsonify({"message": "Items copied"}), 200
+
+
+def _copy_single_file(upload_dir, src_path, target, session, root_dir):
+    name = os.path.basename(src_path)
+    dst_path = os.path.join(target, name) if target else name
+    dst_fs = os.path.join(upload_dir, dst_path)
+
+    os.makedirs(os.path.dirname(dst_fs), exist_ok=True)
+    shutil.copy2(os.path.join(upload_dir, src_path), dst_fs)
+
+    src_entry = ImportedFile.query.filter_by(
+        session_id=session.id, relative_path=src_path
+    ).first()
+    if src_entry:
+        new_entry = ImportedFile(
+            session_id=session.id,
+            filename=src_entry.filename,
+            relative_path=dst_path,
+            directory_id=_ensure_upload_subdir(session, target or "").id if target else root_dir.id,
+            file_hash=src_entry.file_hash,
+            mime_type=src_entry.mime_type,
+            file_size=src_entry.file_size,
+            nickname=src_entry.nickname,
+            width=src_entry.width,
+            height=src_entry.height,
+            duration=src_entry.duration,
+            latitude=src_entry.latitude,
+            longitude=src_entry.longitude,
+            date_taken=src_entry.date_taken,
+        )
+        db.session.add(new_entry)
+        db.session.flush()
+        orig_meta = FileMetadata.query.filter_by(file_id=src_entry.id).first()
+        if orig_meta:
+            new_meta = FileMetadata(
+                file_id=new_entry.id,
+                exif=orig_meta.exif,
+                description=orig_meta.description,
+                tags=orig_meta.tags,
+                search_words=orig_meta.search_words,
+                thumbnail=orig_meta.thumbnail,
+                thumbnail_status=orig_meta.thumbnail_status,
+                metadata_status=orig_meta.metadata_status,
+                date_added=orig_meta.date_added,
+            )
+            db.session.add(new_meta)
+
+
+def _copy_directory_tree(upload_dir, src_path, target, session, root_dir):
+    name = os.path.basename(src_path)
+    dst_base = os.path.join(target, name) if target else name
+    dst_fs = os.path.join(upload_dir, dst_base)
+
+    shutil.copytree(os.path.join(upload_dir, src_path), dst_fs, dirs_exist_ok=True)
+
+    old_prefix = src_path + "/"
+    for root, _dirs, files in os.walk(os.path.join(upload_dir, src_path)):
+        rel_root = os.path.relpath(root, upload_dir)
+        if rel_root == src_path:
+            dir_rel = dst_base
+        elif rel_root.startswith(old_prefix):
+            suffix = rel_root[len(old_prefix):]
+            dir_rel = os.path.join(dst_base, suffix)
+        else:
+            continue
+        _ensure_upload_subdir(session, dir_rel)
+        for fname in files:
+            file_rel = os.path.join(rel_root, fname)
+            dst_file_rel = os.path.join(dir_rel, fname)
+            src_entry = ImportedFile.query.filter_by(
+                session_id=session.id, relative_path=file_rel
+            ).first()
+            if src_entry:
+                new_entry = ImportedFile(
+                    session_id=session.id,
+                    filename=src_entry.filename,
+                    relative_path=dst_file_rel,
+                    directory_id=_ensure_upload_subdir(session, dir_rel).id,
+                    file_hash=src_entry.file_hash,
+                    mime_type=src_entry.mime_type,
+                    file_size=src_entry.file_size,
+                    nickname=src_entry.nickname,
+                    width=src_entry.width,
+                    height=src_entry.height,
+                    duration=src_entry.duration,
+                    latitude=src_entry.latitude,
+                    longitude=src_entry.longitude,
+                    date_taken=src_entry.date_taken,
+                )
+                db.session.add(new_entry)
+                db.session.flush()
+                orig_meta = FileMetadata.query.filter_by(file_id=src_entry.id).first()
+                if orig_meta:
+                    new_meta = FileMetadata(
+                        file_id=new_entry.id,
+                        exif=orig_meta.exif,
+                        description=orig_meta.description,
+                        tags=orig_meta.tags,
+                        search_words=orig_meta.search_words,
+                        thumbnail=orig_meta.thumbnail,
+                        thumbnail_status=orig_meta.thumbnail_status,
+                        metadata_status=orig_meta.metadata_status,
+                        date_added=orig_meta.date_added,
+                    )
+                    db.session.add(new_meta)
+
+
+@api_bp.route("/upload/rename", methods=["POST"])
+def rename_upload_item():
+    data = request.get_json(silent=True) or {}
+    path = data.get("path", "").strip().strip("/")
+    new_name = data.get("new_name", "").strip()
+    if not path or not new_name:
+        return jsonify({"error": "path and new_name are required"}), 400
+
+    upload_dir = current_app.config["UPLOAD_DIR"]
+    session, _root_dir = _get_or_create_upload_session(upload_dir)
+    src_fs = os.path.join(upload_dir, path)
+    parent = os.path.dirname(path)
+    new_path = os.path.join(parent, new_name) if parent else new_name
+    dst_fs = os.path.join(upload_dir, new_path)
+
+    os.renames(src_fs, dst_fs)
+
+    if os.path.isdir(dst_fs):
+        old_prefix = path + "/"
+        new_prefix = new_path + "/"
+        dirs = ImportedDirectory.query.filter(
+            ImportedDirectory.session_id == session.id,
+            db.or_(ImportedDirectory.path == path, ImportedDirectory.path.like(f"{old_prefix}%")),
+        ).all()
+        for d in dirs:
+            if d.path == path:
+                d.path = new_path
+                d.name = new_name
+            else:
+                suffix = d.path[len(old_prefix):]
+                d.path = new_prefix + suffix
+        files = ImportedFile.query.filter(
+            ImportedFile.session_id == session.id,
+            db.or_(ImportedFile.relative_path == path, ImportedFile.relative_path.like(f"{old_prefix}%")),
+        ).all()
+        for f in files:
+            if f.relative_path == path:
+                f.relative_path = new_path
+            else:
+                suffix = f.relative_path[len(old_prefix):]
+                f.relative_path = new_prefix + suffix
+            dir_name = os.path.dirname(f.relative_path)
+            if dir_name:
+                _ensure_upload_subdir(session, dir_name)
+    else:
+        file_entry = ImportedFile.query.filter_by(
+            session_id=session.id, relative_path=path
+        ).first()
+        if file_entry:
+            file_entry.filename = new_name
+            file_entry.relative_path = new_path
+
+    db.session.commit()
+    return jsonify({"message": "Renamed"}), 200
 
 
 @api_bp.route("/upload/files/recent", methods=["GET"])

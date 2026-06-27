@@ -3,9 +3,12 @@ import {
   Upload as UploadIcon, FolderPlus, Check, Trash2,
   Folder, FolderOpen, File, Image, Video, Search, X,
   Grid3X3, List, ChevronDown, Plus, FileUp, Eye,
-  MoreVertical,
+  MoreVertical, Scissors, Copy, ClipboardPaste, Pencil, ArrowRight,
 } from "lucide-react";
-import { uploadFiles, listUploadDirs, createUploadDir, listNicknames, softDeleteFiles, softDeleteDir, listRecentFiles } from "../services/api";
+import {
+  uploadFiles, listUploadDirs, createUploadDir, listNicknames, softDeleteFiles, softDeleteDir, listRecentFiles,
+  moveUploadItems, copyUploadItems, renameUploadItem,
+} from "../services/api";
 import { getPref, setPref } from "../services/db";
 import FileViewer from "../components/FileViewer";
 import "./Upload.css";
@@ -30,6 +33,10 @@ function Upload() {
   const [previewFile, setPreviewFile] = useState(null);
   const [dragOver, setDragOver] = useState(false);
   const [showNewMenu, setShowNewMenu] = useState(false);
+  const [clipboard, setClipboard] = useState(null);
+  const [renamingId, setRenamingId] = useState(null);
+  const [renameValue, setRenameValue] = useState("");
+  const [dropTarget, setDropTarget] = useState(null);
   const inputRef = useRef(null);
   const fileInputRef = useRef(null);
   const folderInputRef = useRef(null);
@@ -85,6 +92,9 @@ function Upload() {
     setShowNewFolderInput(false);
     setSelectedIds(new Set());
     setContextMenu(null);
+    setClipboard(null);
+    setRenamingId(null);
+    setDropTarget(null);
   };
 
   const handleCreateDir = async () => {
@@ -137,6 +147,13 @@ function Upload() {
     refreshItems(currentPrefix);
   };
 
+  const getSelectedPaths = () => {
+    return filtered
+      .filter((it) => selectedIds.has(it.id || it.path))
+      .map((it) => it.path || it.relative_path)
+      .filter(Boolean);
+  };
+
   const handleFilesPicked = useCallback((picked) => {
     setFiles(Array.from(picked));
     setResult(null);
@@ -147,13 +164,26 @@ function Upload() {
   const handleFileChange = (e) => handleFilesPicked(e.target.files);
   const handleFolderChange = (e) => handleFilesPicked(e.target.files);
 
-  const handleDrop = useCallback((e) => {
+  const handleDrop = (e) => {
     e.preventDefault();
     setDragOver(false);
-    setFiles(Array.from(e.dataTransfer.files || []));
-    setResult(null);
-    setError("");
-  }, []);
+    const externalFiles = Array.from(e.dataTransfer.files || []);
+    if (externalFiles.length > 0) {
+      setFiles(externalFiles);
+      setResult(null);
+      setError("");
+      return;
+    }
+    const paths = getSelectedPaths();
+    if (paths.length) {
+      moveUploadItems(paths, currentPrefix)
+        .then(() => {
+          setSelectedIds(new Set());
+          refreshItems(currentPrefix);
+        })
+        .catch(() => setError("Failed to move items"));
+    }
+  };
 
   const handleDragOver = (e) => { e.preventDefault(); setDragOver(true); };
   const handleDragLeave = (e) => {
@@ -225,12 +255,126 @@ function Upload() {
     }
   };
 
+  const handleCut = () => {
+    const paths = getSelectedPaths();
+    if (paths.length) setClipboard({ action: "cut", paths });
+    setContextMenu(null);
+  };
+
+  const handleCopy = () => {
+    const paths = getSelectedPaths();
+    if (paths.length) setClipboard({ action: "copy", paths });
+    setContextMenu(null);
+  };
+
+  const handlePaste = async (targetDir) => {
+    if (!clipboard) return;
+    const target = targetDir ?? currentPrefix;
+    try {
+      if (clipboard.action === "cut") {
+        await moveUploadItems(clipboard.paths, target);
+      } else {
+        await copyUploadItems(clipboard.paths, target);
+      }
+      setClipboard(null);
+      setSelectedIds(new Set());
+      refreshItems(currentPrefix);
+    } catch {
+      setError("Failed to paste items");
+    }
+    setContextMenu(null);
+  };
+
+  const handleStartRename = (item) => {
+    const id = item.id || item.path;
+    setRenamingId(id);
+    setRenameValue(item.name || item.filename || "");
+    setContextMenu(null);
+  };
+
+  const handleRenameSubmit = async (item) => {
+    const val = renameValue.trim();
+    if (!val) { setRenamingId(null); return; }
+    const path = item.path || item.relative_path;
+    const oldName = item.name || item.filename;
+    if (val === oldName) { setRenamingId(null); return; }
+    try {
+      await renameUploadItem(path, val);
+      setRenamingId(null);
+      refreshItems(currentPrefix);
+    } catch {
+      setError("Failed to rename");
+    }
+  };
+
+  const handleMoveTo = async (targetDir) => {
+    const paths = getSelectedPaths();
+    if (!paths.length) return;
+    try {
+      await moveUploadItems(paths, targetDir);
+      setSelectedIds(new Set());
+      refreshItems(currentPrefix);
+    } catch {
+      setError("Failed to move items");
+    }
+    setContextMenu(null);
+  };
+
+  const handleCopyTo = async (targetDir) => {
+    const paths = getSelectedPaths();
+    if (!paths.length) return;
+    try {
+      await copyUploadItems(paths, targetDir);
+      refreshItems(currentPrefix);
+    } catch {
+      setError("Failed to copy items");
+    }
+    setContextMenu(null);
+  };
+
   const handleItemClick = (item) => {
     if (item.kind === "dir") {
       navigateTo(item.path);
       return;
     }
     setPreviewFile({ id: item.id, filename: item.name || item.filename });
+  };
+
+  const handleDragStart = (e, item) => {
+    const id = item.id || item.path;
+    if (!selectedIds.has(id)) setSelectedIds(new Set([id]));
+    e.dataTransfer.effectAllowed = "move";
+    e.dataTransfer.setData("text/plain", id);
+  };
+
+  const handleTileDragOver = (e, item) => {
+    if (item.kind !== "dir") return;
+    e.preventDefault();
+    e.stopPropagation();
+    e.dataTransfer.dropEffect = "move";
+    setDropTarget(item.path);
+  };
+
+  const handleTileDragLeave = (e, item) => {
+    if (e.currentTarget.contains(e.relatedTarget)) return;
+    setDropTarget((prev) => prev === item.path ? null : prev);
+  };
+
+  const handleTileDrop = async (e, item) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDropTarget(null);
+    if (!selectedIds.size) return;
+    const paths = getSelectedPaths();
+    if (!paths.length) return;
+    if (item.kind !== "dir") return;
+    try {
+      await moveUploadItems(paths, item.path);
+      setSelectedIds(new Set());
+      refreshItems(currentPrefix);
+    } catch {
+      setError("Failed to move items");
+    }
   };
 
   const totalSize = files.reduce((sum, f) => sum + f.size, 0);
@@ -256,7 +400,7 @@ function Upload() {
       onDrop={handleDrop}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
-      onClick={() => { setContextMenu(null); setShowNewMenu(false); }}
+      onClick={() => { setContextMenu(null); setShowNewMenu(false); setRenamingId(null); setDropTarget(null); }}
     >
       <div className="upload__header">
         <div className="upload__header-row">
@@ -304,6 +448,12 @@ function Upload() {
           {searchQuery && <button className="upload__search-clear" onClick={() => setSearchQuery("")}><X size={14} /></button>}
         </div>
         <div className="upload__toolbar-right">
+          {clipboard && (
+            <button className="upload__paste-btn" onClick={(e) => { e.stopPropagation(); handlePaste(); }}
+              title={`Paste ${clipboard.paths.length} item(s)`}>
+              <ClipboardPaste size={15} /> Paste ({clipboard.paths.length})
+            </button>
+          )}
           <select className="upload__sort" value={sortBy} onChange={(e) => setSortBy(e.target.value)}
             onClick={(e) => e.stopPropagation()}>
             <option value="name">Name</option>
@@ -347,9 +497,17 @@ function Upload() {
           );
         })}
         {selCount > 0 && (
-          <button className="upload__del-selected" onClick={(e) => { e.stopPropagation(); handleDeleteSelected(); }}>
-            <Trash2 size={13} /> Delete {selCount} item{selCount > 1 ? "s" : ""}
-          </button>
+          <>
+            <button className="upload__action-btn" onClick={(e) => { e.stopPropagation(); handleCut(); }}>
+              <Scissors size={13} /> Cut
+            </button>
+            <button className="upload__action-btn" onClick={(e) => { e.stopPropagation(); handleCopy(); }}>
+              <Copy size={13} /> Copy
+            </button>
+            <button className="upload__del-selected" onClick={(e) => { e.stopPropagation(); handleDeleteSelected(); }}>
+              <Trash2 size={13} /> Delete {selCount} item{selCount > 1 ? "s" : ""}
+            </button>
+          </>
         )}
       </div>
 
@@ -373,16 +531,31 @@ function Upload() {
         {filtered.map((it) => {
           const id = itemId(it);
           const sel = selectedIds.has(id);
+          const isRenaming = renamingId === id;
+          const isDropTarget = dropTarget === it.path && it.kind === "dir";
           if (it.kind === "dir") {
             return (
               <div key={id}
-                className={`upload__tile ${viewMode === "grid" ? "upload__tile--grid" : "upload__tile--list"} ${sel ? "upload__tile--sel" : ""}`}
-                onClick={(e) => { e.stopPropagation(); navigateTo(it.path); }}
-                onContextMenu={(e) => handleContextMenu(e, it)}>
+                className={`upload__tile ${viewMode === "grid" ? "upload__tile--grid" : "upload__tile--list"} ${sel ? "upload__tile--sel" : ""} ${isDropTarget ? "upload__tile--drop-target" : ""}`}
+                onClick={(e) => { if (!isRenaming) { e.stopPropagation(); navigateTo(it.path); } }}
+                onContextMenu={(e) => handleContextMenu(e, it)}
+                draggable
+                onDragStart={(e) => handleDragStart(e, it)}
+                onDragOver={(e) => handleTileDragOver(e, it)}
+                onDragLeave={(e) => handleTileDragLeave(e, it)}
+                onDrop={(e) => handleTileDrop(e, it)}>
                 <div className="upload__tile-thumb">
                   <Folder size={viewMode === "grid" ? 48 : 20} />
                 </div>
-                <div className="upload__tile-name">{it.name}</div>
+                {isRenaming ? (
+                  <input className="upload__rename-input" type="text" value={renameValue}
+                    onChange={(e) => setRenameValue(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") handleRenameSubmit(it); if (e.key === "Escape") setRenamingId(null); }}
+                    onBlur={() => handleRenameSubmit(it)}
+                    onClick={(e) => e.stopPropagation()} autoFocus />
+                ) : (
+                  <div className="upload__tile-name" title={it.name}>{it.name}</div>
+                )}
                 <div className={`upload__tile-check ${sel ? "upload__tile-check--visible" : ""}`}>
                   <Check size={12} />
                 </div>
@@ -398,8 +571,10 @@ function Upload() {
           return (
             <div key={id}
               className={`upload__tile ${viewMode === "grid" ? "upload__tile--grid" : "upload__tile--list"} ${sel ? "upload__tile--sel" : ""}`}
-              onClick={(e) => { e.stopPropagation(); handleItemClick(it); }}
-              onContextMenu={(e) => handleContextMenu(e, it)}>
+              onClick={(e) => { if (!isRenaming) { e.stopPropagation(); handleItemClick(it); } }}
+              onContextMenu={(e) => handleContextMenu(e, it)}
+              draggable
+              onDragStart={(e) => handleDragStart(e, it)}>
               <div className="upload__tile-thumb">
                 {thumbUrl ? (
                   <img src={thumbUrl} alt="" className="upload__tile-img" loading="lazy" />
@@ -409,7 +584,15 @@ function Upload() {
                   <Image size={viewMode === "grid" ? 48 : 20} />
                 )}
               </div>
-              <div className="upload__tile-name">{it.filename || it.name}</div>
+              {isRenaming ? (
+                <input className="upload__rename-input" type="text" value={renameValue}
+                  onChange={(e) => setRenameValue(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") handleRenameSubmit(it); if (e.key === "Escape") setRenamingId(null); }}
+                  onBlur={() => handleRenameSubmit(it)}
+                  onClick={(e) => e.stopPropagation()} autoFocus />
+              ) : (
+                <div className="upload__tile-name" title={it.filename || it.name}>{it.filename || it.name}</div>
+              )}
               <div className={`upload__tile-check ${sel ? "upload__tile-check--visible" : ""}`}>
                 <Check size={12} />
               </div>
@@ -434,6 +617,25 @@ function Upload() {
             </button>
             <button onClick={() => { const it = contextMenu.item; const id = it.id || it.path; toggleSelect(id); setContextMenu(null); }}>
               <Check size={15} /> {selectedIds.has(contextMenu.item.id || contextMenu.item.path) ? "Deselect" : "Select"}
+            </button>
+            <button onClick={handleCut}>
+              <Scissors size={15} /> Cut
+            </button>
+            <button onClick={handleCopy}>
+              <Copy size={15} /> Copy
+            </button>
+            {clipboard && (
+              <button onClick={() => { handlePaste(); setContextMenu(null); }}>
+                <ClipboardPaste size={15} /> Paste here
+              </button>
+            )}
+            {currentPrefix && (
+              <button onClick={() => { handleMoveTo(currentPrefix); setContextMenu(null); }}>
+                <ArrowRight size={15} /> Move to parent
+              </button>
+            )}
+            <button onClick={() => { handleStartRename(contextMenu.item); }}>
+              <Pencil size={15} /> Rename
             </button>
             <button onClick={() => { const it = contextMenu.item; it.kind === "dir" ? handleDeleteDir(it.path, it.name) : handleDeleteFile(it.id, it.filename); setContextMenu(null); }}>
               <Trash2 size={15} /> Delete

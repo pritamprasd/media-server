@@ -100,6 +100,9 @@
 
 .viewer-btn--edit { color: var(--color-primary); }
 
+.viewer-btn--folder { color: var(--color-text); }
+.viewer-btn--folder:hover { color: var(--color-primary); }
+
 .viewer-fav {
   background: var(--color-surface);
   border: none;
@@ -177,6 +180,32 @@
   border-radius: 8px;
   transition: transform 0.2s, filter 0.2s;
 }
+
+.viewer-nav-btn {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 5;
+  width: 48px;
+  height: 48px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.4);
+  color: #fff;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.2s, background 0.2s;
+  pointer-events: auto;
+}
+
+.viewer-body:hover .viewer-nav-btn { opacity: 1; }
+.viewer-nav-btn:hover { background: rgba(0, 0, 0, 0.65); }
+
+.viewer-nav-btn--prev { left: 0.5rem; }
+.viewer-nav-btn--next { right: 0.5rem; }
 
 /* Float actions */
 .viewer-float-actions { display: none; }
@@ -714,6 +743,83 @@
 .viewer-tag-add:hover { box-shadow: var(--neu-flat); }
 .viewer-tag-add:active { box-shadow: var(--neu-inset-sm); }
 .viewer-tag-add:disabled { opacity: 0.4; cursor: default; box-shadow: none; }
+
+.viewer-face-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+
+.viewer-face-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.25rem 0.375rem;
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.viewer-face-item:hover { background: var(--neu-flat); }
+
+.viewer-face-thumb {
+  width: 32px;
+  height: 32px;
+  object-fit: cover;
+  border-radius: 4px;
+  flex-shrink: 0;
+  background: var(--neu-flat);
+}
+
+.viewer-face-name {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--color-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.viewer-face-name--unnamed {
+  color: var(--color-text-muted);
+  font-weight: 400;
+  font-style: italic;
+}
+
+.viewer-face-edit {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  flex: 1;
+}
+
+.viewer-face-input {
+  flex: 1;
+  min-width: 0;
+  padding: 0.2rem 0.3rem;
+  border: 1px solid var(--color-primary);
+  border-radius: 4px;
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-size: 0.75rem;
+  outline: none;
+}
+
+.viewer-face-save {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border: none;
+  border-radius: 4px;
+  background: var(--color-primary);
+  color: #fff;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.viewer-face-save:disabled { opacity: 0.5; cursor: default; }
 
 /* Delete confirmation */
 .viewer-delete-overlay {

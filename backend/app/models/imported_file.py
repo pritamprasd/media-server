@@ -29,6 +29,7 @@ class ImportedFile(db.Model):
     def to_dict(self):
         return {
             "id": self.id,
+            "directory_id": self.directory_id,
             "filename": self.filename,
             "relative_path": self.relative_path,
             "mime_type": self.mime_type,
