@@ -98,7 +98,7 @@ services:
       - ${MEDIA_PATH:-/media}:/media:ro
       - /home/pritam/media_server_files:/media_files
       - /home/pritam/media_server_files/uploads:/uploads
-      - ${HOME}/.insightface:/root/.insightface:ro
+      - /home/pritam/.insightface:/root/.insightface
     networks:
       - default-network
     dns:
