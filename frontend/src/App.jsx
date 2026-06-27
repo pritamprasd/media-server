@@ -14,6 +14,7 @@ import Statistics from "./pages/Statistics";
 import Settings from "./pages/Settings";
 import MapPage from "./pages/Map";
 import Locations from "./pages/Locations";
+import Faces from "./pages/Faces";
 import "leaflet/dist/leaflet.css";
 import "./App.css";
 
@@ -81,6 +82,7 @@ function App() {
           <Route path="/settings" element={<Settings />} />
           <Route path="/map" element={<MapPage />} />
           <Route path="/locations" element={<Locations />} />
+          <Route path="/faces" element={<Faces />} />
         </Routes>
       </main>
       {installAvailable && (

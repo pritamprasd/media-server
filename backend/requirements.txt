@@ -8,8 +8,12 @@ psycopg2-binary==2.9.10
 psycopg2==2.9.12
 celery==5.4.0
 redis==5.2.1
+numpy==2.2.5
 Pillow==11.1.0
 pillow-heif==0.22.0
 ollama==0.6.2
+insightface==0.7.3
+onnxruntime==1.20.1
+opencv-python-headless==4.11.0.86
 pydantic==2.13.4
 filetype==1.2.0

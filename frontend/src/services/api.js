@@ -208,4 +208,55 @@ export async function deleteFilter(filterId) {
   return data;
 }
 
+export async function listPersons() {
+  const { data } = await client.get("/persons");
+  return data;
+}
+
+export async function updatePerson(personId, payload) {
+  const { data } = await client.put(`/persons/${personId}`, payload);
+  return data;
+}
+
+export async function deletePerson(personId) {
+  const { data } = await client.delete(`/persons/${personId}`);
+  return data;
+}
+
+export async function listPersonFaces(personId, page = 1, perPage = 12) {
+  const { data } = await client.get(`/persons/${personId}/faces`, {
+    params: { page, per_page: perPage },
+  });
+  return data;
+}
+
+export async function listPersonFiles(personId, page = 1, perPage = 32) {
+  const { data } = await client.get(`/persons/${personId}/files`, {
+    params: { page, per_page: perPage },
+  });
+  return data;
+}
+
+export async function scanAllFaces() {
+  const { data } = await client.post("/persons/scan");
+  return data;
+}
+
+export async function detectFaces(fileId) {
+  const { data } = await client.post(`/files/${fileId}/detect-faces`);
+  return data;
+}
+
+export async function listFaces(personId, page = 1, perPage = 50) {
+  const params = { page, per_page: perPage };
+  if (personId != null) params.person_id = personId;
+  const { data } = await client.get("/faces", { params });
+  return data;
+}
+
+export async function getFaceStats() {
+  const { data } = await client.get("/faces/stats");
+  return data;
+}
+
 export default client;

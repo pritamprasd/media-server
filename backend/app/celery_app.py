@@ -11,6 +11,7 @@ _Q_IMPORT = os.environ.get("CELERY_QUEUE_IMPORT", "import_queue_dev")
 _Q_METADATA = os.environ.get("CELERY_QUEUE_METADATA", "metadata_dev")
 _Q_AI = os.environ.get("CELERY_QUEUE_AI", "ai_metadata_dev")
 _Q_THUMB = os.environ.get("CELERY_QUEUE_THUMBNAIL", "thumbnail_dev")
+_Q_FACE = os.environ.get("CELERY_QUEUE_FACE", "face_detection_dev")
 
 celery = Celery("media_server")
 celery.conf.update(
@@ -23,12 +24,14 @@ celery.conf.update(
         _Q_AI: {},
         _Q_THUMB: {},
         _Q_IMPORT: {},
+        _Q_FACE: {},
     },
     task_routes={
         "app.tasks.process_import_folder": {"queue": _Q_IMPORT},
         "app.tasks.extract_file_metadata": {"queue": _Q_METADATA},
         "app.tasks.generate_ai_metadata": {"queue": _Q_AI},
         "app.tasks.generate_thumbnail": {"queue": _Q_THUMB},
+        "app.tasks.detect_faces": {"queue": _Q_FACE},
     },
 )
 

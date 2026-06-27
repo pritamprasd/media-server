@@ -289,4 +289,82 @@ def generate_thumbnail(self, file_info):
     return {"file_id": file_id, "thumbnail_status": meta.thumbnail_status}
 
 
+@celery.task(bind=True, max_retries=2)
+def detect_faces(self, file_info):
+    file_id = file_info["id"]
+    file_path = file_info["file_path"]
+    mime = file_info.get("mime_type", "")
+
+    if not mime.startswith("image/"):
+        return {"file_id": file_id, "faces": 0, "error": "Not an image"}
+
+    from app.models.detected_face import DetectedFace
+    from app.models.person import Person
+    from app.utility.face_utility import detect_faces as run_detection, find_best_person_match, compute_average_encoding
+
+    existing = DetectedFace.query.filter_by(file_id=file_id).first()
+    if existing:
+        return {"file_id": file_id, "faces": 0, "error": "Already detected"}
+
+    try:
+        results = run_detection(file_path)
+    except Exception as exc:
+        logger.warning("Face detection failed for file %d: %s", file_id, exc)
+        raise self.retry(exc=exc, countdown=60)
+
+    persons = Person.query.all()
+    person_encodings = {}
+
+    for face_data in results:
+        encoding = face_data.get("encoding", [])
+        if not encoding:
+            continue
+
+        best_person, _ = find_best_person_match(encoding, persons)
+
+        if best_person is None:
+            person = Person(
+                thumbnail=face_data.get("thumbnail"),
+                face_count=1,
+                avg_encoding=encoding,
+            )
+            db.session.add(person)
+            db.session.flush()
+            persons.append(person)
+            person_encodings[person.id] = [encoding]
+        else:
+            person = best_person
+            person.face_count = (person.face_count or 0) + 1
+            if person.id not in person_encodings:
+                person_encodings[person.id] = []
+            person_encodings[person.id].append(encoding)
+
+        face = DetectedFace(
+            file_id=file_id,
+            person_id=person.id,
+            encoding=encoding,
+            bounding_box=face_data.get("bounding_box", {}),
+            confidence=face_data.get("confidence"),
+            thumbnail=face_data.get("thumbnail"),
+            age=face_data.get("age"),
+            gender=face_data.get("gender"),
+            face_status="detected",
+        )
+        db.session.add(face)
+
+    # Recompute average encodings for persons that got new faces
+    for pid, encs in person_encodings.items():
+        p = next((p for p in persons if p.id == pid), None)
+        if p and p.avg_encoding:
+            all_encs = [p.avg_encoding] + encs
+        elif p:
+            all_encs = encs
+        else:
+            continue
+        p.avg_encoding = compute_average_encoding(all_encs)
+
+    db.session.commit()
+    return {"file_id": file_id, "faces": len(results)}
+
+
 
