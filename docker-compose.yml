@@ -57,7 +57,7 @@ services:
       context: .
       dockerfile: backend/Dockerfile
     env_file: ./backend/.env
-    command: celery -A app.tasks.celery worker -Q ai_metadata -l info --concurrency=2
+    command: celery -A app.tasks.celery worker -Q ai_metadata -l info --concurrency=1
     volumes:
       - ${MEDIA_PATH:-/media}:/media:ro
       - /home/pritam/media_server_files:/media_files
@@ -74,6 +74,25 @@ services:
       dockerfile: backend/Dockerfile
     env_file: ./backend/.env
     command: celery -A app.tasks.celery worker -Q thumbnail -l info --concurrency=3
+    volumes:
+      - ${MEDIA_PATH:-/media}:/media:ro
+      - /home/pritam/media_server_files:/media_files
+      - /home/pritam/media_server_files/uploads:/uploads
+    networks:
+      - default-network
+    dns:
+      - 172.17.0.1
+
+  worker-face:
+    container_name: media_server_w_face
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    env_file: ./backend/.env
+    environment:
+      - FACE_PROVIDERS=CPUExecutionProvider
+      - FACE_MATCH_THRESHOLD=0.4
+    command: celery -A app.tasks.celery worker -Q face_detection -l info --concurrency=1
     volumes:
       - ${MEDIA_PATH:-/media}:/media:ro
       - /home/pritam/media_server_files:/media_files
