@@ -92,15 +92,18 @@ services:
     environment:
       - FACE_PROVIDERS=CPUExecutionProvider
       - FACE_MATCH_THRESHOLD=0.4
+      - FACE_DET_THRESH=0.3
     command: celery -A app.tasks.celery worker -Q face_detection -l info --concurrency=1
     volumes:
       - ${MEDIA_PATH:-/media}:/media:ro
       - /home/pritam/media_server_files:/media_files
       - /home/pritam/media_server_files/uploads:/uploads
+      - ${HOME}/.insightface:/root/.insightface:ro
     networks:
       - default-network
     dns:
       - 172.17.0.1
+      - 8.8.8.8
 
   frontend:
     container_name: media_server_fe
