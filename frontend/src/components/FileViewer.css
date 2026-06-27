@@ -82,6 +82,8 @@
 }
 
 .viewer-btn--save { color: var(--color-primary); }
+.viewer-btn--original { color: var(--color-text-muted); }
+.viewer-btn--original:active, .viewer-btn--original:focus { color: var(--color-primary); box-shadow: var(--neu-inset-sm); }
 
 .viewer-btn--save:disabled {
   opacity: 0.4;
@@ -179,6 +181,7 @@
   object-fit: contain;
   border-radius: 8px;
   transition: transform 0.2s, filter 0.2s;
+  image-orientation: from-image;
 }
 
 .viewer-nav-btn {
@@ -874,6 +877,175 @@
 .viewer-delete-btn--library { color: var(--color-primary); }
 .viewer-delete-btn--storage { color: var(--color-danger); }
 .viewer-delete-btn--cancel { color: var(--color-text-muted); }
+
+/* Grain overlay */
+.viewer-grain {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border-radius: 8px;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-repeat: repeat;
+  background-size: 128px 128px;
+  mix-blend-mode: overlay;
+}
+
+/* Colorize overlay */
+.viewer-colorize {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #ff6b6b, #feca57, #48dbfb, #ff9ff3);
+  mix-blend-mode: hue;
+}
+
+/* Histogram */
+.viewer-histogram-wrap {
+  padding: 0.375rem 0.75rem 0;
+  flex-shrink: 0;
+}
+
+.viewer-histogram {
+  width: 100%;
+  height: 60px;
+  border-radius: 4px;
+  background: var(--color-bg);
+  display: block;
+}
+
+/* Export dropdown */
+.viewer-export-wrap {
+  position: relative;
+}
+
+.viewer-btn--export { color: var(--color-text-muted); }
+.viewer-btn--export:hover { color: var(--color-primary); }
+
+.viewer-export-menu {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 4px;
+  background: var(--color-surface);
+  border-radius: var(--radius);
+  box-shadow: var(--neu-raised);
+  min-width: 160px;
+  z-index: 20;
+  overflow: hidden;
+}
+
+.viewer-export-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  border: none;
+  background: none;
+  color: var(--color-text);
+  font-size: 0.8125rem;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.viewer-export-item:hover {
+  background: var(--neu-flat);
+}
+
+.viewer-export-ext {
+  margin-left: auto;
+  font-size: 0.65rem;
+  color: var(--color-text-muted);
+  font-family: monospace;
+}
+
+.viewer-export-item--active {
+  background: rgba(var(--color-primary-rgb), 0.1);
+  color: var(--color-primary);
+}
+
+.viewer-export-section {
+  padding: 0.375rem 0.75rem;
+  font-size: 0.6rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-text-muted);
+}
+
+.viewer-export-quality {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.25rem 0.75rem;
+}
+
+.viewer-export-label {
+  font-size: 0.7rem;
+  color: var(--color-text-muted);
+  min-width: 3rem;
+  flex-shrink: 0;
+}
+
+.viewer-export-val {
+  font-size: 0.65rem;
+  color: var(--color-text-muted);
+  min-width: 2.5rem;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.viewer-export-quality .viewer-slider {
+  flex: 1;
+}
+
+.viewer-export-ascii-chars,
+.viewer-export-ascii-width {
+  background: var(--color-bg);
+  border: none;
+  color: var(--color-text);
+  font-size: 0.75rem;
+  padding: 0.2rem 0.4rem;
+  border-radius: 4px;
+  outline: none;
+  box-shadow: var(--neu-inset-sm);
+  font-family: monospace;
+}
+
+.viewer-export-ascii-chars {
+  flex: 1;
+}
+
+.viewer-export-ascii-width {
+  width: 60px;
+}
+
+.viewer-export-go {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  width: calc(100% - 1rem);
+  margin: 0.5rem;
+  padding: 0.4rem;
+  border: none;
+  border-radius: var(--radius);
+  background: var(--color-primary);
+  color: #fff;
+  font-size: 0.8125rem;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.viewer-export-go:hover { opacity: 0.85; }
+.viewer-export-go:disabled { opacity: 0.4; cursor: default; }
+
+.viewer-export-ascii-opts {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
 
 /* Crop overlay */
 .viewer-crop-overlay {

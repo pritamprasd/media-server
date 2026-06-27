@@ -6,7 +6,9 @@ import {
   Hash, Tag, AlignLeft, Clock, Maximize2, Camera,
   ZoomIn, ZoomOut, Save, Filter, SlidersHorizontal, Sun,
   Sparkles, Undo2, Paintbrush, FlipHorizontal, Search, IdCard, FolderOpen,
-  ChevronLeft, ChevronRight,
+  ChevronLeft, ChevronRight, Scissors, Palette, Droplets, Eye,
+  Grid3X3, Sigma, ChevronDown, FileImage, Drama, Volume2,
+  Gauge, Rewind, VolumeX, Type, Info,
 } from "lucide-react";
 import {
   toggleFavorite as toggleFavApi, getFileMetadata, editFile, deleteFile, updateTags,
@@ -17,6 +19,7 @@ import {
   detectFaces,
 } from "../services/api";
 import Spinner from "./Spinner";
+// import editingInfoMd from "./image_editing_info.md?raw";
 import "./FileViewer.css";
 
 const FILTERS = [
@@ -91,17 +94,16 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete, onN
   const [tagInput, setTagInput] = useState("");
   const [tagSaving, setTagSaving] = useState(false);
   const [zoom, setZoom] = useState(1);
-  const [editTab, setEditTab] = useState("filters");
+  const [editTab, setEditTab] = useState(file.mime_type?.startsWith("video/") ? "trim" : "filters");
   const [activeFilter, setActiveFilter] = useState("normal");
   const [adjust, setAdjust] = useState({
-    brightness: 1,
-    contrast: 1,
-    saturation: 1,
-    warmth: 0,
-    sharpness: 1,
-    highlights: 0,
-    shadows: 0,
+    brightness: 1, contrast: 1, saturation: 1,
+    warmth: 0, sharpness: 1,
+    highlights: 0, shadows: 0,
     vignette: 0,
+    tint: 0, vibrance: 1, clarity: 1, dehaze: 0,
+    exposure: 0, blacks: 0, whites: 0,
+    grain: 0, grayscale: 0, colorize: 0,
   });
   const [customFilters, setCustomFilters] = useState([]);
   const [savingFilter, setSavingFilter] = useState(false);
@@ -112,22 +114,50 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete, onN
   const [crop, setCrop] = useState(null);
   const [cropAspect, setCropAspect] = useState("free");
   const [cropDrag, setCropDrag] = useState(null);
+  const [cropApplied, setCropApplied] = useState(false);
   const [fileFaces, setFileFaces] = useState([]);
+  const [showExportMenu, setShowExportMenu] = useState(false);
+  const [exportFormat, setExportFormat] = useState("jpeg");
+  const [exportQuality, setExportQuality] = useState(95);
+  const [asciiChars, setAsciiChars] = useState("@%#*+=-:. ");
+  const [asciiWidth, setAsciiWidth] = useState(120);
+  const [exporting, setExporting] = useState(false);
+  const [showOriginal, setShowOriginal] = useState(false);
+  const [textOverlay, setTextOverlay] = useState({ text: "", x: 50, y: 50, fontSize: 24, color: "#ffffff", enabled: false });
+  const originalBtnRef = useRef(null);
+  const videoRef = useRef(null);
+  const exportRef = useRef(null);
   const pinchRef = useRef(null);
   const overlayRef = useRef(null);
   const imgRef = useRef(null);
   const pollRef = useRef(null);
+  const histCanvasRef = useRef(null);
+
+  const defaultAdjust = () => ({ brightness: 1, contrast: 1, saturation: 1, warmth: 0, sharpness: 1, highlights: 0, shadows: 0, vignette: 0, tint: 0, vibrance: 1, clarity: 1, dehaze: 0, exposure: 0, blacks: 0, whites: 0, grain: 0, grayscale: 0, colorize: 0 });
+
+  const defaultVideoAdjust = () => ({ speed: 1, volume: 1, audioMute: false, reverse: false });
+  const [videoAdjust, setVideoAdjust] = useState(defaultVideoAdjust());
+
+  useEffect(() => {
+    if (videoRef.current) {
+      videoRef.current.playbackRate = videoAdjust.speed;
+    }
+  }, [videoAdjust.speed]);
 
   const isVideo = file.mime_type && file.mime_type.startsWith("video/");
   const fileUrl = `/api/files/${file.id}/serve`;
 
   const ASPECT_RATIOS = [
     { label: "Free", value: "free" },
-    { label: "1:1", value: "1:1" },
-    { label: "4:3", value: "4:3" },
-    { label: "3:2", value: "3:2" },
-    { label: "16:9", value: "16:9" },
-    { label: "21:9", value: "21:9" },
+    { label: "⬜ 1:1", value: "1:1" },
+    { label: "▭ 4:3", value: "4:3" },
+    { label: "▮ 3:4", value: "3:4" },
+    { label: "▭ 3:2", value: "3:2" },
+    { label: "▮ 2:3", value: "2:3" },
+    { label: "▭ 16:9", value: "16:9" },
+    { label: "▮ 9:16", value: "9:16" },
+    { label: "▭ 21:9", value: "21:9" },
+    { label: "▮ 9:21", value: "9:21" },
   ];
 
   useEffect(() => {
@@ -141,24 +171,39 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete, onN
   }, [meta, isVideo]);
 
   useEffect(() => {
-    if (editTab === "crop" && crop === null) {
+    if (editTab === "crop" && crop === null && !cropApplied) {
       setCrop({ x: 0, y: 0, w: 1, h: 1 });
     }
-  }, [editTab]);
+  }, [editTab, cropApplied]);
+
+  useEffect(() => {
+    if (!showExportMenu) return;
+    const handler = (e) => {
+      if (exportRef.current && !exportRef.current.contains(e.target)) setShowExportMenu(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [showExportMenu]);
+
+  const resetEditState = useCallback(() => {
+    setEditMode(false);
+    setOperations([]);
+    setActiveFilter("normal");
+    setAdjust(defaultAdjust());
+    setVideoAdjust(defaultVideoAdjust());
+    setCrop(null);
+    setCropAspect("free");
+    setCropApplied(false);
+    if (isVideo && meta?.duration) {
+      setVideoTrim({ start: 0, end: meta.duration });
+    }
+  }, [isVideo, meta]);
 
   useEffect(() => {
     const handleKey = (e) => {
       if (e.key === "Escape") {
         if (editMode) {
-          setEditMode(false);
-          setOperations([]);
-          setActiveFilter("normal");
-          setAdjust({ brightness: 1, contrast: 1, saturation: 1, warmth: 0, sharpness: 1, highlights: 0, shadows: 0, vignette: 0 });
-          setCrop(null);
-          setCropAspect("free");
-          if (isVideo && meta?.duration) {
-            setVideoTrim({ start: 0, end: meta.duration });
-          }
+          resetEditState();
         } else {
           onClose();
         }
@@ -188,15 +233,7 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete, onN
   const handleOverlayClick = (e) => {
     if (e.target === overlayRef.current) {
       if (editMode) {
-        setEditMode(false);
-        setOperations([]);
-        setActiveFilter("normal");
-        setAdjust({ brightness: 1, contrast: 1, saturation: 1, warmth: 0, sharpness: 1, highlights: 0, shadows: 0, vignette: 0 });
-        setCrop(null);
-        setCropAspect("free");
-        if (isVideo && meta?.duration) {
-          setVideoTrim({ start: 0, end: meta.duration });
-        }
+        resetEditState();
       } else {
         onClose();
       }
@@ -259,11 +296,40 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete, onN
   const filterData = FILTERS.find((f) => f.name === activeFilter) || FILTERS[0];
 
   const previewFilter = (() => {
+    const b = adjust.brightness * (1 + adjust.exposure / 150);
+    const cMod = adjust.contrast * adjust.clarity;
+    const shadowBright = 1 - adjust.shadows / 350;
+    const shadowContr = 1 + adjust.shadows / 250;
+    const hlBright = 1 + adjust.highlights / 350;
+    const hlContr = 1 - adjust.highlights / 250;
+    const blacksBright = 1 - adjust.blacks / 350;
+    const blacksContr = 1 + adjust.blacks / 250;
+    const whitesBright = 1 + adjust.whites / 350;
+    const whitesContr = 1 - adjust.whites / 250;
+    const combinedB = b * shadowBright * hlBright * blacksBright * whitesBright;
+    const combinedC = cMod * shadowContr * hlContr * blacksContr * whitesContr;
     const parts = [];
-    parts.push(`brightness(${adjust.brightness})`);
-    parts.push(`contrast(${adjust.contrast})`);
-    parts.push(`saturate(${adjust.saturation})`);
+    parts.push(`brightness(${combinedB})`);
+    parts.push(`contrast(${combinedC})`);
+    parts.push(`saturate(${adjust.saturation * adjust.vibrance})`);
+    if (adjust.dehaze) {
+      const dh = 1 + adjust.dehaze / 60;
+      parts.push(`contrast(${dh})`);
+      parts.push(`brightness(${1 + adjust.dehaze / 120})`);
+    }
     if (filterData.css) parts.push(filterData.css);
+    parts.push(`hue-rotate(${adjust.tint * 0.3}deg)`);
+    if (adjust.warmth) {
+      const w = adjust.warmth / 100;
+      parts.push(`hue-rotate(${w * 15}deg)`);
+      if (w > 0) parts.push(`sepia(${w * 0.2})`);
+    }
+    if (adjust.grayscale) parts.push(`grayscale(1)`);
+    if (adjust.colorize) {
+      parts.push(`sepia(${Math.min(1, adjust.colorize / 60)})`);
+      parts.push(`hue-rotate(${adjust.colorize * 1.2}deg)`);
+      parts.push(`saturate(${Math.min(3, 1 + adjust.colorize / 40)})`);
+    }
     return parts.join(" ");
   })();
 
@@ -277,6 +343,16 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete, onN
     if (adjust.shadows !== 0) ops.push({ type: "shadows", value: adjust.shadows });
     if (adjust.warmth !== 0) ops.push({ type: "warmth", value: adjust.warmth });
     if (adjust.vignette !== 0) ops.push({ type: "vignette", value: adjust.vignette });
+    if (adjust.tint !== 0) ops.push({ type: "tint", value: adjust.tint });
+    if (adjust.vibrance !== 1) ops.push({ type: "vibrance", value: adjust.vibrance });
+    if (adjust.clarity !== 1) ops.push({ type: "clarity", value: adjust.clarity });
+    if (adjust.dehaze !== 0) ops.push({ type: "dehaze", value: adjust.dehaze });
+    if (adjust.exposure !== 0) ops.push({ type: "exposure", value: adjust.exposure });
+    if (adjust.blacks !== 0) ops.push({ type: "blacks", value: adjust.blacks });
+    if (adjust.whites !== 0) ops.push({ type: "whites", value: adjust.whites });
+    if (adjust.grain !== 0) ops.push({ type: "grain", value: adjust.grain });
+    if (adjust.grayscale) ops.push({ type: "grayscale", value: true });
+    if (adjust.colorize !== 0) ops.push({ type: "colorize", value: adjust.colorize });
     if (activeFilter !== "normal") ops.push({ type: "filter", name: activeFilter });
     if (crop && (crop.x > 0 || crop.y > 0 || crop.w < 1 || crop.h < 1)) {
       ops.push({ type: "crop", x: crop.x, y: crop.y, width: crop.w, height: crop.h });
@@ -294,9 +370,11 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete, onN
       setEditMode(false);
       setOperations([]);
       setActiveFilter("normal");
-      setAdjust({ brightness: 1, contrast: 1, saturation: 1, warmth: 0, sharpness: 1, highlights: 0, shadows: 0, vignette: 0 });
+      setAdjust(defaultAdjust());
+      setVideoAdjust(defaultVideoAdjust());
       setCrop(null);
       setCropAspect("free");
+      setCropApplied(false);
       if (videoTrim.start !== 0 || videoTrim.end !== (meta?.duration || 0)) {
         setVideoTrim({ start: 0, end: meta?.duration || 0 });
       }
@@ -311,15 +389,7 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete, onN
   };
 
   const handleCancel = () => {
-    setEditMode(false);
-    setOperations([]);
-    setActiveFilter("normal");
-    setAdjust({ brightness: 1, contrast: 1, saturation: 1, warmth: 0, sharpness: 1, highlights: 0, shadows: 0, vignette: 0 });
-    setCrop(null);
-    setCropAspect("free");
-    if (isVideo && meta?.duration) {
-      setVideoTrim({ start: 0, end: meta.duration });
-    }
+    resetEditState();
   };
 
   const handleDeleteClick = () => setShowDeleteConfirm(true);
@@ -394,7 +464,7 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete, onN
   };
 
   const applyCustomFilter = (preset) => {
-    const newAdjust = { brightness: 1, contrast: 1, saturation: 1, warmth: 0, sharpness: 1, highlights: 0, shadows: 0, vignette: 0 };
+    const newAdjust = defaultAdjust();
     let newActiveFilter = "normal";
     const newOps = [];
     for (const op of preset.operations) {
@@ -406,6 +476,16 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete, onN
       else if (op.type === "highlights") newAdjust.highlights = op.value;
       else if (op.type === "shadows") newAdjust.shadows = op.value;
       else if (op.type === "vignette") newAdjust.vignette = op.value;
+      else if (op.type === "tint") newAdjust.tint = op.value;
+      else if (op.type === "vibrance") newAdjust.vibrance = op.value;
+      else if (op.type === "clarity") newAdjust.clarity = op.value;
+      else if (op.type === "dehaze") newAdjust.dehaze = op.value;
+      else if (op.type === "exposure") newAdjust.exposure = op.value;
+      else if (op.type === "blacks") newAdjust.blacks = op.value;
+      else if (op.type === "whites") newAdjust.whites = op.value;
+      else if (op.type === "grain") newAdjust.grain = op.value;
+      else if (op.type === "grayscale") newAdjust.grayscale = op.value;
+      else if (op.type === "colorize") newAdjust.colorize = op.value;
       else if (op.type === "filter") newActiveFilter = op.name;
       else if (op.type === "rotate" || op.type === "flip") newOps.push(op);
     }
@@ -444,6 +524,10 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete, onN
     } catch {}
   };
 
+  const handleCropApply = () => {
+    if (crop) setCropApplied(true);
+  };
+
   const handleCropAspect = (ratio) => {
     setCropAspect(ratio);
     if (ratio === "free") return;
@@ -467,6 +551,13 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete, onN
     setCropDrag({ handle, startX: e.clientX, startY: e.clientY, origCrop: { ...crop } });
   };
 
+  const handleCropMouseDownRect = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!crop) return;
+    setCropDrag({ handle: "move", startX: e.clientX, startY: e.clientY, origCrop: { ...crop } });
+  };
+
   const handleCropMouseMove = (e) => {
     if (!cropDrag || !imgRef.current) return;
     const rect = imgRef.current.getBoundingClientRect();
@@ -474,6 +565,17 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete, onN
     const dy = (e.clientY - cropDrag.startY) / rect.height;
     const orig = cropDrag.origCrop;
     let { x, y, w, h } = orig;
+
+    if (cropDrag.handle === "move") {
+      x = orig.x + dx;
+      y = orig.y + dy;
+      if (x < 0) x = 0;
+      if (y < 0) y = 0;
+      if (x + w > 1) x = 1 - w;
+      if (y + h > 1) y = 1 - h;
+      setCrop({ x, y, w, h });
+      return;
+    }
 
     switch (cropDrag.handle) {
       case "se": w = orig.w + dx; h = orig.h + dy; break;
@@ -503,6 +605,76 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete, onN
 
   const handleCropMouseUp = () => setCropDrag(null);
 
+  const handleExport = async (format) => {
+    setExportFormat(format);
+    setShowExportMenu(false);
+    setExporting(true);
+    const ops = buildOperations();
+    try {
+      const { exportFile } = await import("../services/api");
+      const payload = { format, quality: exportQuality };
+      if (format === "ascii") {
+        payload.ascii_chars = asciiChars;
+        payload.ascii_width = asciiWidth;
+      }
+      const blob = await exportFile(file.id, ops, payload);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      const ext = format === "jpeg" ? "jpg" : (format === "ascii" ? "txt" : format);
+      const nameStem = file.filename.replace(/\.[^.]+$/, "");
+      a.download = `${nameStem}_export.${ext}`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch {
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const drawHistogram = useCallback(() => {
+    const canvas = histCanvasRef.current;
+    if (!canvas) return;
+    const img = imgRef.current;
+    if (!img || !img.complete || img.naturalWidth === 0) return;
+    const ctx = canvas.getContext("2d");
+    const W = canvas.width;
+    const H = canvas.height;
+    const offscreen = document.createElement("canvas");
+    offscreen.width = img.naturalWidth;
+    offscreen.height = img.naturalHeight;
+    const octx = offscreen.getContext("2d");
+    if (!showOriginal) octx.filter = previewFilter;
+    octx.drawImage(img, 0, 0, offscreen.width, offscreen.height);
+    const imageData = octx.getImageData(0, 0, offscreen.width, offscreen.height);
+    const data = imageData.data;
+    const bins = new Array(256).fill(0);
+    const len = data.length;
+    for (let i = 0; i < len; i += 4) {
+      const r = data[i], g = data[i + 1], b = data[i + 2];
+      const lum = Math.round(0.2126 * r + 0.7152 * g + 0.0722 * b);
+      bins[lum]++;
+    }
+    const maxBin = Math.max(...bins, 1);
+    ctx.clearRect(0, 0, W, H);
+    ctx.fillStyle = "rgba(255,255,255,0.06)";
+    ctx.fillRect(0, 0, W, H);
+    const barW = W / 256;
+    for (let i = 0; i < 256; i++) {
+      const h = (bins[i] / maxBin) * H;
+      ctx.fillStyle = `hsl(${(1 - i / 255) * 240}, 70%, 60%)`;
+      ctx.fillRect(i * barW, H - h, Math.max(1, barW), h);
+    }
+  }, [previewFilter, showOriginal]);
+
+  useEffect(() => {
+    if (!editMode) return;
+    const timer = setTimeout(drawHistogram, 150);
+    return () => clearTimeout(timer);
+  }, [editMode, drawHistogram, adjust, activeFilter, operations, crop, cropApplied]);
+
   const buildVideoOperations = () => {
     const ops = [];
     if (videoTrim.start > 0 || videoTrim.end < (meta?.duration || 0)) {
@@ -511,11 +683,20 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete, onN
     if (adjust.brightness !== 1) ops.push({ type: "brightness", value: adjust.brightness });
     if (adjust.contrast !== 1) ops.push({ type: "contrast", value: adjust.contrast });
     if (adjust.saturation !== 1) ops.push({ type: "saturation", value: adjust.saturation });
+    if (adjust.warmth !== 0) ops.push({ type: "warmth", value: adjust.warmth });
+    if (videoAdjust.speed !== 1) ops.push({ type: "speed", value: videoAdjust.speed });
+    if (videoAdjust.volume !== 1) ops.push({ type: "volume", value: videoAdjust.volume });
+    if (videoAdjust.audioMute) ops.push({ type: "audio_mute", value: true });
+    if (videoAdjust.reverse) ops.push({ type: "reverse", value: true });
+    if (textOverlay.enabled && textOverlay.text.trim()) {
+      ops.push({ type: "text", text: textOverlay.text, x: textOverlay.x / 100, y: textOverlay.y / 100, font_size: textOverlay.fontSize, color: textOverlay.color });
+    }
     ops.push(...operations);
     return ops;
   };
 
   const previewStyle = (() => {
+    if (showOriginal) return {};
     let rot = 0;
     let sx = 1;
     let sy = 1;
@@ -528,13 +709,28 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete, onN
     if (zoom !== 1) transforms.push(`scale(${zoom})`);
     if (rot) transforms.push(`rotate(${rot}deg)`);
     if (sx !== 1 || sy !== 1) transforms.push(`scale(${sx}, ${sy})`);
+    let clipPathVal;
+    if (cropApplied && crop) {
+      const top = crop.y * 100;
+      const right = (1 - crop.x - crop.w) * 100;
+      const bottom = (1 - crop.y - crop.h) * 100;
+      const left = crop.x * 100;
+      clipPathVal = `inset(${top}% ${right}% ${bottom}% ${left}%)`;
+    }
     return {
       transform: transforms.join(" "),
-      filter: previewFilter,
+      filter: showOriginal ? "none" : previewFilter,
+      clipPath: clipPathVal,
     };
   })();
 
-  const hasEdits = activeFilter !== "normal" || Object.values(adjust).some((v) => v !== 0 && v !== 1) || operations.length > 0 || (isVideo && (videoTrim.start > 0 || videoTrim.end < (meta?.duration || 0))) || !!((crop?.x || 0) > 0 || (crop?.y || 0) > 0 || (crop?.w || 1) < 1 || (crop?.h || 1) < 1);
+  const hasEdits = (() => {
+    const defaults = { brightness: 1, contrast: 1, saturation: 1, warmth: 0, sharpness: 1, highlights: 0, shadows: 0, vignette: 0, tint: 0, vibrance: 1, clarity: 1, dehaze: 0, exposure: 0, blacks: 0, whites: 0, grain: 0, grayscale: 0, colorize: 0 };
+    const adjChanged = Object.keys(defaults).some((k) => adjust[k] !== defaults[k]);
+    const videoAdj = defaultVideoAdjust();
+    const videoAdjChanged = isVideo && (videoAdjust.speed !== videoAdj.speed || videoAdjust.volume !== videoAdj.volume || videoAdjust.audioMute !== videoAdj.audioMute || videoAdjust.reverse !== videoAdj.reverse);
+    return activeFilter !== "normal" || adjChanged || videoAdjChanged || operations.length > 0 || (isVideo && (videoTrim.start > 0 || videoTrim.end < (meta?.duration || 0))) || !!((crop?.x || 0) > 0 || (crop?.y || 0) > 0 || (crop?.w || 1) < 1 || (crop?.h || 1) < 1) || cropApplied;
+  })();
 
   const renderSlider = (key, label, min, max, step, icon) => (
     <div className="viewer-slider-row">
@@ -542,7 +738,7 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete, onN
       <div className="viewer-slider-body">
         <div className="viewer-slider-header">
           <span className="viewer-slider-label">{label}</span>
-          <span className="viewer-slider-val">{key === "warmth" || key === "highlights" || key === "shadows" ? adjust[key] : adjust[key].toFixed(2)}</span>
+          <span className="viewer-slider-val">{["warmth","highlights","shadows","tint","dehaze","exposure","blacks","whites","grain","colorize"].includes(key) ? adjust[key] : adjust[key].toFixed(2)}</span>
         </div>
         <input
           type="range"
@@ -582,6 +778,80 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete, onN
                     <FolderOpen size={14} /> Browse Folder
                   </button>
                 )}
+                <div className="viewer-export-wrap" ref={exportRef}>
+                  <button
+                    className="viewer-btn viewer-btn--export"
+                    onClick={() => setShowExportMenu((p) => !p)}
+                    disabled={exporting}
+                    title="Export as..."
+                  >
+                    {exporting ? <Spinner size={14} /> : <FileImage size={14} />} Export
+                  </button>
+                  {showExportMenu && (
+                    <div className="viewer-export-menu">
+                      <div className="viewer-export-section">Format</div>
+                      {[
+                        { fmt: "jpeg", label: "JPEG", ext: ".jpg" },
+                        { fmt: "png", label: "PNG", ext: ".png" },
+                        { fmt: "webp", label: "WebP", ext: ".webp" },
+                        { fmt: "heic", label: "HEIC", ext: ".heic" },
+                        { fmt: "pdf", label: "PDF", ext: ".pdf" },
+                        { fmt: "ascii", label: "ASCII Art", ext: ".txt" },
+                      ].map((f) => (
+                        <button
+                          key={f.fmt}
+                          className={`viewer-export-item ${exportFormat === f.fmt ? "viewer-export-item--active" : ""}`}
+                          onClick={() => setExportFormat(f.fmt)}
+                        >
+                          <FileImage size={12} />
+                          <span>{f.label}</span>
+                          <span className="viewer-export-ext">{f.ext}</span>
+                        </button>
+                      ))}
+                      <div className="viewer-export-section">Options</div>
+                      {exportFormat !== "ascii" ? (
+                        <div className="viewer-export-quality">
+                          <span className="viewer-export-label">Quality</span>
+                          <input
+                            type="range"
+                            min={10}
+                            max={100}
+                            value={exportQuality}
+                            onChange={(e) => setExportQuality(parseInt(e.target.value))}
+                            className="viewer-slider"
+                          />
+                          <span className="viewer-export-val">{exportQuality}%</span>
+                        </div>
+                      ) : (
+                        <div className="viewer-export-ascii-opts">
+                          <div className="viewer-export-quality">
+                            <span className="viewer-export-label">Chars</span>
+                            <input
+                              className="viewer-export-ascii-chars"
+                              type="text"
+                              value={asciiChars}
+                              onChange={(e) => setAsciiChars(e.target.value)}
+                            />
+                          </div>
+                          <div className="viewer-export-quality">
+                            <span className="viewer-export-label">Width</span>
+                            <input
+                              type="number"
+                              min={20}
+                              max={400}
+                              value={asciiWidth}
+                              onChange={(e) => setAsciiWidth(parseInt(e.target.value) || 120)}
+                              className="viewer-export-ascii-width"
+                            />
+                          </div>
+                        </div>
+                      )}
+                      <button className="viewer-export-go" onClick={() => handleExport(exportFormat)} disabled={exporting}>
+                        {exporting ? <Spinner size={12} /> : null} Export
+                      </button>
+                    </div>
+                  )}
+                </div>
                 <a className="viewer-btn viewer-btn--download" href={fileUrl} download title="Download file"><Download size={15} /></a>
                 <button className="viewer-btn viewer-btn--delete" onClick={handleDeleteClick} title="Delete file"><Trash2 size={15} /></button>
                 <button className={`viewer-fav ${isFav ? "viewer-fav--active" : ""}`} onClick={handleToggleFav} title={isFav ? "Remove from favorites" : "Add to favorites"}>
@@ -596,16 +866,23 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete, onN
         <div className="viewer-content">
           <div className="viewer-body" onWheel={handleWheel} onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd}>
             {isVideo ? (
-              <video className="viewer-media" src={fileUrl} controls autoPlay />
+              <video ref={videoRef} className="viewer-media" src={fileUrl} controls autoPlay style={{ filter: showOriginal ? "none" : previewFilter }} />
             ) : (
               <div className="viewer-media-wrap">
                 <img ref={imgRef} className="viewer-media" src={fileUrl} alt={file.filename} style={previewStyle} />
                 {editMode && adjust.vignette > 0 && (
                   <div className="viewer-vignette" style={{ opacity: adjust.vignette / 100 }} />
                 )}
-                {editMode && editTab === "crop" && crop && (
+                {editMode && adjust.grain > 0 && (
+                  <div className="viewer-grain" style={{ opacity: adjust.grain / 100 }} />
+                )}
+                {editMode && adjust.colorize > 0 && (
+                  <div className="viewer-colorize" style={{ opacity: adjust.colorize / 100 }} />
+                )}
+                {editMode && editTab === "crop" && crop && !cropApplied && (
                   <div className="viewer-crop-overlay" onMouseMove={handleCropMouseMove} onMouseUp={handleCropMouseUp} onMouseLeave={handleCropMouseUp}>
                     <div className="viewer-crop-rect" style={{ left: `${crop.x * 100}%`, top: `${crop.y * 100}%`, width: `${crop.w * 100}%`, height: `${crop.h * 100}%` }}>
+                      <div className="viewer-crop-move" onMouseDown={handleCropMouseDownRect} />
                       <div className="viewer-crop-handle viewer-crop-handle--nw" onMouseDown={(e) => handleCropMouseDown(e, "nw")} />
                       <div className="viewer-crop-handle viewer-crop-handle--ne" onMouseDown={(e) => handleCropMouseDown(e, "ne")} />
                       <div className="viewer-crop-handle viewer-crop-handle--sw" onMouseDown={(e) => handleCropMouseDown(e, "sw")} />
@@ -656,6 +933,18 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete, onN
                       <SlidersHorizontal size={15} />
                       <span>Adjust</span>
                     </button>
+                    <button className={`viewer-edit-tab ${editTab === "filters" ? "viewer-edit-tab--active" : ""}`} onClick={() => setEditTab("filters")} title="Filters">
+                      <Sparkles size={15} />
+                      <span>Filters</span>
+                    </button>
+                    <button className={`viewer-edit-tab ${editTab === "text" ? "viewer-edit-tab--active" : ""}`} onClick={() => setEditTab("text")} title="Text">
+                      <Type size={15} />
+                      <span>Text</span>
+                    </button>
+                    <button className={`viewer-edit-tab ${editTab === "effects" ? "viewer-edit-tab--active" : ""}`} onClick={() => setEditTab("effects")} title="Effects">
+                      <Drama size={15} />
+                      <span>Effects</span>
+                    </button>
                     <button className={`viewer-edit-tab ${editTab === "crop" ? "viewer-edit-tab--active" : ""}`} onClick={() => setEditTab("crop")} title="Crop">
                       <FlipHorizontal size={15} />
                       <span>Crop</span>
@@ -678,6 +967,14 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete, onN
                     <button className={`viewer-edit-tab ${editTab === "effects" ? "viewer-edit-tab--active" : ""}`} onClick={() => setEditTab("effects")} title="Effects">
                       <Contrast size={15} />
                       <span>Effects</span>
+                    </button>
+                    <button className={`viewer-edit-tab ${editTab === "details" ? "viewer-edit-tab--active" : ""}`} onClick={() => setEditTab("details")} title="Details">
+                      <Grid3X3 size={15} />
+                      <span>Details</span>
+                    </button>
+                    <button className={`viewer-edit-tab ${editTab === "info" ? "viewer-edit-tab--active" : ""}`} onClick={() => setEditTab("info")} title="Info">
+                      <Info size={15} />
+                      <span>Info</span>
                     </button>
                     <button className={`viewer-edit-tab ${editTab === "crop" ? "viewer-edit-tab--active" : ""}`} onClick={() => setEditTab("crop")} title="Crop">
                       <FlipHorizontal size={15} />
@@ -724,6 +1021,186 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete, onN
                         {renderSlider("brightness", "Brightness", 0, 2, 0.01, <Sun size={13} />)}
                         {renderSlider("contrast", "Contrast", 0, 2, 0.01, <Contrast size={13} />)}
                         {renderSlider("saturation", "Saturation", 0, 2, 0.01, <Filter size={13} />)}
+                        {renderSlider("warmth", "Warmth", -100, 100, 1, <Sparkles size={13} />)}
+                        <div className="viewer-slider-hint">Changes applied on save</div>
+                        <div className="viewer-slider-row">
+                          <span className="viewer-slider-icon"><Gauge size={13} /></span>
+                          <div className="viewer-slider-body">
+                            <div className="viewer-slider-header">
+                              <span className="viewer-slider-label">Speed</span>
+                              <span className="viewer-slider-val">{videoAdjust.speed.toFixed(2)}x</span>
+                            </div>
+                            <input type="range" min={0.25} max={4} step={0.05}
+                              value={videoAdjust.speed}
+                              onChange={(e) => setVideoAdjust((p) => ({ ...p, speed: parseFloat(e.target.value) }))} />
+                          </div>
+                        </div>
+                        <div className="viewer-slider-row">
+                          <span className="viewer-slider-icon"><Volume2 size={13} /></span>
+                          <div className="viewer-slider-body">
+                            <div className="viewer-slider-header">
+                              <span className="viewer-slider-label">Volume</span>
+                              <span className="viewer-slider-val">{Math.round(videoAdjust.volume * 100)}%</span>
+                            </div>
+                            <input type="range" min={0} max={2} step={0.01}
+                              value={videoAdjust.volume}
+                              onChange={(e) => setVideoAdjust((p) => ({ ...p, volume: parseFloat(e.target.value) }))} />
+                          </div>
+                        </div>
+                        <div className="viewer-slider-hint">Changes applied on save</div>
+                      </div>
+                    )}
+                    {editTab === "filters" && (
+                      <div className="viewer-filters-grid">
+                        {FILTERS.map((f) => (
+                          <button
+                            key={f.name}
+                            className={`viewer-filter-btn ${activeFilter === f.name ? "viewer-filter-btn--active" : ""}`}
+                            onClick={() => selectFilter(f.name)}
+                          >
+                            <div className="viewer-filter-thumb" style={{ filter: f.css || "none" }}>
+                              <img src={fileUrl} alt={f.label} />
+                            </div>
+                            <span className="viewer-filter-label">{f.label}</span>
+                          </button>
+                        ))}
+                        {customFilters.length > 0 && (
+                          <>
+                            <div className="viewer-filter-section-title">Custom</div>
+                            {customFilters.map((f) => (
+                              <div key={f.id} className="viewer-filter-custom-wrap">
+                                <button
+                                  className="viewer-filter-btn viewer-filter-btn--custom"
+                                  onClick={() => applyCustomFilter(f)}
+                                  title={`Apply "${f.name}" filter`}
+                                >
+                                  <div className="viewer-filter-thumb">
+                                    <img src={fileUrl} alt={f.name} />
+                                  </div>
+                                  <span className="viewer-filter-label">{f.name}</span>
+                                </button>
+                                <button
+                                  className="viewer-filter-custom-del"
+                                  onClick={() => handleDeleteFilter(f.id)}
+                                  title={`Delete "${f.name}"`}
+                                >
+                                  <X size={10} />
+                                </button>
+                              </div>
+                            ))}
+                          </>
+                        )}
+                      </div>
+                    )}
+                    {editTab === "text" && (
+                      <div className="viewer-sliders">
+                        <div className="viewer-slider-row" style={{ flexDirection: "column", gap: "0.5rem" }}>
+                          <div className="viewer-slider-header" style={{ width: "100%" }}>
+                            <span className="viewer-slider-label">Text Overlay</span>
+                            <button
+                              className={`viewer-filter-btn ${textOverlay.enabled ? "viewer-filter-btn--active" : ""}`}
+                              onClick={() => setTextOverlay((p) => ({ ...p, enabled: !p.enabled }))}
+                              style={{ padding: "0.25rem 0.5rem", width: "auto" }}
+                            >
+                              {textOverlay.enabled ? "On" : "Off"}
+                            </button>
+                          </div>
+                          <input
+                            type="text"
+                            className="viewer-save-filter-input"
+                            placeholder="Enter text..."
+                            value={textOverlay.text}
+                            onChange={(e) => setTextOverlay((p) => ({ ...p, text: e.target.value }))}
+                            disabled={!textOverlay.enabled}
+                            style={{ width: "100%" }}
+                          />
+                        </div>
+                        <div className="viewer-slider-row">
+                          <span className="viewer-slider-icon"><Type size={13} /></span>
+                          <div className="viewer-slider-body">
+                            <div className="viewer-slider-header">
+                              <span className="viewer-slider-label">Font Size</span>
+                              <span className="viewer-slider-val">{textOverlay.fontSize}px</span>
+                            </div>
+                            <input type="range" min={12} max={120} step={1}
+                              value={textOverlay.fontSize}
+                              onChange={(e) => setTextOverlay((p) => ({ ...p, fontSize: parseInt(e.target.value) }))}
+                              disabled={!textOverlay.enabled} />
+                          </div>
+                        </div>
+                        <div className="viewer-slider-row">
+                          <span className="viewer-slider-icon"><Info size={13} /></span>
+                          <div className="viewer-slider-body">
+                            <div className="viewer-slider-header">
+                              <span className="viewer-slider-label">Color</span>
+                            </div>
+                            <input type="color" value={textOverlay.color}
+                              onChange={(e) => setTextOverlay((p) => ({ ...p, color: e.target.value }))}
+                              disabled={!textOverlay.enabled}
+                              style={{ width: "100%", height: "2rem", border: "none", borderRadius: "var(--radius)", background: "transparent", cursor: "pointer" }} />
+                          </div>
+                        </div>
+                        <div className="viewer-slider-row">
+                          <span className="viewer-slider-icon"><Grid3X3 size={13} /></span>
+                          <div className="viewer-slider-body">
+                            <div className="viewer-slider-header">
+                              <span className="viewer-slider-label">X Position</span>
+                              <span className="viewer-slider-val">{textOverlay.x}%</span>
+                            </div>
+                            <input type="range" min={0} max={100} step={1}
+                              value={textOverlay.x}
+                              onChange={(e) => setTextOverlay((p) => ({ ...p, x: parseInt(e.target.value) }))}
+                              disabled={!textOverlay.enabled} />
+                          </div>
+                        </div>
+                        <div className="viewer-slider-row">
+                          <span className="viewer-slider-icon"><Grid3X3 size={13} /></span>
+                          <div className="viewer-slider-body">
+                            <div className="viewer-slider-header">
+                              <span className="viewer-slider-label">Y Position</span>
+                              <span className="viewer-slider-val">{textOverlay.y}%</span>
+                            </div>
+                            <input type="range" min={0} max={100} step={1}
+                              value={textOverlay.y}
+                              onChange={(e) => setTextOverlay((p) => ({ ...p, y: parseInt(e.target.value) }))}
+                              disabled={!textOverlay.enabled} />
+                          </div>
+                        </div>
+                        <div className="viewer-slider-hint">Changes applied on save</div>
+                      </div>
+                    )}
+                    {editTab === "effects" && (
+                      <div className="viewer-sliders">
+                        <div className="viewer-slider-row">
+                          <span className="viewer-slider-icon"><Rewind size={13} /></span>
+                          <div className="viewer-slider-body">
+                            <div className="viewer-slider-header">
+                              <span className="viewer-slider-label">Reverse</span>
+                            </div>
+                            <button
+                              className={`viewer-filter-btn ${videoAdjust.reverse ? "viewer-filter-btn--active" : ""}`}
+                              onClick={() => setVideoAdjust((p) => ({ ...p, reverse: !p.reverse }))}
+                              style={{ padding: "0.35rem", width: "auto", alignSelf: "flex-start" }}
+                            >
+                              {videoAdjust.reverse ? "On" : "Off"}
+                            </button>
+                          </div>
+                        </div>
+                        <div className="viewer-slider-row">
+                          <span className="viewer-slider-icon"><VolumeX size={13} /></span>
+                          <div className="viewer-slider-body">
+                            <div className="viewer-slider-header">
+                              <span className="viewer-slider-label">Mute Audio</span>
+                            </div>
+                            <button
+                              className={`viewer-filter-btn ${videoAdjust.audioMute ? "viewer-filter-btn--active" : ""}`}
+                              onClick={() => setVideoAdjust((p) => ({ ...p, audioMute: !p.audioMute }))}
+                              style={{ padding: "0.35rem", width: "auto", alignSelf: "flex-start" }}
+                            >
+                              {videoAdjust.audioMute ? "On" : "Off"}
+                            </button>
+                          </div>
+                        </div>
                         <div className="viewer-slider-hint">Changes applied on save</div>
                       </div>
                     )}
@@ -787,7 +1264,9 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete, onN
                         {renderSlider("brightness", "Brightness", 0, 2, 0.01, <Sun size={13} />)}
                         {renderSlider("contrast", "Contrast", 0, 2, 0.01, <Contrast size={13} />)}
                         {renderSlider("saturation", "Saturation", 0, 2, 0.01, <Filter size={13} />)}
+                        {renderSlider("vibrance", "Vibrance", 0, 2, 0.01, <Droplets size={13} />)}
                         {renderSlider("warmth", "Warmth", -100, 100, 1, <Sparkles size={13} />)}
+                        {renderSlider("tint", "Tint", -100, 100, 1, <Palette size={13} />)}
                         {renderSlider("sharpness", "Sharpness", 0, 2, 0.01, <SlidersHorizontal size={13} />)}
                         <div className="viewer-slider-hint">Changes applied on save</div>
                       </div>
@@ -795,8 +1274,11 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete, onN
 
                     {editTab === "light" && (
                       <div className="viewer-sliders">
+                        {renderSlider("exposure", "Exposure", -100, 100, 1, <Sun size={13} />)}
                         {renderSlider("highlights", "Highlights", -100, 100, 1, <Sun size={13} />)}
                         {renderSlider("shadows", "Shadows", -100, 100, 1, <Sun size={13} />)}
+                        {renderSlider("whites", "Whites", -100, 100, 1, <Maximize2 size={13} />)}
+                        {renderSlider("blacks", "Blacks", -100, 100, 1, <ZoomOut size={13} />)}
                         <div className="viewer-slider-hint">Changes applied on save</div>
                       </div>
                     )}
@@ -804,6 +1286,31 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete, onN
                     {editTab === "effects" && (
                       <div className="viewer-sliders">
                         {renderSlider("vignette", "Vignette", 0, 100, 1, <Contrast size={13} />)}
+                        {renderSlider("grain", "Grain", 0, 100, 1, <Sigma size={13} />)}
+                        {renderSlider("colorize", "Colorize", 0, 100, 1, <Palette size={13} />)}
+                        <div className="viewer-slider-row">
+                          <span className="viewer-slider-icon"><Eye size={13} /></span>
+                          <div className="viewer-slider-body">
+                            <div className="viewer-slider-header">
+                              <span className="viewer-slider-label">Grayscale</span>
+                            </div>
+                            <button
+                              className={`viewer-filter-btn ${adjust.grayscale ? "viewer-filter-btn--active" : ""}`}
+                              onClick={() => setAdjust((p) => ({ ...p, grayscale: p.grayscale ? 0 : 1 }))}
+                              style={{ padding: "0.35rem", width: "auto", alignSelf: "flex-start" }}
+                            >
+                              {adjust.grayscale ? "On" : "Off"}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {editTab === "details" && (
+                      <div className="viewer-sliders">
+                        {renderSlider("clarity", "Clarity", 0, 2, 0.01, <Grid3X3 size={13} />)}
+                        {renderSlider("dehaze", "Dehaze", 0, 100, 1, <Eye size={13} />)}
+                        <div className="viewer-slider-hint">Changes applied on save</div>
                       </div>
                     )}
 
@@ -820,6 +1327,16 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete, onN
                             </button>
                           ))}
                         </div>
+                        {!cropApplied && (
+                          <button className="viewer-tool" onClick={handleCropApply} style={{ alignSelf: "flex-start", width: "auto", padding: "0.35rem 0.75rem", gap: "0.35rem", display: "flex" }} disabled={!crop}>
+                            <Scissors size={14} /> Apply
+                          </button>
+                        )}
+                        {cropApplied && (
+                          <button className="viewer-tool" onClick={() => setCropApplied(false)} style={{ alignSelf: "flex-start", width: "auto", padding: "0.35rem 0.75rem", gap: "0.35rem", display: "flex" }}>
+                            <Undo2 size={14} /> Reset Crop
+                          </button>
+                        )}
                         <div className="viewer-crop-ops">
                           <button className="viewer-tool" onClick={() => addOp({ type: "rotate", degrees: -90 })} title="Rotate left"><RotateCcw size={16} /></button>
                           <button className="viewer-tool" onClick={() => addOp({ type: "rotate", degrees: 90 })} title="Rotate right"><RotateCw size={16} /></button>
@@ -832,15 +1349,28 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete, onN
                   </>
                 )}
 
+                <div className="viewer-histogram-wrap">
+                  <canvas ref={histCanvasRef} className="viewer-histogram" width={240} height={60} />
+                </div>
                 <div className="viewer-edit-footer">
+                  <button
+                    className="viewer-btn viewer-btn--original"
+                    ref={originalBtnRef}
+                    onMouseDown={() => setShowOriginal(true)}
+                    onMouseUp={() => setShowOriginal(false)}
+                    onMouseLeave={() => setShowOriginal(false)}
+                    onTouchStart={() => setShowOriginal(true)}
+                    onTouchEnd={() => setShowOriginal(false)}
+                    title="Hold to see original"
+                  >
+                    <Eye size={14} /> Original
+                  </button>
                   <button className="viewer-btn viewer-btn--save" onClick={handleSave} disabled={saving || !hasEdits}>
                     {saving ? <Spinner size={14} /> : <Save size={14} />} Save
                   </button>
-                  {!isVideo && (
-                    <button className="viewer-btn viewer-btn--save-filter" onClick={() => setShowSaveFilter(true)} disabled={!hasEdits || savingFilter}>
-                      {savingFilter ? <Spinner size={14} /> : <Save size={14} />} Save Filter
-                    </button>
-                  )}
+                  <button className="viewer-btn viewer-btn--save-filter" onClick={() => setShowSaveFilter(true)} disabled={!hasEdits || savingFilter}>
+                    {savingFilter ? <Spinner size={14} /> : <Save size={14} />} Save Filter
+                  </button>
                   <button className="viewer-btn viewer-btn--cancel" onClick={handleCancel}>
                     <Undo2 size={14} /> Reset
                   </button>

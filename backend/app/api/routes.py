@@ -1,6 +1,8 @@
 import io
 import os
 import shutil
+import random
+import math
 from datetime import datetime
 
 from PIL import Image, ImageEnhance
@@ -592,6 +594,129 @@ def _apply_filter_preset(img, name):
     return img
 
 
+def _adjust_tint(img, amount):
+    if amount == 0:
+        return img
+    img = img.convert("RGB")
+    r, g, b = img.split()
+    f = amount / 100.0
+    g_lut = [min(255, max(0, int(i - i * f * 0.08))) for i in range(256)]
+    b_lut = [min(255, max(0, int(i + i * f * 0.12))) for i in range(256)]
+    g = g.point(g_lut)
+    b = b.point(b_lut)
+    return Image.merge("RGB", (r, g, b))
+
+def _adjust_vibrance(img, amount):
+    if amount == 1.0:
+        return img
+    img = img.convert("RGB")
+    r, g, b = img.split()
+    r_data = list(r.getdata())
+    g_data = list(g.getdata())
+    b_data = list(b.getdata())
+    out_r, out_g, out_b = [], [], []
+    for i in range(len(r_data)):
+        max_c = max(r_data[i], g_data[i], b_data[i])
+        min_c = min(r_data[i], g_data[i], b_data[i])
+        sat = (max_c - min_c) / 255.0
+        boost = 1.0 + (amount - 1.0) * (1.0 - sat)
+        out_r.append(min(255, max(0, int(r_data[i] * boost))))
+        out_g.append(min(255, max(0, int(g_data[i] * boost))))
+        out_b.append(min(255, max(0, int(b_data[i] * boost))))
+    r.putdata(out_r)
+    g.putdata(out_g)
+    b.putdata(out_b)
+    return Image.merge("RGB", (r, g, b))
+
+def _adjust_clarity(img, amount):
+    if amount == 1.0:
+        return img
+    img = img.convert("RGB")
+    r, g, b = img.split()
+    fac = (amount - 1.0) * 0.5 + 1.0
+    lut = [min(255, max(0, int(128 + (i - 128) * fac))) for i in range(256)]
+    r = r.point(lut)
+    g = g.point(lut)
+    b = b.point(lut)
+    return Image.merge("RGB", (r, g, b))
+
+def _adjust_dehaze(img, amount):
+    if amount == 0:
+        return img
+    img = img.convert("RGB")
+    f = amount / 100.0 * 0.5
+    enh = ImageEnhance.Contrast(img)
+    img = enh.enhance(1.0 + f)
+    r, g, b = img.split()
+    lut = [min(255, max(0, int(i + (255 - i) * f * 0.3))) for i in range(256)]
+    r = r.point(lut)
+    g = g.point(lut)
+    b = b.point(lut)
+    return Image.merge("RGB", (r, g, b))
+
+def _adjust_exposure(img, amount):
+    if amount == 0:
+        return img
+    f = (100.0 + amount) / 100.0
+    return ImageEnhance.Brightness(img).enhance(f)
+
+def _adjust_blacks(img, amount):
+    if amount == 0:
+        return img
+    img = img.convert("RGB")
+    r, g, b = img.split()
+    f = amount / 100.0
+    def blacks_curve(v):
+        return min(255, max(0, int(v - v * f * 0.5)))
+    lut = [blacks_curve(i) for i in range(256)]
+    r = r.point(lut)
+    g = g.point(lut)
+    b = b.point(lut)
+    return Image.merge("RGB", (r, g, b))
+
+def _adjust_whites(img, amount):
+    if amount == 0:
+        return img
+    img = img.convert("RGB")
+    r, g, b = img.split()
+    f = amount / 100.0
+    def whites_curve(v):
+        return min(255, max(0, int(v + (255 - v) * f * 0.5)))
+    lut = [whites_curve(i) for i in range(256)]
+    r = r.point(lut)
+    g = g.point(lut)
+    b = b.point(lut)
+    return Image.merge("RGB", (r, g, b))
+
+def _apply_grain(img, amount):
+    if amount <= 0:
+        return img
+    img = img.convert("RGB")
+    w, h = img.size
+    intensity = amount / 100.0 * 30
+    pixels = img.load()
+    for y in range(h):
+        for x in range(w):
+            noise = random.randint(-intensity, intensity)
+            r = min(255, max(0, pixels[x, y][0] + noise))
+            g = min(255, max(0, pixels[x, y][1] + noise))
+            b = min(255, max(0, pixels[x, y][2] + noise))
+            pixels[x, y] = (r, g, b)
+    return img
+
+def _apply_colorize(img, amount):
+    if amount <= 0:
+        return img
+    img = img.convert("RGB")
+    r, g, b = img.split()
+    f = amount / 100.0 * 0.4
+    r_lut = [min(255, max(0, int(i + (255 - i) * f))) for i in range(256)]
+    b_lut = [min(255, max(0, int(i + i * f))) for i in range(256)]
+    r = r.point(r_lut)
+    b = b.point(b_lut)
+    return Image.merge("RGB", (r, g, b))
+
+
 def _edit_video_file(file_record, operations):
     from app.utility.video_utility import edit_video
 
@@ -703,6 +828,35 @@ def edit_file(file_id):
             w = int(op.get("width", 1) * img.width)
             h = int(op.get("height", 1) * img.height)
             img = img.crop((x, y, x + w, y + h))
+        elif op_type == "tint":
+            v = op.get("value", 0)
+            img = _adjust_tint(img, v)
+        elif op_type == "vibrance":
+            v = op.get("value", 1.0)
+            img = _adjust_vibrance(img, v)
+        elif op_type == "clarity":
+            v = op.get("value", 1.0)
+            img = _adjust_clarity(img, v)
+        elif op_type == "dehaze":
+            v = op.get("value", 0)
+            img = _adjust_dehaze(img, v)
+        elif op_type == "exposure":
+            v = op.get("value", 0)
+            img = _adjust_exposure(img, v)
+        elif op_type == "blacks":
+            v = op.get("value", 0)
+            img = _adjust_blacks(img, v)
+        elif op_type == "whites":
+            v = op.get("value", 0)
+            img = _adjust_whites(img, v)
+        elif op_type == "grain":
+            v = op.get("value", 0)
+            img = _apply_grain(img, v)
+        elif op_type == "grayscale":
+            img = img.convert("L").convert("RGB")
+        elif op_type == "colorize":
+            v = op.get("value", 0)
+            img = _apply_colorize(img, v)
 
     edited_dir = current_app.config["EDITED_IMAGES_DIR"]
     os.makedirs(edited_dir, exist_ok=True)
@@ -1718,3 +1872,107 @@ def delete_location(loc_id):
     db.session.delete(loc)
     db.session.commit()
     return jsonify({"message": "Deleted"}), 200
+
+
+@api_bp.route("/files/<int:file_id>/export", methods=["POST"])
+def export_file(file_id):
+    data = request.get_json(silent=True) or {}
+    operations = data.get("operations", [])
+    fmt = data.get("format", "jpeg")
+    quality = data.get("quality", 95)
+
+    file_record = db.session.get(ImportedFile, file_id)
+    if not file_record:
+        return jsonify({"error": "File not found"}), 404
+    if not os.path.isfile(file_record.file_path):
+        return jsonify({"error": "Original file no longer exists"}), 404
+
+    img = Image.open(file_record.file_path)
+
+    for op in operations:
+        op_type = op.get("type")
+        if op_type == "rotate":
+            img = img.rotate(op.get("degrees", 0), expand=True, resample=Image.BICUBIC)
+        elif op_type == "flip":
+            d = op.get("direction")
+            if d == "horizontal":
+                img = img.transpose(Image.FLIP_LEFT_RIGHT)
+            elif d == "vertical":
+                img = img.transpose(Image.FLIP_TOP_BOTTOM)
+        elif op_type == "grayscale":
+            img = img.convert("L").convert("RGB")
+        elif op_type == "brightness":
+            img = ImageEnhance.Brightness(img).enhance(op.get("value", 1.0))
+        elif op_type == "contrast":
+            img = ImageEnhance.Contrast(img).enhance(op.get("value", 1.0))
+        elif op_type == "saturation":
+            img = ImageEnhance.Color(img).enhance(op.get("value", 1.0))
+        elif op_type == "sharpness":
+            img = ImageEnhance.Sharpness(img).enhance(op.get("value", 1.0))
+        elif op_type == "highlights":
+            img = _adjust_highlights_shadows(img, "highlights", op.get("value", 0))
+        elif op_type == "shadows":
+            img = _adjust_highlights_shadows(img, "shadows", op.get("value", 0))
+        elif op_type == "warmth":
+            img = _adjust_warmth(img, op.get("value", 0))
+        elif op_type == "vignette":
+            img = _apply_vignette(img, op.get("value", 0))
+        elif op_type == "tint":
+            img = _adjust_tint(img, op.get("value", 0))
+        elif op_type == "vibrance":
+            img = _adjust_vibrance(img, op.get("value", 1.0))
+        elif op_type == "clarity":
+            img = _adjust_clarity(img, op.get("value", 1.0))
+        elif op_type == "dehaze":
+            img = _adjust_dehaze(img, op.get("value", 0))
+        elif op_type == "exposure":
+            img = _adjust_exposure(img, op.get("value", 0))
+        elif op_type == "blacks":
+            img = _adjust_blacks(img, op.get("value", 0))
+        elif op_type == "whites":
+            img = _adjust_whites(img, op.get("value", 0))
+        elif op_type == "grain":
+            img = _apply_grain(img, op.get("value", 0))
+        elif op_type == "colorize":
+            img = _apply_colorize(img, op.get("value", 0))
+        elif op_type == "filter":
+            img = _apply_filter_preset(img, op.get("name", ""))
+        elif op_type == "crop":
+            x = int(op.get("x", 0) * img.width)
+            y = int(op.get("y", 0) * img.height)
+            w = int(op.get("width", 1) * img.width)
+            h = int(op.get("height", 1) * img.height)
+            img = img.crop((x, y, x + w, y + h))
+
+    if fmt == "ascii":
+        chars = data.get("ascii_chars", "@%#*+=-:. ")
+        w_out = int(data.get("ascii_width", 120))
+        img_small = img.convert("L").resize((w_out, int(w_out * img.height / img.width * 0.55)))
+        pixels = list(img_small.getdata())
+        ascii_str = "\n".join(
+            "".join(chars[min(p // (256 // len(chars)), len(chars) - 1)] for p in pixels[i:i + w_out])
+            for i in range(0, len(pixels), w_out)
+        )
+        buf = io.BytesIO(ascii_str.encode("utf-8"))
+        buf.seek(0)
+        return send_file(buf, mimetype="text/plain", as_attachment=True, download_name=f"{os.path.splitext(file_record.filename)[0]}_ascii.txt")
+
+    fmt_map = {"jpeg": "JPEG", "png": "PNG", "webp": "WebP", "heic": "HEIF", "pdf": "PDF"}
+    pil_fmt = fmt_map.get(fmt, "JPEG")
+
+    if pil_fmt == "JPEG":
+        img = img.convert("RGB")
+
+    save_kwargs = {"format": pil_fmt}
+    if pil_fmt in ("JPEG", "WebP"):
+        save_kwargs["quality"] = quality
+
+    buf = io.BytesIO()
+    img.save(buf, **save_kwargs)
+    buf.seek(0)
+
+    ext_map = {"jpeg": ".jpg", "png": ".png", "webp": ".webp", "heic": ".heic", "pdf": ".pdf"}
+    ext = ext_map.get(fmt, ".jpg")
+
+    return send_file(buf, mimetype=f"image/{fmt}" if fmt != "pdf" else "application/pdf",
+                     as_attachment=True, download_name=f"{os.path.splitext(file_record.filename)[0]}_export{ext}")

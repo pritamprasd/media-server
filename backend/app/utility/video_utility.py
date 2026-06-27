@@ -1,5 +1,6 @@
 import base64
 import json
+import math
 import os
 import subprocess
 
@@ -123,11 +124,30 @@ def generate_video_thumbnail(path, meta):
     meta.thumbnail = f"data:image/jpeg;base64,{b64}"
 
 
+def _atempo_chain(speed):
+    """Build atempo filter chain for any speed value.
+    atempo supports 0.5–2.0, so chain multiple filters for wider range.
+    """
+    filters = []
+    remaining = speed
+    while remaining > 2.0:
+        filters.append("atempo=2.0")
+        remaining /= 2.0
+    while remaining < 0.5:
+        filters.append("atempo=0.5")
+        remaining /= 0.5
+    if remaining != 1.0:
+        filters.append(f"atempo={remaining:.5f}")
+    return filters
+
+
 def edit_video(input_path, output_path, operations):
-    filter_parts = []
+    video_filters = []
+    audio_filters = []
     trim_start = None
     trim_end = None
     rotate_deg = None
+    speed_val = 1.0
 
     for op in operations:
         t = op.get("type")
@@ -141,15 +161,37 @@ def edit_video(input_path, output_path, operations):
         elif t == "brightness":
             v = op.get("value", 1.0)
             if v != 1.0:
-                filter_parts.append(f"eq=brightness={v - 1.0:.2f}")
+                video_filters.append(f"eq=brightness={v - 1.0:.2f}")
         elif t == "contrast":
             v = op.get("value", 1.0)
             if v != 1.0:
-                filter_parts.append(f"eq=contrast={v:.2f}")
+                video_filters.append(f"eq=contrast={v:.2f}")
         elif t == "saturation":
             v = op.get("value", 1.0)
             if v != 1.0:
-                filter_parts.append(f"eq=saturation={v:.2f}")
+                video_filters.append(f"eq=saturation={v:.2f}")
+        elif t == "warmth":
+            v = op.get("value", 0)
+            if v != 0:
+                r = max(-0.5, min(0.5, v / 200))
+                b = -r
+                video_filters.append(f"colorbalance=rs={r:.3f}:gs=0:bs={b:.3f}")
+        elif t == "speed":
+            speed_val = op.get("value", 1.0)
+        elif t == "volume":
+            v = op.get("value", 1.0)
+            if v != 1.0:
+                audio_filters.append(f"volume={v:.2f}")
+        elif t == "reverse":
+            video_filters.append("reverse")
+            audio_filters.append("areverse")
+        elif t == "audio_mute":
+            audio_filters.append("volume=0")
+
+    # Speed via setpts (video) and atempo (audio)
+    if speed_val != 1.0:
+        video_filters.append(f"setpts={1 / speed_val:.5f}*PTS")
+        audio_filters.extend(_atempo_chain(speed_val))
 
     cmd = ["ffmpeg", "-y", "-v", "error"]
 
@@ -159,20 +201,22 @@ def edit_video(input_path, output_path, operations):
     if trim_end is not None and trim_end > 0:
         cmd.extend(["-to", f"{trim_end:.2f}"])
 
-    video_filters = []
+    # Build video filter chain (rotate ops come first)
+    vf_parts = []
     if rotate_deg == 90:
-        video_filters.append("transpose=1")
+        vf_parts.append("transpose=1")
     elif rotate_deg == -90 or rotate_deg == 270:
-        video_filters.append("transpose=2")
+        vf_parts.append("transpose=2")
     elif rotate_deg == 180:
-        video_filters.append("vflip,hflip")
+        vf_parts.append("vflip,hflip")
+    vf_parts.extend(video_filters)
 
-    video_filters.extend(filter_parts)
+    needs_reencode = len(vf_parts) > 0 or len(audio_filters) > 0
 
-    needs_reencode = len(video_filters) > 0
-
-    if video_filters:
-        cmd.extend(["-vf", ",".join(video_filters)])
+    if vf_parts:
+        cmd.extend(["-vf", ",".join(vf_parts)])
+    if audio_filters:
+        cmd.extend(["-af", ",".join(audio_filters)])
 
     if needs_reencode:
         cmd.extend(["-c:v", "libx264", "-preset", "medium", "-crf", "23", "-c:a", "aac"])

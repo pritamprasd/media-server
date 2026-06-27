@@ -289,4 +289,9 @@ export async function updateFace(faceId, payload) {
   return data;
 }
 
+export async function exportFile(fileId, operations, opts = {}) {
+  const { data } = await client.post(`/files/${fileId}/export`, { operations, ...opts }, { responseType: "blob" });
+  return data;
+}
+
 export default client;
