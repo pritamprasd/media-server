@@ -124,6 +124,8 @@ def process_import_folder(self, folder_path, groups):
         extract_file_metadata.delay(file_info)
         generate_thumbnail.delay(file_info)
         generate_ai_metadata.delay(file_info)
+        if file_info.get("mime_type", "").startswith("image/"):
+            detect_faces.delay(file_info)
     print(f"Total file imported: {new_file_count} out of {file_count} files.")
 
 

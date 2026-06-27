@@ -20,7 +20,7 @@ from app.models.imported_directory import ImportedDirectory
 from app.models.imported_file import ImportedFile
 from app.models.location import SavedLocation
 from app.models.filter_preset import FilterPreset
-from app.tasks import extract_file_metadata, generate_ai_metadata, generate_thumbnail, process_import_folder
+from app.tasks import extract_file_metadata, generate_ai_metadata, generate_thumbnail, process_import_folder, detect_faces
 from app.utility.file_system import traverse_directory
 from app.utility.hash_utility import hamming_distance
 from app.utility.mime_utility import guess_mime
@@ -761,6 +761,8 @@ def edit_file(file_id):
     extract_file_metadata.delay(file_info)
     generate_ai_metadata.delay(file_info)
     generate_thumbnail.delay(file_info)
+    if f.mime_type.startswith("image/"):
+        detect_faces.delay(file_info)
 
     return jsonify(f.to_dict()), 201
 
@@ -994,6 +996,8 @@ def upload_files():
         extract_file_metadata.delay(file_info)
         generate_ai_metadata.delay(file_info)
         generate_thumbnail.delay(file_info)
+        if mime.startswith("image/"):
+            detect_faces.delay(file_info)
 
         saved.append(file_record.to_dict())
 
