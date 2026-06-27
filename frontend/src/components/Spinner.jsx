@@ -5,7 +5,16 @@ const VARIANTS = ["plane", "pulse", "bounce", "wave", "flow", "swing", "grid", "
 
 const DOT_VARIANTS = new Set(["bounce", "chase", "circle", "flow", "swing"]);
 
-function Spinner({ size = 28, color, className = "" }) {
+function Spinner({ size = 28, color, center, className = "" }) {
+  const inner = <SpinnerInner size={size} color={color} className={className} />;
+  if (center) {
+    const wrapCls = `sk-spinner-wrap${center === "full" ? " sk-spinner-wrap--full" : ""}`;
+    return <div className={wrapCls}>{inner}</div>;
+  }
+  return inner;
+}
+
+function SpinnerInner({ size, color, className }) {
   const variant = useRef(VARIANTS[Math.floor(Math.random() * VARIANTS.length)]).current;
 
   const style = {

@@ -1,4 +1,12 @@
-.sk-center { margin: auto; }
+.sk-spinner-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.sk-spinner-wrap--full {
+  width: 100%;
+  min-height: 200px;
+}
 
 /*  Plane */
 .sk-plane {

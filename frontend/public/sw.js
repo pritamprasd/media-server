@@ -2,6 +2,7 @@ const CACHES = {
   shell: "media-server-shell-v1",
   api: "media-server-api-v1",
   media: "media-server-media-v1",
+  tiles: "media-server-tiles-v1",
 };
 
 const SHELL_URLS = ["/", "/index.html"];
@@ -168,6 +169,12 @@ self.addEventListener("message", (e) => {
 self.addEventListener("fetch", (e) => {
   const { request } = e;
   const url = new URL(request.url);
+
+  // Cache-first for map tiles (OpenStreetMap)
+  if (url.hostname.endsWith(".tile.openstreetmap.org") && request.method === "GET") {
+    e.respondWith(cacheFirst(request, CACHES.tiles));
+    return;
+  }
 
   if (!isSameOrigin(url)) return;
 

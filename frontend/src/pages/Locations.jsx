@@ -59,7 +59,7 @@ function Locations() {
   if (loading) {
     return (
       <div className="locations">
-        <Spinner size={32} />
+        <Spinner size={32} center="full" />
       </div>
     );
   }

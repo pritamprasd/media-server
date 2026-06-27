@@ -38,7 +38,7 @@ function Statistics() {
       .finally(() => setLoading(false));
   }, []);
 
-  if (loading) return <div className="stats stats--loading"><Spinner size={36} /></div>;
+  if (loading) return <div className="stats stats--loading"><Spinner size={36} center="full" /></div>;
   if (error) return <div className="stats stats--error"><p>{error}</p></div>;
   if (!data) return null;
 

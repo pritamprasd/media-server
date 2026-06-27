@@ -38,10 +38,12 @@ const activeIcon = L.divIcon({
 
 function FitBounds({ markers }) {
   const map = useMap();
+  const hasFitted = useRef(false);
   useEffect(() => {
-    if (markers.length > 0) {
+    if (markers.length > 0 && !hasFitted.current) {
       const bounds = L.latLngBounds(markers.map((m) => [m.latitude, m.longitude]));
-      map.fitBounds(bounds, { padding: [40, 40] });
+      map.fitBounds(bounds, { padding: [40, 40], maxZoom: 16 });
+      hasFitted.current = true;
     }
   }, [markers, map]);
   return null;
@@ -123,7 +125,10 @@ function Map() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading]);
 
-  const markers = files.filter((f) => f.latitude != null && f.longitude != null);
+  const markers = useMemo(
+    () => files.filter((f) => f.latitude != null && f.longitude != null),
+    [files]
+  );
 
   const locations = useMemo(() => {
     const map = {};
@@ -193,7 +198,7 @@ function Map() {
       ? `${filteredMarkers.length} file${filteredMarkers.length !== 1 ? "s" : ""} near this location`
       : "";
 
-  if (loading) return <div className="map"><Spinner size={36} /></div>;
+  if (loading) return <div className="map"><Spinner size={36} center="full" /></div>;
   if (error) return <div className="map map--error"><p>{error}</p></div>;
 
   return (
@@ -209,6 +214,9 @@ function Map() {
             <TileLayer
               attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+              crossOrigin="anonymous"
+              keepBuffer={5}
+              updateWhenIdle={false}
             />
             <FitBounds markers={markers} />
             <MapController markers={markers} activeMarkerId={activeMarkerId} onMapClick={handleMapClick} />
