@@ -31,6 +31,7 @@ class ImportedFile(db.Model):
             "id": self.id,
             "directory_id": self.directory_id,
             "filename": self.filename,
+            "file_path": self.file_path,
             "relative_path": self.relative_path,
             "mime_type": self.mime_type,
             "size": self.size,

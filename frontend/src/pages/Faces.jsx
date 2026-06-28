@@ -52,6 +52,13 @@ function Faces() {
   useEffect(() => { loadPersons(); }, [loadPersons]);
 
   useEffect(() => {
+    if (selectedPerson && window.innerWidth <= 768) {
+      const wrap = document.querySelector(".faces-grid-wrap");
+      if (wrap) wrap.scrollTop = wrap.scrollHeight;
+    }
+  }, [selectedPerson]);
+
+  useEffect(() => {
     if (loading || loadingMore || personPage >= personPages) return;
     const el = sentinelRef.current;
     if (!el) return;

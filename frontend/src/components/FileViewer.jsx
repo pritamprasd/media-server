@@ -8,10 +8,10 @@ import {
   Sparkles, Undo2, Paintbrush, FlipHorizontal, Search, IdCard, FolderOpen,
   ChevronLeft, ChevronRight, Scissors, Palette, Droplets, Eye,
   Grid3X3, Sigma, ChevronDown, FileImage, Drama, Volume2,
-  Gauge, Rewind, VolumeX, Type, Info, ExternalLink, Share2,
+  Gauge, Rewind, VolumeX, Type, Info, ExternalLink, Share2, Copy,
 } from "lucide-react";
 import {
-  toggleFavorite as toggleFavApi, getFileMetadata, editFile, deleteFile, updateTags,
+  toggleFavorite as toggleFavApi, getFile, getFileMetadata, editFile, deleteFile, updateTags,
   regenerateAiMetadata, regenerateExif, regenerateThumbnail,
   listFilters, createFilter, deleteFilter,
   listFileFaces,
@@ -95,6 +95,7 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete, onN
   const navigate = useNavigate();
   const [isFav, setIsFav] = useState(file.is_favorite);
   const [meta, setMeta] = useState(null);
+  const [fileRecord, setFileRecord] = useState(null);
   const [metaLoading, setMetaLoading] = useState(true);
   const [editMode, setEditMode] = useState(false);
   const [operations, setOperations] = useState([]);
@@ -247,6 +248,9 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete, onN
       .then(setMeta)
       .catch(() => setMeta(null))
       .finally(() => setMetaLoading(false));
+    getFile(file.id)
+      .then(setFileRecord)
+      .catch(() => setFileRecord(null));
     listFileFaces(file.id)
       .then(setFileFaces)
       .catch(() => setFileFaces([]));
@@ -1511,6 +1515,21 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete, onN
               {meta && (
                 <div className="viewer-meta">
                   <h3 className="viewer-meta-title">Metadata</h3>
+                  {fileRecord?.file_path && (
+                    <div className="viewer-meta-row viewer-meta-path">
+                      <span className="viewer-meta-label"><FolderOpen size={12} /> Path</span>
+                      <span className="viewer-meta-value viewer-meta-path-value">
+                        <span className="viewer-path-text">{fileRecord.file_path}</span>
+                        <button
+                          className="viewer-path-copy"
+                          onClick={() => navigator.clipboard.writeText(fileRecord.file_path)}
+                          title="Copy path"
+                        >
+                          <Copy size={11} />
+                        </button>
+                      </span>
+                    </div>
+                  )}
                   {meta.width && meta.height && (
                     <div className="viewer-meta-row">
                       <span className="viewer-meta-label"><Maximize2 size={12} /> Dimensions</span>
