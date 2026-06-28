@@ -8,7 +8,7 @@ import {
   Sparkles, Undo2, Paintbrush, FlipHorizontal, Search, IdCard, FolderOpen,
   ChevronLeft, ChevronRight, Scissors, Palette, Droplets, Eye,
   Grid3X3, Sigma, ChevronDown, FileImage, Drama, Volume2,
-  Gauge, Rewind, VolumeX, Type, Info,
+  Gauge, Rewind, VolumeX, Type, Info, ExternalLink,
 } from "lucide-react";
 import {
   toggleFavorite as toggleFavApi, getFileMetadata, editFile, deleteFile, updateTags,
@@ -16,7 +16,8 @@ import {
   listFilters, createFilter, deleteFilter,
   listFileFaces,
   updateFace,
-  detectFaces,  
+  detectFaces,
+  reverseGeocode,
 } from "../services/api";
 import Spinner from "./Spinner";
 import { getPref, setPref } from "../services/db";
@@ -139,6 +140,7 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete, onN
   const [textOverlay, setTextOverlay] = useState({ text: "", x: 50, y: 50, fontSize: 24, color: "#ffffff", enabled: false });
   const [mediaLoading, setMediaLoading] = useState(true);
   const [tabOrder, setTabOrder] = useState(null);
+  const [locationName, setLocationName] = useState(null);
   const originalBtnRef = useRef(null);
   const videoRef = useRef(null);
   const exportRef = useRef(null);
@@ -251,6 +253,19 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete, onN
       if (pollRef.current) clearInterval(pollRef.current);
     };
   }, [file.id, onClose, editMode, onNavigatePrev, onNavigateNext]);
+
+  useEffect(() => {
+    if (meta?.latitude != null && meta?.longitude != null) {
+      setLocationName(null);
+      reverseGeocode(meta.latitude, meta.longitude)
+        .then((res) => {
+          if (res.display_name) setLocationName(res.display_name);
+        })
+        .catch(() => {});
+    } else {
+      setLocationName(null);
+    }
+  }, [meta?.latitude, meta?.longitude]);
 
   const handleOverlayClick = (e) => {
     if (e.target === overlayRef.current) {
@@ -1487,8 +1502,25 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete, onN
                   )}
                   {meta.latitude != null && meta.longitude != null && (
                     <div className="viewer-meta-row">
-                      <span className="viewer-meta-label"><MapPin size={12} /> GPS</span>
-                      <span className="viewer-meta-value">{meta.latitude}, {meta.longitude}</span>
+                      <span className="viewer-meta-label"><MapPin size={12} /> Location</span>
+                      <span className="viewer-meta-value">
+                        {locationName ? (
+                          <span className="viewer-location-name">{locationName}</span>
+                        ) : (
+                          <>
+                            {meta.latitude.toFixed(4)}, {meta.longitude.toFixed(4)}
+                          </>
+                        )}
+                        <a
+                          href={`https://www.google.com/maps?q=${meta.latitude},${meta.longitude}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="viewer-gmaps-link"
+                          title="Open in Google Maps"
+                        >
+                          <ExternalLink size={12} />
+                        </a>
+                      </span>
                     </div>
                   )}
                   {meta.description && (

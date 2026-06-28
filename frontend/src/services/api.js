@@ -299,4 +299,9 @@ export async function exportVideo(fileId, operations, opts = {}) {
   return data;
 }
 
+export async function reverseGeocode(lat, lng) {
+  const { data } = await client.get("/geocode/reverse", { params: { lat, lng } });
+  return data;
+}
+
 export default client;

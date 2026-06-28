@@ -425,6 +425,7 @@ function Home() {
               </div>
             </div>
 
+            {(mimeGroup === "image" || mimeGroup === "video") && (
             <div className="home__dim-filters">
               <span className="home__dim-label">
                 {mimeGroup === "video" ? "Min resolution:" : "Min dimension:"}
@@ -440,7 +441,17 @@ function Home() {
                   </button>
                 ))}
               </div>
+              <select
+                className="home__dim-select"
+                value={dimPresets.findIndex((p) => p.w === minWidth && p.h === minHeight)}
+                onChange={(e) => handleDimPreset(dimPresets[+e.target.value])}
+              >
+                {dimPresets.map((p, i) => (
+                  <option key={p.label} value={i}>{p.label}</option>
+                ))}
+              </select>
             </div>
+            )}
 
             <div className="home__tag-filter">
               <div className="home__tag-dropdown">

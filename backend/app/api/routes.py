@@ -3,6 +3,9 @@ import os
 import shutil
 import random
 import math
+import json
+import time
+import urllib.request
 from datetime import datetime
 
 from PIL import Image, ImageEnhance
@@ -1982,6 +1985,45 @@ def export_file(file_id):
 
     return send_file(buf, mimetype=f"image/{fmt}" if fmt != "pdf" else "application/pdf",
                      as_attachment=True, download_name=f"{os.path.splitext(file_record.filename)[0]}_export{ext}")
+
+
+_geocode_cache = {}
+_geocode_last_call = 0
+
+@api_bp.route("/geocode/reverse", methods=["GET"])
+def reverse_geocode():
+    lat = request.args.get("lat")
+    lng = request.args.get("lng")
+    if not lat or not lng:
+        return jsonify({"error": "lat and lng parameters are required"}), 400
+
+    cache_key = f"{float(lat):.4f},{float(lng):.4f}"
+    cached = _geocode_cache.get(cache_key)
+    if cached:
+        return jsonify(cached)
+
+    global _geocode_last_call
+    now = time.time()
+    elapsed = now - _geocode_last_call
+    if elapsed < 1.0:
+        time.sleep(1.0 - elapsed)
+    _geocode_last_call = time.time()
+
+    url = f"https://nominatim.openstreetmap.org/reverse?lat={lat}&lon={lng}&format=json&zoom=12"
+    req = urllib.request.Request(url, headers={"User-Agent": "MediaServer/1.0"})
+    try:
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            data = json.loads(resp.read().decode())
+            display_name = data.get("display_name") or data.get("name") or ""
+            if display_name:
+                result = {"display_name": display_name}
+            else:
+                result = {"error": "No location found"}
+    except Exception as e:
+        result = {"error": str(e)}
+
+    _geocode_cache[cache_key] = result
+    return jsonify(result)
 
 
 @api_bp.route("/files/<int:file_id>/export-video", methods=["POST"])

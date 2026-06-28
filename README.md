@@ -28,7 +28,7 @@ A scalable, semantic-searchable media viewer for your home media collection. Fea
 - **Directory tree** — Gallery page organized by import session; lazy-loaded expandable directories with file counts
 - **Overlay viewer** — full-screen modal with zoom, pan (drag when zoomed), rotate, flip, contrast/saturation/brightness controls; left/right arrow and button navigation through the current file list; keyboard shortcuts (← → navigate, Esc close)
 - **Loading spinner** — `<Spinner>` overlay shown while media is downloading, hidden once image/video fires `onLoad`/`onCanPlay`
-- **Metadata sidebar** — EXIF data, GPS coordinates, dimensions, duration, date taken, AI-generated description and tags, search words, file hash, thumbnail status; people section with face thumbnails and "Detect Faces" button
+- **Metadata sidebar** — EXIF data, GPS coordinates with **reverse geocoded location name** (via Nominatim) + Google Maps link fallback, dimensions, duration, date taken, AI-generated description and tags, search words, file hash, thumbnail status; people section with face thumbnails and "Detect Faces" button
 - **Tags** — view, add, and remove tags inline; person names auto-synced as tags from face detection
 - **Filter presets** — save custom filter combinations (brightness, contrast, saturation, warmth, sharpness, highlights, shadows, vignette, crop) as named presets; apply and delete presets from the viewer
 - **Browse Folder** — opens the parent directory in the Home grid from any file in the viewer
@@ -86,7 +86,7 @@ A scalable, semantic-searchable media viewer for your home media collection. Fea
 - **Full-text search** — search across filename, tags, AI description, search keywords, and **person names** (via `DetectedFace` + `Person` join)
 - **Media type filter** — toggle between All / Images / Videos
 - **AI filter** — show only files with AI-generated metadata
-- **Dimension filter** — preset resolution thresholds (VGA, HD, Full HD, 4K)
+- **Dimension filter** — preset resolution thresholds (VGA, HD, Full HD, 4K); responsive dropdown on mobile
 - **Tag filter** — dropdown with tag search and count badges
 - **Sort** — by name, date, or size; asc/desc toggle per column
 - **Directory filter** — tree dialog to filter by import directory
@@ -113,12 +113,16 @@ A scalable, semantic-searchable media viewer for your home media collection. Fea
 - **Editor Tab Order** — reorder image and video editor tabs via move-up/move-down; persisted to IndexedDB and reflected in the viewer
 - **Cache clear** — clear all IndexedDB caches and service worker caches; uses `navigator.serviceWorker.ready` for Chrome PWA compatibility
 
+### 🌍 Geocoding
+- **Reverse geocoding** — backend endpoint calls Nominatim API with 1 req/s rate limiting; results cached in-memory by rounded coordinates (4 decimal places)
+- **Google Maps link** — every GPS entry shows an `ExternalLink` icon that opens `https://www.google.com/maps?q=lat,lng` in a new tab
+
 ### 🎨 Design System
 - **Neumorphic UI** — custom box-shadow system (`--neu-raised`, `--neu-inset`, `--neu-flat`) across all interactive elements
 - **Dark/Light themes** — 50+ CSS custom properties; dark base `#0d0d0d`, light base `#e4e4ed`
 - **Animations** — 10 CSS-only SpinKit spinner variants (ring, dual-ring, dots, pulse, bars, hourglass, ripple, infinity, grid, circle) with size/color theming
 - **Lucide icons** — every button uses a thoughtful lucide-react icon
-- **Responsive** — mobile layouts for Faces sidebar, Upload bottom sheet, map layout, viewer padding (buttons no longer hidden behind image content)
+- **Responsive** — mobile layouts for Faces sidebar, Upload bottom sheet, map layout, viewer padding (buttons no longer hidden behind image content); filter bar collapses to stacked layout with dimension dropdown, full-width tag selector, and evenly-spaced sort buttons on ≤768px
 
 ### 🌐 PWA & Offline
 - **Installable** — full PWA manifest with standalone display, theme color, icon set (192/512 PNG + SVG)
@@ -338,11 +342,12 @@ flask db downgrade            # Rollback one migration
 | GET | `/api/faces` | List faces (optionally filtered by person) |
 | GET | `/api/faces/stats` | Face detection statistics |
 
-### System
+### System & Geocoding
 | Method | Path | Description |
 | ------ | ---- | ----------- |
 | GET | `/health` | Health check |
 | GET | `/api/status` | API status |
+| GET | `/api/geocode/reverse` | Reverse geocode lat/lng to location name (Nominatim) |
 | GET | `/api/stats` | System statistics (files, size, types) |
 | GET | `/api/trash` | List trashed files |
 | POST | `/api/trash/empty` | Permanently delete all trashed files |
