@@ -171,6 +171,16 @@ function Settings() {
               title={c.name}
             />
           ))}
+          <label
+            className={`settings__color-btn settings__color-picker ${!ACCENT_COLORS.some((c) => c.value === accentColor) ? "settings__color-btn--active" : ""}`}
+            title="Custom color"
+          >
+            <input
+              type="color"
+              value={ACCENT_COLORS.some((c) => c.value === accentColor) ? "#3498db" : accentColor}
+              onChange={(e) => handleAccentChange(e.target.value)}
+            />
+          </label>
         </div>
       </div>
 
