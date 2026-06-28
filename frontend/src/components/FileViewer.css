@@ -1171,11 +1171,15 @@
   overflow-y: auto;
   max-height: 50vh;
 }
+.viewer-info-section:not(:last-child) {
+  margin-bottom: 1rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--neu-dark);
+}
 .viewer-info h1 { font-size: 1rem; margin-bottom: 0.5rem; color: var(--color-primary); }
-.viewer-info h2 { font-size: 0.875rem; margin: 0.75rem 0 0.25rem; color: var(--color-text); }
+.viewer-info h2 { font-size: 0.875rem; margin: 0 0 0.25rem; color: var(--color-text); }
 .viewer-info h3 { font-size: 0.8125rem; margin: 0.5rem 0 0.25rem; color: var(--color-text-muted); }
 .viewer-info p { font-size: 0.75rem; line-height: 1.5; margin: 0.25rem 0; color: var(--color-text-muted); }
-.viewer-info hr { border: none; border-top: 1px solid var(--neu-dark); margin: 0.75rem 0; }
 .viewer-info blockquote {
   border-left: 2px solid var(--color-primary);
   padding-left: 0.5rem;
@@ -1184,11 +1188,11 @@
   color: var(--color-text-muted);
   opacity: 0.8;
 }
-.viewer-info-table-wrap { margin: 0.5rem 0; }
 .viewer-info table {
   width: 100%;
   border-collapse: collapse;
   font-size: 0.7rem;
+  margin-top: 0.35rem;
 }
 .viewer-info th, .viewer-info td {
   text-align: left;

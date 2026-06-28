@@ -53,6 +53,11 @@ export async function listFavorites() {
   return data;
 }
 
+export async function getFile(fileId) {
+  const { data } = await client.get(`/files/${fileId}`);
+  return data;
+}
+
 export async function getFileMetadata(fileId) {
   const { data } = await client.get(`/files/${fileId}/metadata`);
   return data;

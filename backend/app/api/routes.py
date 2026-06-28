@@ -947,6 +947,14 @@ def _convert_heic_to_jpeg(path):
     return None
 
 
+@api_bp.route("/files/<int:file_id>", methods=["GET"])
+def get_file(file_id):
+    file_record = db.session.get(ImportedFile, file_id)
+    if not file_record:
+        return jsonify({"error": "File not found"}), 404
+    return jsonify(file_record.to_dict()), 200
+
+
 @api_bp.route("/files/<int:file_id>/serve", methods=["GET"])
 def serve_file(file_id):
     file_record = db.session.get(ImportedFile, file_id)
@@ -1987,8 +1995,15 @@ def export_file(file_id):
                      as_attachment=True, download_name=f"{os.path.splitext(file_record.filename)[0]}_export{ext}")
 
 
-_geocode_cache = {}
 _geocode_last_call = 0
+
+_redis_client = None
+def _get_redis():
+    global _redis_client
+    if _redis_client is None:
+        import redis as _redis_mod
+        _redis_client = _redis_mod.from_url(config.CELERY_BROKER_URL)
+    return _redis_client
 
 @api_bp.route("/geocode/reverse", methods=["GET"])
 def reverse_geocode():
@@ -1997,10 +2012,14 @@ def reverse_geocode():
     if not lat or not lng:
         return jsonify({"error": "lat and lng parameters are required"}), 400
 
-    cache_key = f"{float(lat):.4f},{float(lng):.4f}"
-    cached = _geocode_cache.get(cache_key)
-    if cached:
-        return jsonify(cached)
+    cache_key = f"geocode:{float(lat):.4f},{float(lng):.4f}"
+    try:
+        r = _get_redis()
+        cached = r.get(cache_key)
+        if cached:
+            return jsonify(json.loads(cached))
+    except Exception:
+        pass
 
     global _geocode_last_call
     now = time.time()
@@ -2009,7 +2028,7 @@ def reverse_geocode():
         time.sleep(1.0 - elapsed)
     _geocode_last_call = time.time()
 
-    url = f"https://nominatim.openstreetmap.org/reverse?lat={lat}&lon={lng}&format=json&zoom=12"
+    url = f"https://nominatim.openstreetmap.org/reverse?lat={lat}&lon={lng}&format=json&zoom=12&accept-language=en"
     req = urllib.request.Request(url, headers={"User-Agent": "MediaServer/1.0"})
     try:
         with urllib.request.urlopen(req, timeout=5) as resp:
@@ -2022,7 +2041,12 @@ def reverse_geocode():
     except Exception as e:
         result = {"error": str(e)}
 
-    _geocode_cache[cache_key] = result
+    try:
+        r = _get_redis()
+        r.set(cache_key, json.dumps(result))
+    except Exception:
+        pass
+
     return jsonify(result)
 
 

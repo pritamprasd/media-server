@@ -8,7 +8,7 @@ import {
   Sparkles, Undo2, Paintbrush, FlipHorizontal, Search, IdCard, FolderOpen,
   ChevronLeft, ChevronRight, Scissors, Palette, Droplets, Eye,
   Grid3X3, Sigma, ChevronDown, FileImage, Drama, Volume2,
-  Gauge, Rewind, VolumeX, Type, Info, ExternalLink,
+  Gauge, Rewind, VolumeX, Type, Info, ExternalLink, Share2,
 } from "lucide-react";
 import {
   toggleFavorite as toggleFavApi, getFileMetadata, editFile, deleteFile, updateTags,
@@ -21,7 +21,7 @@ import {
 } from "../services/api";
 import Spinner from "./Spinner";
 import { getPref, setPref } from "../services/db";
-// import editingInfoMd from "./image_editing_info.md?raw";
+import editingInfoMd from "../image_editing_info.md?raw";
 import "./FileViewer.css";
 
 const FILTERS = [
@@ -129,6 +129,8 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete, onN
   const [cropAspect, setCropAspect] = useState("free");
   const [cropDrag, setCropDrag] = useState(null);
   const [cropApplied, setCropApplied] = useState(false);
+  const cropDragRef = useRef(null);
+  const cropAspectRef = useRef("free");
   const [fileFaces, setFileFaces] = useState([]);
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [exportFormat, setExportFormat] = useState("jpeg");
@@ -141,6 +143,7 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete, onN
   const [mediaLoading, setMediaLoading] = useState(true);
   const [tabOrder, setTabOrder] = useState(null);
   const [locationName, setLocationName] = useState(null);
+  const [shareCopied, setShareCopied] = useState(false);
   const originalBtnRef = useRef(null);
   const videoRef = useRef(null);
   const exportRef = useRef(null);
@@ -283,6 +286,14 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete, onN
       setIsFav(updated.is_favorite);
       if (onToggleFavorite) onToggleFavorite(file.id, updated.is_favorite);
     } catch {}
+  };
+
+  const handleShare = () => {
+    const url = `${window.location.origin}/view/${file.id}`;
+    navigator.clipboard.writeText(url).then(() => {
+      setShareCopied(true);
+      setTimeout(() => setShareCopied(false), 2000);
+    }).catch(() => {});
   };
 
   const addOp = useCallback((op) => {
@@ -592,6 +603,7 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete, onN
 
   const handleCropAspect = (ratio) => {
     setCropAspect(ratio);
+    cropAspectRef.current = ratio;
     if (ratio === "free") return;
     const [wr, hr] = ratio.split(":").map(Number);
     const target = wr / hr;
@@ -610,25 +622,34 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete, onN
     e.preventDefault();
     e.stopPropagation();
     if (!crop) return;
-    setCropDrag({ handle, startX: e.clientX, startY: e.clientY, origCrop: { ...crop } });
+    const drag = { handle, startX: e.clientX, startY: e.clientY, origCrop: { ...crop } };
+    setCropDrag(drag);
+    cropDragRef.current = drag;
+    document.addEventListener("mousemove", handleCropMouseMove);
+    document.addEventListener("mouseup", handleCropMouseUp);
   };
 
   const handleCropMouseDownRect = (e) => {
     e.preventDefault();
     e.stopPropagation();
     if (!crop) return;
-    setCropDrag({ handle: "move", startX: e.clientX, startY: e.clientY, origCrop: { ...crop } });
+    const drag = { handle: "move", startX: e.clientX, startY: e.clientY, origCrop: { ...crop } };
+    setCropDrag(drag);
+    cropDragRef.current = drag;
+    document.addEventListener("mousemove", handleCropMouseMove);
+    document.addEventListener("mouseup", handleCropMouseUp);
   };
 
   const handleCropMouseMove = (e) => {
-    if (!cropDrag || !imgRef.current) return;
+    const drag = cropDragRef.current;
+    if (!drag || !imgRef.current) return;
     const rect = imgRef.current.getBoundingClientRect();
-    const dx = (e.clientX - cropDrag.startX) / rect.width;
-    const dy = (e.clientY - cropDrag.startY) / rect.height;
-    const orig = cropDrag.origCrop;
+    const dx = (e.clientX - drag.startX) / rect.width;
+    const dy = (e.clientY - drag.startY) / rect.height;
+    const orig = drag.origCrop;
     let { x, y, w, h } = orig;
 
-    if (cropDrag.handle === "move") {
+    if (drag.handle === "move") {
       x = orig.x + dx;
       y = orig.y + dy;
       if (x < 0) x = 0;
@@ -639,17 +660,17 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete, onN
       return;
     }
 
-    switch (cropDrag.handle) {
+    switch (drag.handle) {
       case "se": w = orig.w + dx; h = orig.h + dy; break;
       case "ne": w = orig.w + dx; y = orig.y + dy; h = orig.h - dy; break;
       case "sw": x = orig.x + dx; w = orig.w - dx; h = orig.h + dy; break;
       case "nw": x = orig.x + dx; y = orig.y + dy; w = orig.w - dx; h = orig.h - dy; break;
     }
 
-    if (cropAspect !== "free") {
-      const [wr, hr] = cropAspect.split(":").map(Number);
+    if (cropAspectRef.current !== "free") {
+      const [wr, hr] = cropAspectRef.current.split(":").map(Number);
       const target = wr / hr;
-      if (cropDrag.handle === "se" || cropDrag.handle === "ne") {
+      if (drag.handle === "se" || drag.handle === "ne") {
         h = w / target;
       } else {
         w = h * target;
@@ -665,7 +686,21 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete, onN
     setCrop({ x, y, w, h });
   };
 
-  const handleCropMouseUp = () => setCropDrag(null);
+  const handleCropMouseUp = () => {
+    cropDragRef.current = null;
+    setCropDrag(null);
+    document.removeEventListener("mousemove", handleCropMouseMove);
+    document.removeEventListener("mouseup", handleCropMouseUp);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (cropDragRef.current) {
+        document.removeEventListener("mousemove", handleCropMouseMove);
+        document.removeEventListener("mouseup", handleCropMouseUp);
+      }
+    };
+  }, []);
 
   const handleExport = async (format) => {
     setExportFormat(format);
@@ -933,6 +968,7 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete, onN
                   )}
                 </div>
                 <a className="viewer-btn viewer-btn--download" href={fileUrl} download title="Download file"><Download size={15} /></a>
+                <button className="viewer-btn" onClick={handleShare} title="Copy share link">{shareCopied ? <span style={{fontSize:"0.65rem"}}>Copied!</span> : <Share2 size={15} />}</button>
                 <button className="viewer-btn viewer-btn--delete" onClick={handleDeleteClick} title="Delete file"><Trash2 size={15} /></button>
                 <button className={`viewer-fav ${isFav ? "viewer-fav--active" : ""}`} onClick={handleToggleFav} title={isFav ? "Remove from favorites" : "Add to favorites"}>
                   <Heart size={15} fill={isFav ? "currentColor" : "none"} />
@@ -963,7 +999,7 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete, onN
                   <div className="viewer-colorize" style={{ opacity: adjust.colorize / 100 }} />
                 )}
                 {editMode && editTab === "crop" && crop && !cropApplied && (
-                  <div className="viewer-crop-overlay" onMouseMove={handleCropMouseMove} onMouseUp={handleCropMouseUp} onMouseLeave={handleCropMouseUp}>
+                  <div className="viewer-crop-overlay">
                     <div className="viewer-crop-rect" style={{ left: `${crop.x * 100}%`, top: `${crop.y * 100}%`, width: `${crop.w * 100}%`, height: `${crop.h * 100}%` }}>
                       <div className="viewer-crop-move" onMouseDown={handleCropMouseDownRect} />
                       <div className="viewer-crop-handle viewer-crop-handle--nw" onMouseDown={(e) => handleCropMouseDown(e, "nw")} />
@@ -984,6 +1020,7 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete, onN
                   <button className="viewer-float-btn viewer-float-btn--zoom" onClick={handleZoomIn} title="Zoom in"><ZoomIn size={15} /></button>
                 </div>
                 <a className="viewer-float-btn" href={fileUrl} download title="Download"><Download size={16} /></a>
+                <button className="viewer-float-btn" onClick={handleShare} title="Copy share link"><Share2 size={16} /></button>
                 <button className="viewer-float-btn" onClick={handleDeleteClick} title="Delete"><Trash2 size={16} /></button>
                 <button className={`viewer-float-btn ${isFav ? "viewer-float-btn--active" : ""}`} onClick={handleToggleFav} title={isFav ? "Remove from favorites" : "Add to favorites"}>
                   <Heart size={16} fill={isFav ? "currentColor" : "none"} />
@@ -1354,41 +1391,33 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete, onN
 
                     {editTab === "info" && (
                       <div className="viewer-info">
-                        <div className="viewer-info-content">
-                          {editingInfoMd.split("\n").map((line, i) => {
-                            if (line.startsWith("# ")) return <h1 key={i}>{line.slice(2)}</h1>;
-                            if (line.startsWith("## ")) return <h2 key={i}>{line.slice(3)}</h2>;
-                            if (line.startsWith("### ")) return <h3 key={i}>{line.slice(4)}</h3>;
-                            if (line.startsWith("| ")) return null;
-                            if (line.startsWith("---")) return <hr key={i} />;
-                            if (line.startsWith("> ")) return <blockquote key={i}>{line.slice(2)}</blockquote>;
-                            if (line.startsWith("**")) {
-                              const bold = line.replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>");
-                              return <p key={i} dangerouslySetInnerHTML={{ __html: bold }} />;
-                            }
-                            if (line.trim()) return <p key={i}>{line}</p>;
-                            return <br key={i} />;
-                          })}
-                        </div>
-                        <div className="viewer-info-tables">
-                          {editingInfoMd.split("\n\n").filter(s => s.includes("|")).map((section, si) => {
-                            const lines = section.split("\n").filter(l => l.startsWith("|"));
-                            if (lines.length < 2) return null;
-                            const headers = lines[0].split("|").filter(Boolean).map(h => h.trim());
-                            const rows = lines.slice(2).map(row => row.split("|").filter(Boolean).map(c => c.trim()));
-                            const headerMatch = section.split("\n").find(l => l.startsWith("## "));
-                            const title = headerMatch ? headerMatch.slice(3) : "";
-                            return (
-                              <div key={si} className="viewer-info-table-wrap">
-                                {title && <h3 key={`t${si}`}>{title}</h3>}
-                                <table key={si}>
-                                  <thead><tr>{headers.map((h, hi) => <th key={hi}>{h}</th>)}</tr></thead>
-                                  <tbody>{rows.map((row, ri) => <tr key={ri}>{row.map((c, ci) => <td key={ci} dangerouslySetInnerHTML={{ __html: c.replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>") }} />)}</tr>)}</tbody>
+                        {editingInfoMd.split("\n---\n").map((section, si) => {
+                          const lines = section.split("\n").filter(l => l.trim());
+                          const heading = lines.find(l => l.startsWith("## "));
+                          const bodyLines = lines.filter(l => !l.startsWith("## ") && !l.startsWith("|") && !l.startsWith("|---") && !l.startsWith("> **"));
+                          const tipLine = lines.find(l => l.startsWith("> "));
+                          const tableLines = lines.filter(l => l.startsWith("|"));
+                          const tableHeaderMatch = lines.find(l => l.startsWith("|---"));
+                          return (
+                            <div key={si} className="viewer-info-section">
+                              {heading && <h2>{heading.slice(3)}</h2>}
+                              {bodyLines.map((line, li) => {
+                                if (line.startsWith("### ")) return <h3 key={li}>{line.slice(4)}</h3>;
+                                if (line.startsWith("**")) return <p key={li} dangerouslySetInnerHTML={{ __html: line.replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>") }} />;
+                                return <p key={li}>{line}</p>;
+                              })}
+                              {tipLine && <blockquote>{tipLine.slice(2)}</blockquote>}
+                              {tableLines.length >= 3 && tableHeaderMatch && (
+                                <table>
+                                  <thead><tr>{tableLines[0].split("|").filter(Boolean).map(h => h.trim()).map((h, hi) => <th key={hi}>{h}</th>)}</tr></thead>
+                                  <tbody>{tableLines.slice(2).filter(r => r.startsWith("|")).map((row, ri) => (
+                                    <tr key={ri}>{row.split("|").filter(Boolean).map((c, ci) => <td key={ci} dangerouslySetInnerHTML={{ __html: c.trim().replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>") }} />)}</tr>
+                                  ))}</tbody>
                                 </table>
-                              </div>
-                            );
-                          })}
-                        </div>
+                              )}
+                            </div>
+                          );
+                        })}
                       </div>
                     )}
 
