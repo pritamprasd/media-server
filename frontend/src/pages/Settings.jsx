@@ -1,6 +1,9 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Settings as SettingsIcon, ArrowRight, Palette, Save, Trash2, ArrowUp, ArrowDown } from "lucide-react";
+import {
+  Settings as SettingsIcon, ArrowRight, Palette, Save, Trash2,
+  ArrowUp, ArrowDown, RotateCcw,
+} from "lucide-react";
 import { getPref, setPref } from "../services/db";
 import "./Settings.css";
 
@@ -11,8 +14,12 @@ const TABS = [
   { path: "/favorites", label: "Favorites" },
   { path: "/upload", label: "Upload" },
   { path: "/map", label: "Map" },
+  { path: "/locations", label: "Locations" },
+  { path: "/faces", label: "Faces" },
   { path: "/duplicates", label: "Duplicates" },
   { path: "/statistics", label: "Statistics" },
+  { path: "/about", label: "About" },
+  { path: "/settings", label: "Settings" },
 ];
 
 const DEFAULT_IMAGE_TABS = ["filters", "adjust", "light", "effects", "details", "info", "crop"];
@@ -44,6 +51,7 @@ function Settings() {
   const [cacheStatus, setCacheStatus] = useState("idle");
   const [imageTabs, setImageTabs] = useState(DEFAULT_IMAGE_TABS);
   const [videoTabs, setVideoTabs] = useState(DEFAULT_VIDEO_TABS);
+  const [navTabs, setNavTabs] = useState(TABS.map((t) => t.path));
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -53,6 +61,9 @@ function Settings() {
     getPref("nickname", "").then(setSavedNickname);
     getPref("imageEditTabs", null).then((s) => setImageTabs(s || DEFAULT_IMAGE_TABS));
     getPref("videoEditTabs", null).then((s) => setVideoTabs(s || DEFAULT_VIDEO_TABS));
+    getPref("navbarTabOrder", null).then((order) => {
+      if (order && Array.isArray(order) && order.length > 0) setNavTabs(order);
+    });
   }, []);
 
   const handleMoveTab = (type, idx, dir) => {
@@ -74,6 +85,23 @@ function Settings() {
     const setter = type === "image" ? setImageTabs : setVideoTabs;
     setter(def);
     setPref(key, def);
+  };
+
+  const handleMoveNavTab = (idx, dir) => {
+    setNavTabs((prev) => {
+      const next = [...prev];
+      const target = idx + dir;
+      if (target < 0 || target >= next.length) return prev;
+      [next[idx], next[target]] = [next[target], next[idx]];
+      setPref("navbarTabOrder", next);
+      return next;
+    });
+  };
+
+  const handleResetNavTabs = () => {
+    const def = TABS.map((t) => t.path);
+    setNavTabs(def);
+    setPref("navbarTabOrder", def);
   };
 
   const handleTabChange = (e) => {
@@ -229,6 +257,27 @@ function Settings() {
           ))}
         </div>
         <button className="settings__btn settings__btn--small" onClick={() => handleResetTabs("video")}>Reset to defaults</button>
+      </div>
+
+      <div className="settings__card">
+        <h3 className="settings__label">Navbar Tab Order</h3>
+        <p className="settings__desc">Reorder the tabs shown in the navigation bar.</p>
+        <div className="settings__tabs-list">
+          {navTabs.map((path, i) => {
+            const tab = TABS.find((t) => t.path === path);
+            if (!tab) return null;
+            return (
+              <div key={path} className="settings__tab-row">
+                <span className="settings__tab-name">{tab.label}</span>
+                <div className="settings__tab-arrows">
+                  <button className="settings__tab-btn" disabled={i === 0} onClick={() => handleMoveNavTab(i, -1)} title="Move left"><ArrowUp size={13} /></button>
+                  <button className="settings__tab-btn" disabled={i === navTabs.length - 1} onClick={() => handleMoveNavTab(i, 1)} title="Move right"><ArrowDown size={13} /></button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        <button className="settings__btn settings__btn--small" onClick={handleResetNavTabs}><RotateCcw size={13} /> Reset to defaults</button>
       </div>
 
       <div className="settings__card">

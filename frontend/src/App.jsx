@@ -16,6 +16,7 @@ import MapPage from "./pages/Map";
 import Locations from "./pages/Locations";
 import Faces from "./pages/Faces";
 import ShareView from "./pages/ShareView";
+import About from "./pages/About";
 import "leaflet/dist/leaflet.css";
 import "./App.css";
 
@@ -84,6 +85,7 @@ function App() {
           <Route path="/map" element={<MapPage />} />
           <Route path="/locations" element={<Locations />} />
           <Route path="/faces" element={<Faces />} />
+          <Route path="/about" element={<About />} />
           <Route path="/view/:fileId" element={<ShareView />} />
         </Routes>
       </main>

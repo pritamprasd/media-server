@@ -1587,6 +1587,16 @@ def get_statistics():
         ImportedFile.deleted != True,
         ImportedFile.mime_type.like("video/%"),
     ).count()
+    audio_count = ImportedFile.query.filter(
+        ImportedFile.deleted != True,
+        ImportedFile.mime_type.like("audio/%"),
+    ).count()
+    document_count = ImportedFile.query.filter(
+        ImportedFile.deleted != True,
+        ImportedFile.mime_type.notlike("image/%"),
+        ImportedFile.mime_type.notlike("video/%"),
+        ImportedFile.mime_type.notlike("audio/%"),
+    ).count()
 
     total_size = db.session.query(db.func.sum(ImportedFile.size)).filter(
         ImportedFile.deleted != True
@@ -1703,6 +1713,52 @@ def get_statistics():
         else:
             dim_ranges["unknown"] += 1
 
+    size_dist = {"< 1 MB": 0, "1-10 MB": 0, "10-100 MB": 0, "100 MB+": 0}
+    size_data = ImportedFile.query.filter(
+        ImportedFile.deleted != True
+    ).with_entities(ImportedFile.size).all()
+    for (s,) in size_data:
+        if s is None:
+            continue
+        mb = s / 1_048_576
+        if mb < 1:
+            size_dist["< 1 MB"] += 1
+        elif mb < 10:
+            size_dist["1-10 MB"] += 1
+        elif mb < 100:
+            size_dist["10-100 MB"] += 1
+        else:
+            size_dist["100 MB+"] += 1
+
+    total_sessions = ImportSession.query.count()
+    session_dates = (
+        db.session.query(
+            db.func.date(ImportSession.created_at).label("date"),
+            db.func.count(ImportSession.id),
+        )
+        .group_by(db.func.date(ImportSession.created_at))
+        .order_by(db.func.date(ImportSession.created_at).desc())
+        .all()
+    )
+
+    from app.models.detected_face import DetectedFace
+    from app.models.person import Person
+    total_persons = Person.query.count()
+    total_faces = DetectedFace.query.count()
+    named_persons = Person.query.filter(Person.name.isnot(None)).count()
+    files_with_faces = db.session.query(DetectedFace.file_id).distinct().count()
+    age_data = DetectedFace.query.with_entities(DetectedFace.age).filter(
+        DetectedFace.age.isnot(None)
+    ).all()
+    ages = [r[0] for r in age_data]
+    avg_age = round(sum(ages) / len(ages), 1) if ages else None
+    gender_data = db.session.query(
+        DetectedFace.gender, db.func.count(DetectedFace.id)
+    ).filter(DetectedFace.gender.isnot(None)).group_by(DetectedFace.gender).all()
+    gender_map = {}
+    for g, c in gender_data:
+        gender_map["female" if g == 0 else "male"] = c
+
     def fmt(s):
         if s < 1024:
             return f"{s} B"
@@ -1723,6 +1779,8 @@ def get_statistics():
         "mime_breakdown": {
             "image": image_count,
             "video": video_count,
+            "audio": audio_count,
+            "document": document_count,
         },
         "mime_detail": [
             {"mime": m, "count": c} for m, c in mime_detail
@@ -1741,11 +1799,28 @@ def get_statistics():
             {"tag_count": k, "file_count": v} for k, v in tag_count_buckets
         ],
         "dimension_ranges": dim_ranges,
+        "size_distribution": [
+            {"range": k, "count": v} for k, v in size_dist.items()
+        ],
         "coverage": {
             "files_with_gps": files_with_gps,
             "files_with_exif": files_with_exif,
             "files_with_description": files_with_description,
             "files_with_nickname": files_with_nickname,
+        },
+        "sessions": {
+            "total_sessions": total_sessions,
+            "sessions_by_date": [
+                {"date": str(d), "count": c} for d, c in session_dates
+            ],
+        },
+        "faces": {
+            "total_persons": total_persons,
+            "total_faces": total_faces,
+            "named_persons": named_persons,
+            "files_with_faces": files_with_faces,
+            "average_age": avg_age,
+            "gender_breakdown": gender_map,
         },
     })
 

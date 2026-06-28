@@ -1,10 +1,15 @@
 import { useState, useEffect, useRef } from "react";
 import { NavLink } from "react-router-dom";
 import { useTheme } from "../contexts/ThemeContext";
-import { House, FileUp, FolderOpen, Heart, Upload, CopyCheck, BarChart3, Settings, MapPin, MapPinned, Scan, Sun, Moon, Menu, X } from "lucide-react";
+import {
+  House, FileUp, FolderOpen, Heart, Upload,
+  CopyCheck, BarChart3, Settings, MapPin, MapPinned,
+  Scan, Info, Sun, Moon, Menu, X,
+} from "lucide-react";
+import { getPref } from "../services/db";
 import "./Navbar.css";
 
-const LINKS = [
+const DEFAULT_LINKS = [
   { to: "/", label: "Home", icon: House, end: true },
   { to: "/import", label: "Import", icon: FileUp },
   { to: "/gallery", label: "Imported Media", icon: FolderOpen },
@@ -16,12 +21,31 @@ const LINKS = [
   { to: "/duplicates", label: "Duplicates", icon: CopyCheck },
   { to: "/statistics", label: "Statistics", icon: BarChart3 },
   { to: "/settings", label: "Settings", icon: Settings },
+  { to: "/about", label: "About", icon: Info },
 ];
 
 function Navbar() {
   const { theme, toggleTheme } = useTheme();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [links, setLinks] = useState(DEFAULT_LINKS);
   const menuRef = useRef(null);
+
+  useEffect(() => {
+    getPref("navbarTabOrder", null).then((order) => {
+      if (order && Array.isArray(order) && order.length > 0) {
+        const orderMap = {};
+        DEFAULT_LINKS.forEach((l, i) => { orderMap[l.to] = i; });
+        const sorted = [...DEFAULT_LINKS].sort((a, b) => {
+          const ai = order.indexOf(a.to);
+          const bi = order.indexOf(b.to);
+          return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi);
+        });
+        setLinks(sorted);
+      } else {
+        setLinks(DEFAULT_LINKS);
+      }
+    });
+  }, []);
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -45,7 +69,7 @@ function Navbar() {
       </button>
 
       <div className="navbar__desktop">
-        {LINKS.map((l) => (
+        {links.map((l) => (
           <NavLink key={l.to} to={l.to} className="navbar__link" end={l.end}>
             <l.icon size={16} className="navbar__link-icon" />
             <span className="navbar__link-label">{l.label}</span>
@@ -59,7 +83,7 @@ function Navbar() {
 
       {menuOpen && (
         <div className="navbar__dropdown">
-          {LINKS.map((l) => {
+          {links.map((l) => {
             const Icon = l.icon;
             return (
               <NavLink

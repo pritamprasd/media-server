@@ -1,7 +1,9 @@
 .settings {
   max-width: 500px;
+  width: 100%;
   margin: 0 auto;
   padding: 1.5rem;
+  min-width: 0;
 }
 
 .settings__title {
@@ -225,4 +227,17 @@
   padding: 0.35rem 0.75rem;
   font-size: 0.75rem;
   align-self: flex-start;
+}
+
+@media (max-width: 768px) {
+  .settings {
+    padding: 1rem 0.75rem;
+  }
+  .settings__card {
+    padding: 1rem;
+  }
+  .settings__nickname-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
 }

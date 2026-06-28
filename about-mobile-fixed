@@ -1,0 +1,871 @@
+- generic [ref=e2]:
+  - navigation [ref=e3]:
+    - button "Toggle menu" [ref=e4] [cursor=pointer]:
+      - img [ref=e5]
+    - button "Toggle theme" [ref=e6] [cursor=pointer]:
+      - img [ref=e7]
+  - main [ref=e13]:
+    - generic [ref=e15]:
+      - heading "Media Server" [level=1] [ref=e16]
+      - paragraph [ref=e17]: A scalable, semantic-searchable media viewer for your home media collection. Features AI-powered tagging, face detection & recognition, image/video editing, GPS map visualization, duplicate detection, and full PWA offline support.
+      - heading "Stack" [level=2] [ref=e18]
+      - table [ref=e729]:
+        - rowgroup [ref=e730]:
+          - row "Layer Technology" [ref=e731]:
+            - columnheader "Layer" [ref=e732]
+            - columnheader "Technology" [ref=e733]
+        - rowgroup [ref=e734]:
+          - row "Frontend React 19, React Router 7, Vite 6, Axios, Recharts" [ref=e735]:
+            - cell "Frontend" [ref=e736]
+            - cell "React 19, React Router 7, Vite 6, Axios, Recharts" [ref=e737]
+          - row "Backend Flask 3, SQLAlchemy, Flask-Migrate, Gunicorn" [ref=e738]:
+            - cell "Backend" [ref=e739]
+            - cell "Flask 3, SQLAlchemy, Flask-Migrate, Gunicorn" [ref=e740]
+          - 'row "Task Queue Celery 5 + Redis (5 workers: import, metadata, AI, thumbnail, face)" [ref=e741]':
+            - cell "Task Queue" [ref=e742]
+            - 'cell "Celery 5 + Redis (5 workers: import, metadata, AI, thumbnail, face)" [ref=e743]'
+          - row "AI Ollama (vision models) + InsightFace (face detection/recognition)" [ref=e744]:
+            - cell "AI" [ref=e745]
+            - cell "Ollama (vision models) + InsightFace (face detection/recognition)" [ref=e746]
+          - row "Database PostgreSQL 16" [ref=e747]:
+            - cell "Database" [ref=e748]
+            - cell "PostgreSQL 16" [ref=e749]
+          - row "Maps Leaflet + React-Leaflet (OpenStreetMap tiles with service worker caching)" [ref=e750]:
+            - cell "Maps" [ref=e751]
+            - cell "Leaflet + React-Leaflet (OpenStreetMap tiles with service worker caching)" [ref=e752]
+      - heading "Features" [level=2] [ref=e44]
+      - heading "📂 Media Import & Management" [level=3] [ref=e45]
+      - list [ref=e46]:
+        - listitem [ref=e47]:
+          - strong [ref=e48]: Recursive directory scan
+          - text: — import folders without copying files; filters by MIME type groups (image, video, audio, document)
+        - listitem [ref=e49]:
+          - strong [ref=e50]: Import sessions
+          - text: — each import creates a session; re-importing the same folder updates in-place
+        - listitem [ref=e51]:
+          - strong [ref=e52]: Upload
+          - text: — drag-and-drop zone + file picker; nickname field persisted to IndexedDB; multi-file upload with progress bars
+        - listitem [ref=e53]:
+          - strong [ref=e54]: Trash
+          - text: — soft-delete files (library-only or library + disk)
+        - listitem [ref=e55]:
+          - strong [ref=e56]: Nickname persistence
+          - text: — default nickname stored in IndexedDB, editable from Settings
+        - listitem [ref=e57]:
+          - strong [ref=e58]: Copy, Move, Rename
+          - text: — clipboard (cut/copy/paste) and inline rename for files and folders; drag-and-drop to move items between directories
+      - heading "🖼️ Gallery & File Viewer" [level=3] [ref=e59]
+      - list [ref=e60]:
+        - listitem [ref=e61]:
+          - strong [ref=e62]: Infinite-scroll grid
+          - text: — Home page with configurable column layout (auto/1/2); click any thumbnail to open the overlay viewer
+        - listitem [ref=e63]:
+          - strong [ref=e64]: Directory tree
+          - text: — Gallery page organized by import session; lazy-loaded expandable directories with file counts
+        - listitem [ref=e65]:
+          - strong [ref=e66]: Overlay viewer
+          - text: — full-screen modal with zoom, pan (drag when zoomed), rotate, flip, contrast/saturation/brightness controls; left/right arrow and button navigation through the current file list; keyboard shortcuts (← → navigate, Esc close)
+        - listitem [ref=e67]:
+          - strong [ref=e68]: Loading spinner
+          - text: —
+          - code [ref=e753]: <Spinner>
+          - text: overlay shown while media is downloading, hidden once image/video fires
+          - code [ref=e754]: onLoad
+          - text: /
+          - code [ref=e755]: onCanPlay
+        - listitem [ref=e72]:
+          - strong [ref=e73]: Metadata sidebar
+          - text: — EXIF data, GPS coordinates with
+          - strong [ref=e74]: reverse geocoded location name
+          - text: (via Nominatim) + Google Maps link fallback, dimensions, duration, date taken, AI-generated description and tags, search words, file hash, thumbnail status; people section with face thumbnails and "Detect Faces" button
+        - listitem [ref=e75]:
+          - strong [ref=e76]: Tags
+          - text: — view, add, and remove tags inline; person names auto-synced as tags from face detection
+        - listitem [ref=e77]:
+          - strong [ref=e78]: Filter presets
+          - text: — save custom filter combinations (brightness, contrast, saturation, warmth, sharpness, highlights, shadows, vignette, crop) as named presets; apply and delete presets from the viewer
+        - listitem [ref=e79]:
+          - strong [ref=e80]: Browse Folder
+          - text: — opens the parent directory in the Home grid from any file in the viewer
+      - heading "✏️ Image Editing" [level=3] [ref=e81]
+      - list [ref=e82]:
+        - listitem [ref=e83]:
+          - strong [ref=e84]: Live CSS preview
+          - text: — all edits previewed instantly with CSS filters before saving; 9 built-in filter presets (vivid, dramatic, vintage, noir, soft, clarity, warm, cool)
+        - listitem [ref=e85]:
+          - strong [ref=e86]: Filters tab
+          - text: — one-click presets; custom filter presets saved to database (save/upsert/delete)
+        - listitem [ref=e87]:
+          - strong [ref=e88]: Adjust tab
+          - text: — brightness, contrast, saturation, warmth, sharpness, vibrance, tint sliders
+        - listitem [ref=e89]:
+          - strong [ref=e90]: Light tab
+          - text: — exposure, contrast, highlights, shadows, blacks, whites sliders
+        - listitem [ref=e91]:
+          - strong [ref=e92]: Effects tab
+          - text: — grain, grayscale toggle, colorize, vignette with intensity sliders
+        - listitem [ref=e93]:
+          - strong [ref=e94]: Details tab
+          - text: — clarity and dehaze sliders
+        - listitem [ref=e95]:
+          - strong [ref=e96]: Crop
+          - text: — draggable crop overlay with corner handles + move handle; aspect ratio presets (free, 1:1, 4:3, 3:2, 16:9, 21:9, 3:4, 2:3, 9:16, 9:21); Apply/Reset flow; normalized 0–1 coordinates converted to pixels on save
+        - listitem [ref=e97]:
+          - strong [ref=e98]: Rotate & Flip
+          - text: — 90° clockwise/counter-clockwise, horizontal/vertical flip
+        - listitem [ref=e99]:
+          - strong [ref=e100]: Show Original
+          - text: — press-and-hold (mouse/touch) to compare edited preview against original
+        - listitem [ref=e101]:
+          - strong [ref=e102]: Histogram
+          - text: — real-time luminance histogram (debounced 150ms) rendered in edit footer; applies preview filters via off-screen canvas
+        - listitem [ref=e103]:
+          - strong [ref=e104]: Export
+          - text: — format dropdown (JPEG, PNG, WebP, HEIC, PDF, ASCII Art) with quality slider; ASCII art with configurable character set and width; server-side re-processing in requested format
+        - listitem [ref=e105]:
+          - strong [ref=e106]: Info tab
+          - text: — inline markdown reference for all editing properties
+        - listitem [ref=e107]:
+          - strong [ref=e108]: Server-side processing
+          - text: — all edits applied via Pillow on save with 20+ operation types (tint, vibrance, clarity, dehaze, exposure, blacks, whites, grain, grayscale, colorize, and the full filter preset pipeline); saves as a new file in the edited images directory
+        - listitem [ref=e109]:
+          - strong [ref=e110]: HEIC/HEIF support
+          - text: — automatic conversion via pillow-heif throughout the app (display, thumbnail, EXIF, AI metadata, hashing)
+      - heading "🎬 Video Support" [level=3] [ref=e111]
+      - list [ref=e112]:
+        - listitem [ref=e113]:
+          - strong [ref=e114]: Metadata extraction
+          - text: — duration, dimensions, codec, frame rate via ffprobe
+        - listitem [ref=e115]:
+          - strong [ref=e116]: Thumbnails
+          - text: — keyframe extraction via ffmpeg
+        - listitem [ref=e117]:
+          - strong [ref=e118]: Video editing
+          - text: — trim (start/end time), color adjustment (brightness/contrast/saturation/warmth), rotate/flip, speed (0.25x–4x via live
+          - code [ref=e756]: playbackRate
+          - text: ), volume (0–200%), reverse, audio mute, crop, text overlay (configurable font/size/color/position via ffmpeg
+          - code [ref=e757]: drawtext
+          - text: ); video filter presets (vivid, dramatic, vintage, noir, soft, clarity, warm, cool)
+        - listitem [ref=e121]:
+          - strong [ref=e122]: Video export
+          - text: — MP4, WebM, AVI, MKV, MOV via ffmpeg re-encoding; format-specific codec args
+        - listitem [ref=e123]:
+          - strong [ref=e124]: Trim-only operations
+          - text: — use stream copy for speed
+        - listitem [ref=e125]:
+          - strong [ref=e126]: Live speed preview
+          - text: —
+          - code [ref=e758]: playbackRate
+          - text: set directly on
+          - code [ref=e759]: <video>
+          - text: element — no re-encode needed
+        - listitem [ref=e129]:
+          - strong [ref=e130]: AI metadata
+          - text: — multi-frame extraction sent to Ollama vision model for description and tags
+      - heading "🤖 AI Metadata (Ollama)" [level=3] [ref=e131]
+      - list [ref=e132]:
+        - listitem [ref=e133]:
+          - strong [ref=e134]: Automatic tagging
+          - text: — files sent to a local Ollama vision model for description, 5–10 tags, and 5–10 search keywords; multi-frame extraction for videos
+        - listitem [ref=e135]:
+          - strong [ref=e136]: Folder tag merging
+          - text: — tags extracted from parent folder names merged with AI tags
+        - listitem [ref=e137]:
+          - strong [ref=e138]: Retrigger
+          - text: — regenerate AI metadata, EXIF, or thumbnail individually from the viewer sidebar
+        - listitem [ref=e139]:
+          - strong [ref=e140]: Configurable model
+          - text: "— choose any Ollama vision model (default:"
+          - code [ref=e760]: llava
+          - text: )
+      - heading "👤 Face Detection & Recognition" [level=3] [ref=e142]
+      - list [ref=e143]:
+        - listitem [ref=e144]:
+          - strong [ref=e145]: InsightFace buffalo_l
+          - text: — ONNX-based face detection with configurable confidence threshold (default 0.3); 512-dimensional embeddings for cross-angle recognition
+        - listitem [ref=e146]:
+          - strong [ref=e147]: Age & gender estimation
+          - text: — per-face age and gender metadata stored alongside each detection
+        - listitem [ref=e148]:
+          - strong [ref=e149]: Auto-grouping
+          - text: — detected faces matched against known persons via cosine distance (threshold 0.4); new faces auto-grouped into new persons
+        - listitem [ref=e150]:
+          - strong [ref=e151]: Person management
+          - text: — rename persons inline; merge multiple persons into one (recomputes average encoding); view all images containing a person
+        - listitem [ref=e152]:
+          - strong [ref=e153]: Scan all faces
+          - text: — one-click scan of all unscanned images; modal shows queue count; auto-triggered on import, upload, and edit
+        - listitem [ref=e154]:
+          - strong [ref=e155]: Tag propagation
+          - text: — naming a person adds the name as a tag to all containing images (removed on rename)
+        - listitem [ref=e156]:
+          - strong [ref=e157]: Face viewer
+          - text: — view detected face thumbnails per image in the file viewer sidebar; name individual faces inline (creates or reuses persons)
+        - listitem [ref=e158]:
+          - strong [ref=e159]: Infinite scroll
+          - text: — Faces page uses paginated backend (50 per page) with IntersectionObserver for seamless scrolling
+        - listitem [ref=e160]:
+          - strong [ref=e161]: Stats
+          - text: — total persons, faces, named persons, files with faces
+      - heading "📍 Map & Locations" [level=3] [ref=e162]
+      - list [ref=e163]:
+        - listitem [ref=e164]:
+          - strong [ref=e165]: GPS visualization
+          - text: — Leaflet map with clustered markers for all GPS-tagged files; markers grouped by rounded coordinates (3 decimal places)
+        - listitem [ref=e166]:
+          - strong [ref=e167]: Nearby filtering
+          - text: — click on the map to find files within a configurable radius (default 10 km via
+          - code [ref=e761]: VITE_MAP_NEARBY_KM
+          - text: )
+        - listitem [ref=e169]:
+          - strong [ref=e170]: Thumbnail gallery
+          - text: "— split-panel layout: map (left) + scrollable thumbnail grid (right); paginated (32 per page via"
+          - code [ref=e762]: VITE_MAP_THUMBS_PER_PAGE
+          - text: )
+        - listitem [ref=e172]:
+          - strong [ref=e173]: Saved locations
+          - text: — CRUD management of named locations (name, lat/lng, radius); click a saved location to navigate the map
+        - listitem [ref=e174]:
+          - strong [ref=e175]: Tile caching
+          - text: — OpenStreetMap tiles cached via service worker (cache-first, persistent across sessions)
+      - heading "🔍 Search & Filters" [level=3] [ref=e176]
+      - list [ref=e177]:
+        - listitem [ref=e178]:
+          - strong [ref=e179]: Full-text search
+          - text: — search across filename, tags, AI description, search keywords, and
+          - strong [ref=e180]: person names
+          - text: (via
+          - code [ref=e763]: DetectedFace
+          - text: +
+          - code [ref=e764]: Person
+          - text: join)
+        - listitem [ref=e183]:
+          - strong [ref=e184]: Media type filter
+          - text: — toggle between All / Images / Videos
+        - listitem [ref=e185]:
+          - strong [ref=e186]: AI filter
+          - text: — show only files with AI-generated metadata
+        - listitem [ref=e187]:
+          - strong [ref=e188]: Dimension filter
+          - text: — preset resolution thresholds (VGA, HD, Full HD, 4K); responsive dropdown on mobile
+        - listitem [ref=e189]:
+          - strong [ref=e190]: Tag filter
+          - text: — dropdown with tag search and count badges
+        - listitem [ref=e191]:
+          - strong [ref=e192]: Sort
+          - text: — by name, date, or size; asc/desc toggle per column
+        - listitem [ref=e193]:
+          - strong [ref=e194]: Directory filter
+          - text: — tree dialog to filter by import directory
+      - heading "📊 Statistics" [level=3] [ref=e195]
+      - list [ref=e196]:
+        - listitem [ref=e197]:
+          - strong [ref=e198]: Charts
+          - text: — files by day (bar chart), files by file type (bar chart), storage by type (pie chart) via Recharts
+        - listitem [ref=e199]:
+          - strong [ref=e200]: Summary
+          - text: — total files, total size, per-type breakdown
+      - heading "🔄 Duplicate Detection" [level=3] [ref=e201]
+      - list [ref=e202]:
+        - listitem [ref=e203]:
+          - strong [ref=e204]: Exact duplicates
+          - text: — SHA-256 hash grouping
+        - listitem [ref=e205]:
+          - strong [ref=e206]: Near duplicates
+          - text: — 64-bit difference hash (dhash) with band-indexed lookup; Hamming distance ≤ 10
+        - listitem [ref=e207]:
+          - strong [ref=e208]: Side-by-side comparison
+          - text: — overlay viewer for reviewing duplicate groups
+      - heading "❤️ Favorites" [level=3] [ref=e209]
+      - list [ref=e210]:
+        - listitem [ref=e211]:
+          - strong [ref=e212]: Toggle
+          - text: — favorite/unfavorite from the grid or viewer; heart icon with fill animation
+        - listitem [ref=e213]:
+          - strong [ref=e214]: Filtered view
+          - text: — dedicated Favorites page with unfavorite inline
+      - heading "⚙️ Settings" [level=3] [ref=e215]
+      - list [ref=e216]:
+        - listitem [ref=e217]:
+          - strong [ref=e218]: Theme
+          - text: — dark/light toggle with smooth transition
+        - listitem [ref=e219]:
+          - strong [ref=e220]: Accent color
+          - text: — 8 preset accent colors; applied via CSS custom property
+          - code [ref=e765]: "--color-primary"
+        - listitem [ref=e222]:
+          - strong [ref=e223]: Default tab
+          - text: — choose which page loads on app start
+        - listitem [ref=e224]:
+          - strong [ref=e225]: Columns
+          - text: — default grid column layout (auto/1/2)
+        - listitem [ref=e226]:
+          - strong [ref=e227]: Nickname
+          - text: — edit default upload nickname
+        - listitem [ref=e228]:
+          - strong [ref=e229]: Editor Tab Order
+          - text: — reorder image and video editor tabs via move-up/move-down; persisted to IndexedDB and reflected in the viewer
+        - listitem [ref=e230]:
+          - strong [ref=e231]: Cache clear
+          - text: — clear all IndexedDB caches and service worker caches; uses
+          - code [ref=e766]: navigator.serviceWorker.ready
+          - text: for Chrome PWA compatibility
+      - heading "🌍 Geocoding" [level=3] [ref=e233]
+      - list [ref=e234]:
+        - listitem [ref=e235]:
+          - strong [ref=e236]: Reverse geocoding
+          - text: — backend endpoint calls Nominatim API with 1 req/s rate limiting; results cached in-memory by rounded coordinates (4 decimal places)
+        - listitem [ref=e237]:
+          - strong [ref=e238]: Google Maps link
+          - text: — every GPS entry shows an
+          - code [ref=e767]: ExternalLink
+          - text: icon that opens
+          - code [ref=e768]: https://www.google.com/maps?q=lat,lng
+          - text: in a new tab
+      - heading "🎨 Design System" [level=3] [ref=e241]
+      - list [ref=e242]:
+        - listitem [ref=e243]:
+          - strong [ref=e244]: Neumorphic UI
+          - text: — custom box-shadow system (
+          - code [ref=e769]: "--neu-raised"
+          - text: ","
+          - code [ref=e770]: "--neu-inset"
+          - text: ","
+          - code [ref=e771]: "--neu-flat"
+          - text: ) across all interactive elements
+        - listitem [ref=e248]:
+          - strong [ref=e249]: Dark/Light themes
+          - text: — 50+ CSS custom properties; dark base
+          - code [ref=e772]: "#0d0d0d"
+          - text: ", light base"
+          - code [ref=e773]: "#e4e4ed"
+        - listitem [ref=e252]:
+          - strong [ref=e253]: Animations
+          - text: — 10 CSS-only SpinKit spinner variants (ring, dual-ring, dots, pulse, bars, hourglass, ripple, infinity, grid, circle) with size/color theming
+        - listitem [ref=e254]:
+          - strong [ref=e255]: Lucide icons
+          - text: — every button uses a thoughtful lucide-react icon
+        - listitem [ref=e256]:
+          - strong [ref=e257]: Responsive
+          - text: — mobile layouts for Faces sidebar, Upload bottom sheet, map layout, viewer padding (buttons no longer hidden behind image content); filter bar collapses to stacked layout with dimension dropdown, full-width tag selector, and evenly-spaced sort buttons on ≤768px
+      - heading "🌐 PWA & Offline" [level=3] [ref=e258]
+      - list [ref=e259]:
+        - listitem [ref=e260]:
+          - strong [ref=e261]: Installable
+          - text: — full PWA manifest with standalone display, theme color, icon set (192/512 PNG + SVG)
+        - listitem [ref=e262]:
+          - strong [ref=e263]: Service worker
+          - text: "— 4 cache stores with different strategies (CLEAR_CACHES broadcasts to all window clients):"
+          - table [ref=e775]:
+            - rowgroup [ref=e776]:
+              - row "Cache Strategy Contents" [ref=e777]:
+                - columnheader "Cache" [ref=e778]
+                - columnheader "Strategy" [ref=e779]
+                - columnheader "Contents" [ref=e780]
+            - rowgroup [ref=e781]:
+              - row "Shell Cache-first App JS/CSS (precached)" [ref=e782]:
+                - cell "Shell" [ref=e783]
+                - cell "Cache-first" [ref=e784]
+                - cell "App JS/CSS (precached)" [ref=e785]
+              - row "API Network-first File listings, metadata, tags" [ref=e786]:
+                - cell "API" [ref=e787]
+                - cell "Network-first" [ref=e788]
+                - cell "File listings, metadata, tags" [ref=e789]
+              - row "Media Network-first Full images and videos" [ref=e790]:
+                - cell "Media" [ref=e791]
+                - cell "Network-first" [ref=e792]
+                - cell "Full images and videos" [ref=e793]
+              - row "Map Tiles Cache-first OpenStreetMap tile images" [ref=e794]:
+                - cell "Map Tiles" [ref=e795]
+                - cell "Cache-first" [ref=e796]
+                - cell "OpenStreetMap tile images" [ref=e797]
+        - listitem [ref=e288]:
+          - strong [ref=e289]: Registration
+          - text: —
+          - code [ref=e798]: "updateViaCache: \"none\""
+          - text: ","
+          - code [ref=e799]: CLAIM
+          - text: /
+          - code [ref=e800]: SKIP_WAITING
+          - text: message handlers,
+          - code [ref=e801]: controllerchange
+          - text: listener with debounced reload; works reliably on Chrome mobile/PWA
+        - listitem [ref=e294]:
+          - strong [ref=e295]: Cache clear
+          - text: — broadcasts to
+          - code [ref=e802]: "{ type: \"window\" }"
+          - text: clients; all active tabs receive the clear signal
+        - listitem [ref=e297]:
+          - strong [ref=e298]: Loading animation
+          - text: — animated gradient blobs, rotating rings, orbiting dots, pulsing icon in
+          - code [ref=e803]: index.html
+          - text: until React mounts
+      - heading "🖥️ Docker Deployment" [level=3] [ref=e300]
+      - list [ref=e301]:
+        - listitem [ref=e302]:
+          - strong [ref=e303]: 9 services
+          - text: — backend (Flask/Gunicorn), 5 Celery workers (import, metadata, AI, thumbnail, face), frontend (Nginx), PostgreSQL, Redis
+        - listitem [ref=e304]:
+          - strong [ref=e305]: HTTPS
+          - text: — self-signed certificate generated at build time; nginx reverse proxy with HTTP/2 and secure ciphers
+        - listitem [ref=e306]:
+          - strong [ref=e307]: Workers
+          - text: — separate concurrency settings per queue (import=1, metadata=3, ai=1, thumbnail=3, face=1)
+        - listitem [ref=e308]:
+          - strong [ref=e309]: Face worker
+          - text: — InsightFace model volume-mounted from host;
+          - code [ref=e804]: FACE_DET_THRESH=0.3
+          - text: ","
+          - code [ref=e805]: FACE_MATCH_THRESHOLD=0.4
+          - text: ; DNS fallback
+          - code [ref=e806]: 8.8.8.8
+      - heading "Architecture" [level=2] [ref=e313]
+      - document [ref=e808]:
+        - generic [ref=e823]:
+          - paragraph [ref=e830]: User
+          - paragraph [ref=e837]:
+            - text: Frontend
+            - text: React SPA
+          - paragraph [ref=e844]:
+            - text: nginx
+            - text: HTTPS + Proxy
+          - paragraph [ref=e851]:
+            - text: Flask API
+            - text: :5000
+          - paragraph [ref=e858]:
+            - text: Redis
+            - text: :6379
+          - paragraph [ref=e865]: PostgreSQL
+          - paragraph [ref=e872]:
+            - text: Celery Worker
+            - text: import_queue
+          - paragraph [ref=e879]:
+            - text: Celery Worker
+            - text: metadata
+          - paragraph [ref=e886]:
+            - text: Celery Worker
+            - text: ai_metadata
+          - paragraph [ref=e893]:
+            - text: Celery Worker
+            - text: thumbnail
+          - paragraph [ref=e900]:
+            - text: Celery Worker
+            - text: face_detection
+          - paragraph [ref=e907]: Ollama API
+          - paragraph [ref=e914]:
+            - text: Media Files
+            - text: on Disk
+      - heading "Project Structure" [level=2] [ref=e315]
+      - code [ref=e915]: "media-server/ ├── backend/ │ ├── app/ │ │ ├── api/ │ │ │ ├── routes.py # 50+ API endpoints │ │ │ └── face_routes.py # Face/person API endpoints │ │ ├── models/ # 8 SQLAlchemy models │ │ ├── utility/ # 11 utility modules │ │ ├── tasks.py # 5 Celery task definitions │ │ ├── config.py # App configuration │ │ └── __init__.py # App factory │ ├── migrations/ # 8 Alembic migrations │ ├── scripts/ │ │ └── regenerate_heic_thumbnails.py │ ├── tests/ │ │ └── test_api.py # 13 test cases │ ├── Dockerfile │ └── requirements.txt ├── frontend/ │ ├── src/ │ │ ├── pages/ # 11 pages │ │ ├── components/ # 4 components │ │ ├── services/ # API client, IndexedDB store │ │ ├── contexts/ # ThemeContext │ │ └── hooks/ # useApi │ ├── public/ │ │ ├── manifest.json │ │ ├── sw.js # Service worker │ │ └── icons │ ├── index.html # Loading animation │ ├── nginx.conf # HTTPS reverse proxy │ └── Dockerfile ├── docker-compose.yml # 7 application services ├── docker-compose.infra.yml # PostgreSQL + Redis ├── Makefile # 20+ targets └── README.md"
+      - heading "Quick Start" [level=2] [ref=e317]
+      - heading "Prerequisites" [level=3] [ref=e318]
+      - list [ref=e319]:
+        - listitem [ref=e320]: Python 3.10+, Node.js 18+
+        - listitem [ref=e321]: PostgreSQL 14+, Redis 6+
+        - listitem [ref=e322]:
+          - link "Ollama" [ref=e323] [cursor=pointer]:
+            - /url: https://ollama.ai
+          - text: with a vision model (
+          - code [ref=e916]: ollama pull llava
+          - text: )
+      - heading "Backend" [level=3] [ref=e325]
+      - code [ref=e918]: cd backend python -m venv .venv && source .venv/bin/activate cp .env.example .env pip install -r requirements.txt flask db upgrade python run.py
+      - heading "Celery Workers" [level=3] [ref=e328]
+      - code [ref=e920]: celery -A app.tasks.celery worker -Q import_queue,metadata,ai_metadata,thumbnail,face_detection -l info
+      - heading "Frontend" [level=3] [ref=e331]
+      - code [ref=e922]: cd frontend npm install npm run dev
+      - paragraph [ref=e334]:
+        - text: Frontend starts at
+        - strong [ref=e335]:
+          - link "http://localhost:5173" [ref=e336] [cursor=pointer]:
+            - /url: http://localhost:5173
+        - text: (proxies
+        - code [ref=e923]: /api
+        - text: to backend).
+      - heading "PWA" [level=2] [ref=e338]
+      - paragraph [ref=e339]: The app is installable as a Progressive Web App.
+      - table [ref=e925]:
+        - rowgroup [ref=e926]:
+          - row "Platform URL" [ref=e927]:
+            - columnheader "Platform" [ref=e928]
+            - columnheader "URL" [ref=e929]
+        - rowgroup [ref=e930]:
+          - row "Dev http://localhost:5173 (install prompt)" [ref=e931]:
+            - cell "Dev" [ref=e932]
+            - cell "http://localhost:5173 (install prompt)" [ref=e933]:
+              - code [ref=e934]: http://localhost:5173
+              - text: (install prompt)
+          - row "Docker https://homeserver.local:3443" [ref=e935]:
+            - cell "Docker" [ref=e936]
+            - cell "https://homeserver.local:3443" [ref=e937]:
+              - code [ref=e938]: https://homeserver.local:3443
+      - heading "Database Migrations" [level=2] [ref=e355]
+      - code [ref=e940]: "flask db upgrade # Apply pending migrations flask db migrate -m \"desc\" # Create new migration flask db downgrade # Rollback one migration"
+      - heading "Configuration" [level=2] [ref=e358]
+      - table [ref=e942]:
+        - rowgroup [ref=e943]:
+          - row "Variable Default Purpose" [ref=e944]:
+            - columnheader "Variable" [ref=e945]
+            - columnheader "Default" [ref=e946]
+            - columnheader "Purpose" [ref=e947]
+        - rowgroup [ref=e948]:
+          - row "DATABASE_URL postgresql://postgres:postgres@localhost:5432/media_server PostgreSQL DSN" [ref=e949]:
+            - cell "DATABASE_URL" [ref=e950]:
+              - code [ref=e951]: DATABASE_URL
+            - cell "postgresql://postgres:postgres@localhost:5432/media_server" [ref=e952]:
+              - code [ref=e953]: postgresql://postgres:postgres@localhost:5432/media_server
+            - cell "PostgreSQL DSN" [ref=e954]
+          - row "CELERY_BROKER_URL redis://localhost:6379/0 Redis broker" [ref=e955]:
+            - cell "CELERY_BROKER_URL" [ref=e956]:
+              - code [ref=e957]: CELERY_BROKER_URL
+            - cell "redis://localhost:6379/0" [ref=e958]:
+              - code [ref=e959]: redis://localhost:6379/0
+            - cell "Redis broker" [ref=e960]
+          - row "OLLAMA_BASE_URL http://localhost:11434 Ollama server URL" [ref=e961]:
+            - cell "OLLAMA_BASE_URL" [ref=e962]:
+              - code [ref=e963]: OLLAMA_BASE_URL
+            - cell "http://localhost:11434" [ref=e964]:
+              - code [ref=e965]: http://localhost:11434
+            - cell "Ollama server URL" [ref=e966]
+          - row "OLLAMA_MODEL llava Ollama vision model" [ref=e967]:
+            - cell "OLLAMA_MODEL" [ref=e968]:
+              - code [ref=e969]: OLLAMA_MODEL
+            - cell "llava" [ref=e970]:
+              - code [ref=e971]: llava
+            - cell "Ollama vision model" [ref=e972]
+          - row "FACE_DET_THRESH 0.3 Face detection confidence threshold" [ref=e973]:
+            - cell "FACE_DET_THRESH" [ref=e974]:
+              - code [ref=e975]: FACE_DET_THRESH
+            - cell "0.3" [ref=e976]:
+              - code [ref=e977]: "0.3"
+            - cell "Face detection confidence threshold" [ref=e978]
+          - row "FACE_MATCH_THRESHOLD 0.4 Face match cosine distance threshold" [ref=e979]:
+            - cell "FACE_MATCH_THRESHOLD" [ref=e980]:
+              - code [ref=e981]: FACE_MATCH_THRESHOLD
+            - cell "0.4" [ref=e982]:
+              - code [ref=e983]: "0.4"
+            - cell "Face match cosine distance threshold" [ref=e984]
+          - row "VITE_MAP_NEARBY_KM 10 Map nearby-files query radius" [ref=e985]:
+            - cell "VITE_MAP_NEARBY_KM" [ref=e986]:
+              - code [ref=e987]: VITE_MAP_NEARBY_KM
+            - cell "10" [ref=e988]:
+              - code [ref=e989]: "10"
+            - cell "Map nearby-files query radius" [ref=e990]
+          - row "VITE_MAP_THUMBS_PER_PAGE 32 Map thumbnail gallery page size" [ref=e991]:
+            - cell "VITE_MAP_THUMBS_PER_PAGE" [ref=e992]:
+              - code [ref=e993]: VITE_MAP_THUMBS_PER_PAGE
+            - cell "32" [ref=e994]:
+              - code [ref=e995]: "32"
+            - cell "Map thumbnail gallery page size" [ref=e996]
+      - heading "API Endpoints" [level=2] [ref=e415]
+      - heading "Files" [level=3] [ref=e416]
+      - table [ref=e998]:
+        - rowgroup [ref=e999]:
+          - row "Method Path Description" [ref=e1000]:
+            - columnheader "Method" [ref=e1001]
+            - columnheader "Path" [ref=e1002]
+            - columnheader "Description" [ref=e1003]
+        - rowgroup [ref=e1004]:
+          - row "GET /api/files Paginated file list with filters (search, directory, mime, dimensions, tag, sort)" [ref=e1005]:
+            - cell "GET" [ref=e1006]
+            - cell "/api/files" [ref=e1007]:
+              - code [ref=e1008]: /api/files
+            - cell "Paginated file list with filters (search, directory, mime, dimensions, tag, sort)" [ref=e1009]
+          - row "GET /api/files/<id>/serve Serve file (image/video/HEIC converted to JPEG)" [ref=e1010]:
+            - cell "GET" [ref=e1011]
+            - cell "/api/files/<id>/serve" [ref=e1012]:
+              - code [ref=e1013]: /api/files/<id>/serve
+            - cell "Serve file (image/video/HEIC converted to JPEG)" [ref=e1014]
+          - row "GET /api/files/<id>/metadata Full metadata (EXIF, GPS, AI, tags, thumbnail)" [ref=e1015]:
+            - cell "GET" [ref=e1016]
+            - cell "/api/files/<id>/metadata" [ref=e1017]:
+              - code [ref=e1018]: /api/files/<id>/metadata
+            - cell "Full metadata (EXIF, GPS, AI, tags, thumbnail)" [ref=e1019]
+          - row "GET /api/files/<id>/thumbnail Base64 thumbnail" [ref=e1020]:
+            - cell "GET" [ref=e1021]
+            - cell "/api/files/<id>/thumbnail" [ref=e1022]:
+              - code [ref=e1023]: /api/files/<id>/thumbnail
+            - cell "Base64 thumbnail" [ref=e1024]
+          - row "GET /api/files/<id>/near-duplicates Perceptually similar images" [ref=e1025]:
+            - cell "GET" [ref=e1026]
+            - cell "/api/files/<id>/near-duplicates" [ref=e1027]:
+              - code [ref=e1028]: /api/files/<id>/near-duplicates
+            - cell "Perceptually similar images" [ref=e1029]
+          - row "PATCH /api/files/<id>/tags Update tags" [ref=e1030]:
+            - cell "PATCH" [ref=e1031]
+            - cell "/api/files/<id>/tags" [ref=e1032]:
+              - code [ref=e1033]: /api/files/<id>/tags
+            - cell "Update tags" [ref=e1034]
+          - row "PATCH /api/files/<id>/favorite Toggle favorite" [ref=e1035]:
+            - cell "PATCH" [ref=e1036]
+            - cell "/api/files/<id>/favorite" [ref=e1037]:
+              - code [ref=e1038]: /api/files/<id>/favorite
+            - cell "Toggle favorite" [ref=e1039]
+          - row "POST /api/files/<id>/edit Apply image/video edits" [ref=e1040]:
+            - cell "POST" [ref=e1041]
+            - cell "/api/files/<id>/edit" [ref=e1042]:
+              - code [ref=e1043]: /api/files/<id>/edit
+            - cell "Apply image/video edits" [ref=e1044]
+          - row "POST /api/files/<id>/regenerate-ai Retrigger AI metadata" [ref=e1045]:
+            - cell "POST" [ref=e1046]
+            - cell "/api/files/<id>/regenerate-ai" [ref=e1047]:
+              - code [ref=e1048]: /api/files/<id>/regenerate-ai
+            - cell "Retrigger AI metadata" [ref=e1049]
+          - row "POST /api/files/<id>/regenerate-exif Retrigger EXIF extraction" [ref=e1050]:
+            - cell "POST" [ref=e1051]
+            - cell "/api/files/<id>/regenerate-exif" [ref=e1052]:
+              - code [ref=e1053]: /api/files/<id>/regenerate-exif
+            - cell "Retrigger EXIF extraction" [ref=e1054]
+          - row "POST /api/files/<id>/regenerate-thumbnail Retrigger thumbnail generation" [ref=e1055]:
+            - cell "POST" [ref=e1056]
+            - cell "/api/files/<id>/regenerate-thumbnail" [ref=e1057]:
+              - code [ref=e1058]: /api/files/<id>/regenerate-thumbnail
+            - cell "Retrigger thumbnail generation" [ref=e1059]
+          - row "POST /api/files/<id>/detect-faces Trigger face detection for file" [ref=e1060]:
+            - cell "POST" [ref=e1061]
+            - cell "/api/files/<id>/detect-faces" [ref=e1062]:
+              - code [ref=e1063]: /api/files/<id>/detect-faces
+            - cell "Trigger face detection for file" [ref=e1064]
+          - row "DELETE /api/files/<id> Soft-delete file (library or library + disk)" [ref=e1065]:
+            - cell "DELETE" [ref=e1066]
+            - cell "/api/files/<id>" [ref=e1067]:
+              - code [ref=e1068]: /api/files/<id>
+            - cell "Soft-delete file (library or library + disk)" [ref=e1069]
+          - row "GET /api/files/with-gps All GPS-tagged files with thumbnails" [ref=e1070]:
+            - cell "GET" [ref=e1071]
+            - cell "/api/files/with-gps" [ref=e1072]:
+              - code [ref=e1073]: /api/files/with-gps
+            - cell "All GPS-tagged files with thumbnails" [ref=e1074]
+      - heading "Import & Upload" [level=3] [ref=e495]
+      - table [ref=e1076]:
+        - rowgroup [ref=e1077]:
+          - row "Method Path Description" [ref=e1078]:
+            - columnheader "Method" [ref=e1079]
+            - columnheader "Path" [ref=e1080]
+            - columnheader "Description" [ref=e1081]
+        - rowgroup [ref=e1082]:
+          - row "POST /api/import Import media folder (creates session)" [ref=e1083]:
+            - cell "POST" [ref=e1084]
+            - cell "/api/import" [ref=e1085]:
+              - code [ref=e1086]: /api/import
+            - cell "Import media folder (creates session)" [ref=e1087]
+          - row "POST /api/upload Upload files" [ref=e1088]:
+            - cell "POST" [ref=e1089]
+            - cell "/api/upload" [ref=e1090]:
+              - code [ref=e1091]: /api/upload
+            - cell "Upload files" [ref=e1092]
+          - row "GET /api/sessions List import sessions" [ref=e1093]:
+            - cell "GET" [ref=e1094]
+            - cell "/api/sessions" [ref=e1095]:
+              - code [ref=e1096]: /api/sessions
+            - cell "List import sessions" [ref=e1097]
+          - row "GET /api/sessions/<id> Session details with file list" [ref=e1098]:
+            - cell "GET" [ref=e1099]
+            - cell "/api/sessions/<id>" [ref=e1100]:
+              - code [ref=e1101]: /api/sessions/<id>
+            - cell "Session details with file list" [ref=e1102]
+          - row "DELETE /api/sessions/<id> Delete session" [ref=e1103]:
+            - cell "DELETE" [ref=e1104]
+            - cell "/api/sessions/<id>" [ref=e1105]:
+              - code [ref=e1106]: /api/sessions/<id>
+            - cell "Delete session" [ref=e1107]
+          - row "GET /api/directories List imported directories (tree structure)" [ref=e1108]:
+            - cell "GET" [ref=e1109]
+            - cell "/api/directories" [ref=e1110]:
+              - code [ref=e1111]: /api/directories
+            - cell "List imported directories (tree structure)" [ref=e1112]
+      - heading "Tags & Favorites" [level=3] [ref=e534]
+      - table [ref=e1114]:
+        - rowgroup [ref=e1115]:
+          - row "Method Path Description" [ref=e1116]:
+            - columnheader "Method" [ref=e1117]
+            - columnheader "Path" [ref=e1118]
+            - columnheader "Description" [ref=e1119]
+        - rowgroup [ref=e1120]:
+          - row "GET /api/tags Tag frequency list" [ref=e1121]:
+            - cell "GET" [ref=e1122]
+            - cell "/api/tags" [ref=e1123]:
+              - code [ref=e1124]: /api/tags
+            - cell "Tag frequency list" [ref=e1125]
+          - row "GET /api/favorites Favorited files" [ref=e1126]:
+            - cell "GET" [ref=e1127]
+            - cell "/api/favorites" [ref=e1128]:
+              - code [ref=e1129]: /api/favorites
+            - cell "Favorited files" [ref=e1130]
+      - heading "Duplicates" [level=3] [ref=e553]
+      - table [ref=e1132]:
+        - rowgroup [ref=e1133]:
+          - row "Method Path Description" [ref=e1134]:
+            - columnheader "Method" [ref=e1135]
+            - columnheader "Path" [ref=e1136]
+            - columnheader "Description" [ref=e1137]
+        - rowgroup [ref=e1138]:
+          - row "GET /api/duplicates Exact and near-duplicate groups" [ref=e1139]:
+            - cell "GET" [ref=e1140]
+            - cell "/api/duplicates" [ref=e1141]:
+              - code [ref=e1142]: /api/duplicates
+            - cell "Exact and near-duplicate groups" [ref=e1143]
+      - heading "Filters" [level=3] [ref=e567]
+      - table [ref=e1145]:
+        - rowgroup [ref=e1146]:
+          - row "Method Path Description" [ref=e1147]:
+            - columnheader "Method" [ref=e1148]
+            - columnheader "Path" [ref=e1149]
+            - columnheader "Description" [ref=e1150]
+        - rowgroup [ref=e1151]:
+          - row "GET /api/filters List custom filter presets" [ref=e1152]:
+            - cell "GET" [ref=e1153]
+            - cell "/api/filters" [ref=e1154]:
+              - code [ref=e1155]: /api/filters
+            - cell "List custom filter presets" [ref=e1156]
+          - row "POST /api/filters Save/upsert filter preset" [ref=e1157]:
+            - cell "POST" [ref=e1158]
+            - cell "/api/filters" [ref=e1159]:
+              - code [ref=e1160]: /api/filters
+            - cell "Save/upsert filter preset" [ref=e1161]
+          - row "DELETE /api/filters/<id> Delete filter preset" [ref=e1162]:
+            - cell "DELETE" [ref=e1163]
+            - cell "/api/filters/<id>" [ref=e1164]:
+              - code [ref=e1165]: /api/filters/<id>
+            - cell "Delete filter preset" [ref=e1166]
+      - heading "Locations" [level=3] [ref=e591]
+      - table [ref=e1168]:
+        - rowgroup [ref=e1169]:
+          - row "Method Path Description" [ref=e1170]:
+            - columnheader "Method" [ref=e1171]
+            - columnheader "Path" [ref=e1172]
+            - columnheader "Description" [ref=e1173]
+        - rowgroup [ref=e1174]:
+          - row "GET /api/locations List saved locations" [ref=e1175]:
+            - cell "GET" [ref=e1176]
+            - cell "/api/locations" [ref=e1177]:
+              - code [ref=e1178]: /api/locations
+            - cell "List saved locations" [ref=e1179]
+          - row "POST /api/locations Save location" [ref=e1180]:
+            - cell "POST" [ref=e1181]
+            - cell "/api/locations" [ref=e1182]:
+              - code [ref=e1183]: /api/locations
+            - cell "Save location" [ref=e1184]
+          - row "PUT /api/locations/<id> Update location" [ref=e1185]:
+            - cell "PUT" [ref=e1186]
+            - cell "/api/locations/<id>" [ref=e1187]:
+              - code [ref=e1188]: /api/locations/<id>
+            - cell "Update location" [ref=e1189]
+          - row "DELETE /api/locations/<id> Delete location" [ref=e1190]:
+            - cell "DELETE" [ref=e1191]
+            - cell "/api/locations/<id>" [ref=e1192]:
+              - code [ref=e1193]: /api/locations/<id>
+            - cell "Delete location" [ref=e1194]
+      - heading "Faces & Persons" [level=3] [ref=e620]
+      - table [ref=e1196]:
+        - rowgroup [ref=e1197]:
+          - row "Method Path Description" [ref=e1198]:
+            - columnheader "Method" [ref=e1199]
+            - columnheader "Path" [ref=e1200]
+            - columnheader "Description" [ref=e1201]
+        - rowgroup [ref=e1202]:
+          - row "GET /api/persons List all persons" [ref=e1203]:
+            - cell "GET" [ref=e1204]
+            - cell "/api/persons" [ref=e1205]:
+              - code [ref=e1206]: /api/persons
+            - cell "List all persons" [ref=e1207]
+          - row "PUT /api/persons/<id> Rename person (syncs name as tag)" [ref=e1208]:
+            - cell "PUT" [ref=e1209]
+            - cell "/api/persons/<id>" [ref=e1210]:
+              - code [ref=e1211]: /api/persons/<id>
+            - cell "Rename person (syncs name as tag)" [ref=e1212]
+          - row "DELETE /api/persons/<id> Delete person group" [ref=e1213]:
+            - cell "DELETE" [ref=e1214]
+            - cell "/api/persons/<id>" [ref=e1215]:
+              - code [ref=e1216]: /api/persons/<id>
+            - cell "Delete person group" [ref=e1217]
+          - row "GET /api/persons/<id>/faces Paginated faces for a person" [ref=e1218]:
+            - cell "GET" [ref=e1219]
+            - cell "/api/persons/<id>/faces" [ref=e1220]:
+              - code [ref=e1221]: /api/persons/<id>/faces
+            - cell "Paginated faces for a person" [ref=e1222]
+          - row "GET /api/persons/<id>/files Paginated files containing a person" [ref=e1223]:
+            - cell "GET" [ref=e1224]
+            - cell "/api/persons/<id>/files" [ref=e1225]:
+              - code [ref=e1226]: /api/persons/<id>/files
+            - cell "Paginated files containing a person" [ref=e1227]
+          - row "POST /api/persons/scan Queue face detection for unscanned files" [ref=e1228]:
+            - cell "POST" [ref=e1229]
+            - cell "/api/persons/scan" [ref=e1230]:
+              - code [ref=e1231]: /api/persons/scan
+            - cell "Queue face detection for unscanned files" [ref=e1232]
+          - row "POST /api/persons/merge Merge multiple persons into one" [ref=e1233]:
+            - cell "POST" [ref=e1234]
+            - cell "/api/persons/merge" [ref=e1235]:
+              - code [ref=e1236]: /api/persons/merge
+            - cell "Merge multiple persons into one" [ref=e1237]
+          - row "GET /api/files/<id>/faces Faces detected in a file" [ref=e1238]:
+            - cell "GET" [ref=e1239]
+            - cell "/api/files/<id>/faces" [ref=e1240]:
+              - code [ref=e1241]: /api/files/<id>/faces
+            - cell "Faces detected in a file" [ref=e1242]
+          - row "PUT /api/faces/<id> Name/rename a face (creates or reuses person)" [ref=e1243]:
+            - cell "PUT" [ref=e1244]
+            - cell "/api/faces/<id>" [ref=e1245]:
+              - code [ref=e1246]: /api/faces/<id>
+            - cell "Name/rename a face (creates or reuses person)" [ref=e1247]
+          - row "GET /api/faces List faces (optionally filtered by person)" [ref=e1248]:
+            - cell "GET" [ref=e1249]
+            - cell "/api/faces" [ref=e1250]:
+              - code [ref=e1251]: /api/faces
+            - cell "List faces (optionally filtered by person)" [ref=e1252]
+          - row "GET /api/faces/stats Face detection statistics" [ref=e1253]:
+            - cell "GET" [ref=e1254]
+            - cell "/api/faces/stats" [ref=e1255]:
+              - code [ref=e1256]: /api/faces/stats
+            - cell "Face detection statistics" [ref=e1257]
+      - heading "System & Geocoding" [level=3] [ref=e684]
+      - table [ref=e1259]:
+        - rowgroup [ref=e1260]:
+          - row "Method Path Description" [ref=e1261]:
+            - columnheader "Method" [ref=e1262]
+            - columnheader "Path" [ref=e1263]
+            - columnheader "Description" [ref=e1264]
+        - rowgroup [ref=e1265]:
+          - row "GET /health Health check" [ref=e1266]:
+            - cell "GET" [ref=e1267]
+            - cell "/health" [ref=e1268]:
+              - code [ref=e1269]: /health
+            - cell "Health check" [ref=e1270]
+          - row "GET /api/status API status" [ref=e1271]:
+            - cell "GET" [ref=e1272]
+            - cell "/api/status" [ref=e1273]:
+              - code [ref=e1274]: /api/status
+            - cell "API status" [ref=e1275]
+          - row "GET /api/geocode/reverse Reverse geocode lat/lng to location name (Nominatim)" [ref=e1276]:
+            - cell "GET" [ref=e1277]
+            - cell "/api/geocode/reverse" [ref=e1278]:
+              - code [ref=e1279]: /api/geocode/reverse
+            - cell "Reverse geocode lat/lng to location name (Nominatim)" [ref=e1280]
+          - row "GET /api/stats System statistics (files, size, types)" [ref=e1281]:
+            - cell "GET" [ref=e1282]
+            - cell "/api/stats" [ref=e1283]:
+              - code [ref=e1284]: /api/stats
+            - cell "System statistics (files, size, types)" [ref=e1285]
+          - row "GET /api/trash List trashed files" [ref=e1286]:
+            - cell "GET" [ref=e1287]
+            - cell "/api/trash" [ref=e1288]:
+              - code [ref=e1289]: /api/trash
+            - cell "List trashed files" [ref=e1290]
+          - row "POST /api/trash/empty Permanently delete all trashed files" [ref=e1291]:
+            - cell "POST" [ref=e1292]
+            - cell "/api/trash/empty" [ref=e1293]:
+              - code [ref=e1294]: /api/trash/empty
+            - cell "Permanently delete all trashed files" [ref=e1295]
+          - row "POST /api/trash/restore/<id> Restore trashed file" [ref=e1296]:
+            - cell "POST" [ref=e1297]
+            - cell "/api/trash/restore/<id>" [ref=e1298]:
+              - code [ref=e1299]: /api/trash/restore/<id>
+            - cell "Restore trashed file" [ref=e1300]
+  - generic [ref=e1301]:
+    - generic [ref=e1302]: Install Media Server
+    - button "Install" [ref=e1303] [cursor=pointer]:
+      - img [ref=e1304]
+      - text: Install
+    - button "Dismiss" [ref=e1306] [cursor=pointer]:
+      - img [ref=e1307]

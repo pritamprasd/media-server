@@ -42,17 +42,20 @@ function Statistics() {
   if (error) return <div className="stats stats--error"><p>{error}</p></div>;
   if (!data) return null;
 
-  const { overview, mime_breakdown, mime_detail, metadata_status, thumbnail_status, files_by_date, top_tags, tag_count_distribution, dimension_ranges, coverage } = data;
+  const { overview, mime_breakdown, mime_detail, metadata_status, thumbnail_status, files_by_date, top_tags, tag_count_distribution, dimension_ranges, size_distribution, coverage, sessions, faces } = data;
 
   const mimePie = [
     { name: "Images", value: mime_breakdown.image },
     { name: "Videos", value: mime_breakdown.video },
-  ];
+    { name: "Audio", value: mime_breakdown.audio || 0 },
+    { name: "Documents", value: mime_breakdown.document || 0 },
+  ].filter((d) => d.value > 0);
 
   const dimData = Object.entries(dimension_ranges).map(([name, value]) => ({ name, value }));
-
+  const sizeData = (size_distribution || []).filter((d) => d.count > 0);
   const metaStatusPie = metadata_status.map((s) => ({ name: s.status, value: s.count }));
   const thumbStatusPie = thumbnail_status.map((s) => ({ name: s.status, value: s.count }));
+  const sessionData = (sessions?.sessions_by_date || []).sort((a, b) => a.date.localeCompare(b.date));
 
   return (
     <div className="stats">
@@ -75,10 +78,26 @@ function Statistics() {
           <span className="stats__stat-value">{overview.total_metadata}</span>
           <span className="stats__stat-label">With Metadata</span>
         </div>
+        {faces && (
+          <>
+            <div className="stats__stat">
+              <span className="stats__stat-value">{faces.total_faces}</span>
+              <span className="stats__stat-label">Faces Detected</span>
+            </div>
+            <div className="stats__stat">
+              <span className="stats__stat-value">{faces.total_persons}</span>
+              <span className="stats__stat-label">Persons</span>
+            </div>
+            <div className="stats__stat">
+              <span className="stats__stat-value">{sessions?.total_sessions ?? 0}</span>
+              <span className="stats__stat-label">Import Sessions</span>
+            </div>
+          </>
+        )}
       </div>
 
       <div className="stats__grid">
-        <StatsCard title="Images vs Videos">
+        <StatsCard title="Images vs Videos vs Audio">
           <ResponsiveContainer width="100%" height={220}>
             <PieChart>
               <Pie data={mimePie} cx="50%" cy="50%" innerRadius={55} outerRadius={85} dataKey="value" label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}>
@@ -100,6 +119,29 @@ function Statistics() {
               <Area type="monotone" dataKey="image" stackId="1" stroke="#2ecc71" fill="#2ecc71" fillOpacity={0.5} name="Images" />
               <Area type="monotone" dataKey="video" stackId="1" stroke="#3498db" fill="#3498db" fillOpacity={0.5} name="Videos" />
             </AreaChart>
+          </ResponsiveContainer>
+        </StatsCard>
+
+        <StatsCard title="Import Sessions Over Time">
+          <ResponsiveContainer width="100%" height={200}>
+            <BarChart data={sessionData}>
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--neu-dark)" />
+              <XAxis dataKey="date" tick={{ fontSize: 9, fill: "var(--color-text-muted)" }} interval="preserveStartEnd" />
+              <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: "var(--color-text-muted)" }} />
+              <Tooltip />
+              <Bar dataKey="count" fill="#9b59b6" radius={[4, 4, 0, 0]} name="Sessions" />
+            </BarChart>
+          </ResponsiveContainer>
+        </StatsCard>
+
+        <StatsCard title="File Size Distribution">
+          <ResponsiveContainer width="100%" height={220}>
+            <PieChart>
+              <Pie data={sizeData} cx="50%" cy="50%" innerRadius={50} outerRadius={80} dataKey="count" label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`} nameKey="range">
+                {sizeData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+              </Pie>
+              <Tooltip />
+            </PieChart>
           </ResponsiveContainer>
         </StatsCard>
 
@@ -141,6 +183,44 @@ function Statistics() {
             </PieChart>
           </ResponsiveContainer>
         </StatsCard>
+
+        {faces && (
+          <StatsCard title="Face Stats">
+            <div className="stats__cover">
+              <div className="stats__cover-row">
+                <span className="stats__cover-label">Named Persons</span>
+                <span className="stats__cover-bar-wrap">
+                  <span className="stats__cover-bar" style={{ width: `${faces.total_persons ? (faces.named_persons / faces.total_persons) * 100 : 0}%` }} />
+                </span>
+                <span className="stats__cover-value">{faces.named_persons} / {faces.total_persons}</span>
+              </div>
+              <div className="stats__cover-row">
+                <span className="stats__cover-label">Files with Faces</span>
+                <span className="stats__cover-bar-wrap">
+                  <span className="stats__cover-bar" style={{ width: `${overview.total_files ? (faces.files_with_faces / overview.total_files) * 100 : 0}%` }} />
+                </span>
+                <span className="stats__cover-value">{faces.files_with_faces}</span>
+              </div>
+              {faces.average_age != null && (
+                <div className="stats__cover-row">
+                  <span className="stats__cover-label">Avg Age</span>
+                  <span className="stats__cover-bar-wrap">
+                    <span className="stats__cover-bar" style={{ width: `${Math.min((faces.average_age / 100) * 100, 100)}%` }} />
+                  </span>
+                  <span className="stats__cover-value">{faces.average_age} yrs</span>
+                </div>
+              )}
+              {faces.gender_breakdown && (faces.gender_breakdown.male || faces.gender_breakdown.female) && (
+                <div className="stats__cover-row">
+                  <span className="stats__cover-label">Gender</span>
+                  <span style={{ fontSize: "0.8125rem", color: "var(--color-text-muted)" }}>
+                    {faces.gender_breakdown.female || 0} F / {faces.gender_breakdown.male || 0} M
+                  </span>
+                </div>
+              )}
+            </div>
+          </StatsCard>
+        )}
 
         <StatsCard title="Metadata Status">
           <ResponsiveContainer width="100%" height={180}>
