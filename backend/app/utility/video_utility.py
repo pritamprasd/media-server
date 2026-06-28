@@ -141,9 +141,10 @@ def _atempo_chain(speed):
     return filters
 
 
-def edit_video(input_path, output_path, operations):
+def edit_video(input_path, output_path, operations, codec_args=None):
     video_filters = []
     audio_filters = []
+    text_files = []
     trim_start = None
     trim_end = None
     rotate_deg = None
@@ -185,6 +186,26 @@ def edit_video(input_path, output_path, operations):
         elif t == "reverse":
             video_filters.append("reverse")
             audio_filters.append("areverse")
+        elif t == "text":
+            txt = op.get("text", "")
+            if txt:
+                tx = op.get("x", 0.5)
+                ty = op.get("y", 0.5)
+                fs = op.get("font_size", 24)
+                color = op.get("color", "#ffffff")
+                import tempfile
+                tf = tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False, encoding="utf-8")
+                tf.write(txt)
+                tf.close()
+                text_files.append(tf.name)
+                drawtext_filter = (
+                    f"drawtext=textfile={tf.name}"
+                    f":fontsize={fs}"
+                    f":fontcolor={color}"
+                    f":x=w*{tx:.2f}-tw/2"
+                    f":y=h*{ty:.2f}-th/2"
+                )
+                video_filters.append(drawtext_filter)
         elif t == "audio_mute":
             audio_filters.append("volume=0")
 
@@ -219,10 +240,20 @@ def edit_video(input_path, output_path, operations):
         cmd.extend(["-af", ",".join(audio_filters)])
 
     if needs_reencode:
-        cmd.extend(["-c:v", "libx264", "-preset", "medium", "-crf", "23", "-c:a", "aac"])
+        if codec_args:
+            cmd.extend(codec_args)
+        else:
+            cmd.extend(["-c:v", "libx264", "-preset", "medium", "-crf", "23", "-c:a", "aac"])
     else:
         cmd.extend(["-c:v", "copy", "-c:a", "copy"])
 
     cmd.append(output_path)
 
-    subprocess.run(cmd, check=True, timeout=600)
+    try:
+        subprocess.run(cmd, check=True, timeout=600)
+    finally:
+        for tf in text_files:
+            try:
+                os.unlink(tf)
+            except Exception:
+                pass

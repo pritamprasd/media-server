@@ -223,12 +223,18 @@ def list_files():
 
     if q:
         like = f"%{q}%"
+        from app.models.detected_face import DetectedFace
+        from app.models.person import Person
+        person_file_ids = db.session.query(DetectedFace.file_id).join(
+            Person, Person.id == DetectedFace.person_id
+        ).filter(Person.name.ilike(like)).distinct().subquery()
         query = query.filter(
             db.or_(
                 db.cast(FileMetadata.tags, db.String).ilike(like),
                 FileMetadata.description.ilike(like),
                 FileMetadata.search_words.ilike(like),
                 ImportedFile.filename.ilike(like),
+                ImportedFile.id.in_(db.session.query(person_file_ids.c.file_id)),
             )
         )
 
@@ -1976,3 +1982,44 @@ def export_file(file_id):
 
     return send_file(buf, mimetype=f"image/{fmt}" if fmt != "pdf" else "application/pdf",
                      as_attachment=True, download_name=f"{os.path.splitext(file_record.filename)[0]}_export{ext}")
+
+
+@api_bp.route("/files/<int:file_id>/export-video", methods=["POST"])
+def export_video(file_id):
+    from app.utility.video_utility import edit_video
+
+    data = request.get_json(silent=True) or {}
+    operations = data.get("operations", [])
+    fmt = data.get("format", "mp4")
+
+    file_record = db.session.get(ImportedFile, file_id)
+    if not file_record:
+        return jsonify({"error": "File not found"}), 404
+    if not os.path.isfile(file_record.file_path):
+        return jsonify({"error": "Original file no longer exists"}), 404
+
+    import tempfile
+    import mimetypes
+
+    fmt_map = {
+        "mp4": (".mp4", "video/mp4", ["-c:v", "libx264", "-preset", "medium", "-crf", "23", "-c:a", "aac"]),
+        "webm": (".webm", "video/webm", ["-c:v", "libvpx", "-crf", "10", "-b:v", "1M", "-c:a", "libvorbis"]),
+        "avi": (".avi", "video/x-msvideo", ["-c:v", "libx264", "-preset", "medium", "-crf", "23", "-c:a", "aac"]),
+        "mkv": (".mkv", "video/x-matroska", ["-c:v", "libx264", "-preset", "medium", "-crf", "23", "-c:a", "aac"]),
+        "mov": (".mov", "video/quicktime", ["-c:v", "libx264", "-preset", "medium", "-crf", "23", "-c:a", "aac"]),
+    }
+    if fmt not in fmt_map:
+        return jsonify({"error": f"Unsupported format: {fmt}"}), 400
+
+    ext, mime, codec_args = fmt_map[fmt]
+    tmp = tempfile.NamedTemporaryFile(suffix=ext, delete=False)
+    try:
+        tmp.close()
+        edit_video(file_record.file_path, tmp.name, operations, codec_args=codec_args)
+        return send_file(tmp.name, mimetype=mime, as_attachment=True,
+                         download_name=f"{os.path.splitext(file_record.filename)[0]}_export{ext}")
+    finally:
+        try:
+            os.unlink(tmp.name)
+        except Exception:
+            pass

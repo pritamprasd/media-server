@@ -16,5 +16,30 @@ createRoot(document.getElementById("root")).render(
 );
 
 if ("serviceWorker" in navigator) {
-  navigator.serviceWorker.register("/sw.js", { scope: "/" }).catch(() => {});
+  navigator.serviceWorker.register("/sw.js", { scope: "/", updateViaCache: "none" }).then((reg) => {
+    if (reg.active && !navigator.serviceWorker.controller) {
+      reg.active.postMessage({ type: "CLAIM" });
+    }
+    if (reg.waiting) {
+      reg.waiting.postMessage({ type: "CLAIM" });
+    }
+    reg.addEventListener("updatefound", () => {
+      const installing = reg.installing;
+      if (installing) {
+        installing.addEventListener("statechange", () => {
+          if (installing.state === "installed" && navigator.serviceWorker.controller) {
+            const clients = navigator.serviceWorker.controller;
+            clients.postMessage({ type: "SKIP_WAITING" });
+          }
+        });
+      }
+    });
+    let reloadTimeout;
+    navigator.serviceWorker.addEventListener("controllerchange", () => {
+      clearTimeout(reloadTimeout);
+      reloadTimeout = setTimeout(() => window.location.reload(), 500);
+    });
+  }).catch((err) => {
+    console.warn("SW registration failed:", err);
+  });
 }

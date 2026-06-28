@@ -21,31 +21,45 @@ A scalable, semantic-searchable media viewer for your home media collection. Fea
 - **Upload** — drag-and-drop zone + file picker; nickname field persisted to IndexedDB; multi-file upload with progress bars
 - **Trash** — soft-delete files (library-only or library + disk)
 - **Nickname persistence** — default nickname stored in IndexedDB, editable from Settings
+- **Copy, Move, Rename** — clipboard (cut/copy/paste) and inline rename for files and folders; drag-and-drop to move items between directories
 
 ### 🖼️ Gallery & File Viewer
 - **Infinite-scroll grid** — Home page with configurable column layout (auto/1/2); click any thumbnail to open the overlay viewer
 - **Directory tree** — Gallery page organized by import session; lazy-loaded expandable directories with file counts
-- **Overlay viewer** — full-screen modal with zoom, rotate, flip, contrast/saturation/brightness controls; left/right arrow and button navigation through the current file list; keyboard shortcuts (← → navigate, Esc close)
-- **Metadata sidebar** — EXIF data, GPS coordinates, dimensions, duration, date taken, AI-generated description and tags, search words, file hash, thumbnail status
+- **Overlay viewer** — full-screen modal with zoom, pan (drag when zoomed), rotate, flip, contrast/saturation/brightness controls; left/right arrow and button navigation through the current file list; keyboard shortcuts (← → navigate, Esc close)
+- **Loading spinner** — `<Spinner>` overlay shown while media is downloading, hidden once image/video fires `onLoad`/`onCanPlay`
+- **Metadata sidebar** — EXIF data, GPS coordinates, dimensions, duration, date taken, AI-generated description and tags, search words, file hash, thumbnail status; people section with face thumbnails and "Detect Faces" button
 - **Tags** — view, add, and remove tags inline; person names auto-synced as tags from face detection
 - **Filter presets** — save custom filter combinations (brightness, contrast, saturation, warmth, sharpness, highlights, shadows, vignette, crop) as named presets; apply and delete presets from the viewer
+- **Browse Folder** — opens the parent directory in the Home grid from any file in the viewer
 
 ### ✏️ Image Editing
 - **Live CSS preview** — all edits previewed instantly with CSS filters before saving; 9 built-in filter presets (vivid, dramatic, vintage, noir, soft, clarity, warm, cool)
-- **Adjust** — brightness, contrast, saturation, warmth, sharpness, highlights, shadows, vignette sliders
-- **Crop** — draggable crop overlay with corner handles; aspect ratio presets (free, 1:1, 4:3, 3:2, 16:9, 21:9); normalized 0–1 coordinates converted to pixels on save
+- **Filters tab** — one-click presets; custom filter presets saved to database (save/upsert/delete)
+- **Adjust tab** — brightness, contrast, saturation, warmth, sharpness, vibrance, tint sliders
+- **Light tab** — exposure, contrast, highlights, shadows, blacks, whites sliders
+- **Effects tab** — grain, grayscale toggle, colorize, vignette with intensity sliders
+- **Details tab** — clarity and dehaze sliders
+- **Crop** — draggable crop overlay with corner handles + move handle; aspect ratio presets (free, 1:1, 4:3, 3:2, 16:9, 21:9, 3:4, 2:3, 9:16, 9:21); Apply/Reset flow; normalized 0–1 coordinates converted to pixels on save
 - **Rotate & Flip** — 90° clockwise/counter-clockwise, horizontal/vertical flip
-- **Server-side processing** — all edits applied via Pillow (images) or ffmpeg (videos) on save; saves as a new file in the edited images directory
-- **HEIC/HEIF support** — automatic conversion via ImageMagick + pillow-heif throughout the app (display, thumbnail, EXIF, AI metadata, hashing)
+- **Show Original** — press-and-hold (mouse/touch) to compare edited preview against original
+- **Histogram** — real-time luminance histogram (debounced 150ms) rendered in edit footer; applies preview filters via off-screen canvas
+- **Export** — format dropdown (JPEG, PNG, WebP, HEIC, PDF, ASCII Art) with quality slider; ASCII art with configurable character set and width; server-side re-processing in requested format
+- **Info tab** — inline markdown reference for all editing properties
+- **Server-side processing** — all edits applied via Pillow on save with 20+ operation types (tint, vibrance, clarity, dehaze, exposure, blacks, whites, grain, grayscale, colorize, and the full filter preset pipeline); saves as a new file in the edited images directory
+- **HEIC/HEIF support** — automatic conversion via pillow-heif throughout the app (display, thumbnail, EXIF, AI metadata, hashing)
 
 ### 🎬 Video Support
 - **Metadata extraction** — duration, dimensions, codec, frame rate via ffprobe
 - **Thumbnails** — keyframe extraction via ffmpeg
-- **Video editing** — trim (start/end time), color adjustment (brightness/contrast/saturation), rotate/flip via ffmpeg subprocess; trim-only operations use stream copy for speed
+- **Video editing** — trim (start/end time), color adjustment (brightness/contrast/saturation/warmth), rotate/flip, speed (0.25x–4x via live `playbackRate`), volume (0–200%), reverse, audio mute, crop, text overlay (configurable font/size/color/position via ffmpeg `drawtext`); video filter presets (vivid, dramatic, vintage, noir, soft, clarity, warm, cool)
+- **Video export** — MP4, WebM, AVI, MKV, MOV via ffmpeg re-encoding; format-specific codec args
+- **Trim-only operations** — use stream copy for speed
+- **Live speed preview** — `playbackRate` set directly on `<video>` element — no re-encode needed
 - **AI metadata** — multi-frame extraction sent to Ollama vision model for description and tags
 
 ### 🤖 AI Metadata (Ollama)
-- **Automatic tagging** — files sent to a local Ollama vision model for description, 5–10 tags, and 5–10 search keywords
+- **Automatic tagging** — files sent to a local Ollama vision model for description, 5–10 tags, and 5–10 search keywords; multi-frame extraction for videos
 - **Folder tag merging** — tags extracted from parent folder names merged with AI tags
 - **Retrigger** — regenerate AI metadata, EXIF, or thumbnail individually from the viewer sidebar
 - **Configurable model** — choose any Ollama vision model (default: `llava`)
@@ -58,6 +72,7 @@ A scalable, semantic-searchable media viewer for your home media collection. Fea
 - **Scan all faces** — one-click scan of all unscanned images; modal shows queue count; auto-triggered on import, upload, and edit
 - **Tag propagation** — naming a person adds the name as a tag to all containing images (removed on rename)
 - **Face viewer** — view detected face thumbnails per image in the file viewer sidebar; name individual faces inline (creates or reuses persons)
+- **Infinite scroll** — Faces page uses paginated backend (50 per page) with IntersectionObserver for seamless scrolling
 - **Stats** — total persons, faces, named persons, files with faces
 
 ### 📍 Map & Locations
@@ -68,7 +83,7 @@ A scalable, semantic-searchable media viewer for your home media collection. Fea
 - **Tile caching** — OpenStreetMap tiles cached via service worker (cache-first, persistent across sessions)
 
 ### 🔍 Search & Filters
-- **Full-text search** — search across filename, tags, AI description, and search keywords
+- **Full-text search** — search across filename, tags, AI description, search keywords, and **person names** (via `DetectedFace` + `Person` join)
 - **Media type filter** — toggle between All / Images / Videos
 - **AI filter** — show only files with AI-generated metadata
 - **Dimension filter** — preset resolution thresholds (VGA, HD, Full HD, 4K)
@@ -95,23 +110,27 @@ A scalable, semantic-searchable media viewer for your home media collection. Fea
 - **Default tab** — choose which page loads on app start
 - **Columns** — default grid column layout (auto/1/2)
 - **Nickname** — edit default upload nickname
+- **Editor Tab Order** — reorder image and video editor tabs via move-up/move-down; persisted to IndexedDB and reflected in the viewer
+- **Cache clear** — clear all IndexedDB caches and service worker caches; uses `navigator.serviceWorker.ready` for Chrome PWA compatibility
 
 ### 🎨 Design System
 - **Neumorphic UI** — custom box-shadow system (`--neu-raised`, `--neu-inset`, `--neu-flat`) across all interactive elements
 - **Dark/Light themes** — 50+ CSS custom properties; dark base `#0d0d0d`, light base `#e4e4ed`
 - **Animations** — 10 CSS-only SpinKit spinner variants (ring, dual-ring, dots, pulse, bars, hourglass, ripple, infinity, grid, circle) with size/color theming
 - **Lucide icons** — every button uses a thoughtful lucide-react icon
-- **Responsive** — mobile layouts for Faces sidebar, Upload bottom sheet, map layout
+- **Responsive** — mobile layouts for Faces sidebar, Upload bottom sheet, map layout, viewer padding (buttons no longer hidden behind image content)
 
 ### 🌐 PWA & Offline
 - **Installable** — full PWA manifest with standalone display, theme color, icon set (192/512 PNG + SVG)
-- **Service worker** — 4 cache stores with different strategies:
+- **Service worker** — 4 cache stores with different strategies (CLEAR_CACHES broadcasts to all window clients):
   | Cache | Strategy | Contents |
   |-------|----------|----------|
   | Shell | Cache-first | App JS/CSS (precached) |
   | API | Network-first | File listings, metadata, tags |
   | Media | Network-first | Full images and videos |
   | Map Tiles | Cache-first | OpenStreetMap tile images |
+- **Registration** — `updateViaCache: "none"`, `CLAIM`/`SKIP_WAITING` message handlers, `controllerchange` listener with debounced reload; works reliably on Chrome mobile/PWA
+- **Cache clear** — broadcasts to `{ type: "window" }` clients; all active tabs receive the clear signal
 - **Loading animation** — animated gradient blobs, rotating rings, orbiting dots, pulsing icon in `index.html` until React mounts
 
 ### 🖥️ Docker Deployment
@@ -149,24 +168,24 @@ media-server/
 ├── backend/
 │   ├── app/
 │   │   ├── api/
-│   │   │   ├── routes.py           # 40+ API endpoints
+│   │   │   ├── routes.py           # 50+ API endpoints
 │   │   │   └── face_routes.py      # Face/person API endpoints
-│   │   ├── models/                 # 10 SQLAlchemy models
+│   │   ├── models/                 # 8 SQLAlchemy models
 │   │   ├── utility/                # 11 utility modules
 │   │   ├── tasks.py                # 5 Celery task definitions
 │   │   ├── config.py               # App configuration
 │   │   └── __init__.py             # App factory
-│   ├── migrations/                 # 6 Alembic migrations
+│   ├── migrations/                 # 8 Alembic migrations
 │   ├── scripts/
 │   │   └── regenerate_heic_thumbnails.py
 │   ├── tests/
-│   │   └── test_api.py             # 12 test cases
+│   │   └── test_api.py             # 13 test cases
 │   ├── Dockerfile
 │   └── requirements.txt
 ├── frontend/
 │   ├── src/
 │   │   ├── pages/                  # 11 pages
-│   │   ├── components/             # 5 components
+│   │   ├── components/             # 4 components
 │   │   ├── services/               # API client, IndexedDB store
 │   │   ├── contexts/               # ThemeContext
 │   │   └── hooks/                  # useApi

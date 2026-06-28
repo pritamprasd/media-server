@@ -177,3 +177,51 @@
   box-shadow: var(--neu-inset-sm);
   color: #fff;
 }
+
+.settings__tabs-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.settings__tab-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.35rem 0.5rem;
+  background: var(--color-bg);
+  border-radius: var(--radius);
+}
+
+.settings__tab-name {
+  font-size: 0.8125rem;
+  color: var(--color-text);
+}
+
+.settings__tab-arrows {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.settings__tab-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border: none;
+  border-radius: 4px;
+  background: var(--color-surface);
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: all 0.12s;
+}
+
+.settings__tab-btn:hover:not(:disabled) { background: var(--neu-flat); color: var(--color-text); }
+.settings__tab-btn:disabled { opacity: 0.3; cursor: default; }
+
+.settings__btn--small {
+  padding: 0.35rem 0.75rem;
+  font-size: 0.75rem;
+  align-self: flex-start;
+}

@@ -16,9 +16,10 @@ import {
   listFilters, createFilter, deleteFilter,
   listFileFaces,
   updateFace,
-  detectFaces,
+  detectFaces,  
 } from "../services/api";
 import Spinner from "./Spinner";
+import { getPref, setPref } from "../services/db";
 // import editingInfoMd from "./image_editing_info.md?raw";
 import "./FileViewer.css";
 
@@ -33,6 +34,15 @@ const FILTERS = [
   { name: "warm", label: "Warm", css: "sepia(0.15) saturate(1.2) hue-rotate(10deg)" },
   { name: "cool", label: "Cool", css: "saturate(0.9) hue-rotate(200deg) brightness(1.05)" },
 ];
+
+const ICON_MAP = {
+  trim: Clock, adjust: SlidersHorizontal, filters: Sparkles, text: Type,
+  effects: Contrast, crop: FlipHorizontal, light: Sun, details: Grid3X3,
+  info: Info,
+};
+
+const DEFAULT_IMAGE_TABS = ["filters", "adjust", "light", "effects", "details", "info", "crop"];
+const DEFAULT_VIDEO_TABS = ["trim", "adjust", "filters", "text", "effects", "crop"];
 
 function FaceNameTag({ face, onNameChange }) {
   const [editing, setEditing] = useState(false);
@@ -94,6 +104,9 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete, onN
   const [tagInput, setTagInput] = useState("");
   const [tagSaving, setTagSaving] = useState(false);
   const [zoom, setZoom] = useState(1);
+  const [panX, setPanX] = useState(0);
+  const [panY, setPanY] = useState(0);
+  const panRef = useRef(null);
   const [editTab, setEditTab] = useState(file.mime_type?.startsWith("video/") ? "trim" : "filters");
   const [activeFilter, setActiveFilter] = useState("normal");
   const [adjust, setAdjust] = useState({
@@ -124,6 +137,8 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete, onN
   const [exporting, setExporting] = useState(false);
   const [showOriginal, setShowOriginal] = useState(false);
   const [textOverlay, setTextOverlay] = useState({ text: "", x: 50, y: 50, fontSize: 24, color: "#ffffff", enabled: false });
+  const [mediaLoading, setMediaLoading] = useState(true);
+  const [tabOrder, setTabOrder] = useState(null);
   const originalBtnRef = useRef(null);
   const videoRef = useRef(null);
   const exportRef = useRef(null);
@@ -162,7 +177,14 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete, onN
 
   useEffect(() => {
     listFilters().then(setCustomFilters).catch(() => {});
-  }, []);
+    const key = isVideo ? "videoEditTabs" : "imageEditTabs";
+    const def = isVideo ? DEFAULT_VIDEO_TABS : DEFAULT_IMAGE_TABS;
+    getPref(key, null).then((saved) => {
+      setTabOrder(saved || def);
+    });
+  }, [isVideo]);
+
+  useEffect(() => { setMediaLoading(true); }, [file.id]);
 
   useEffect(() => {
     if (meta && isVideo && meta.duration) {
@@ -252,9 +274,9 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete, onN
     setOperations((prev) => [...prev, op]);
   }, []);
 
-  const handleZoomIn = () => setZoom((p) => Math.min(5, +(p * 1.25).toFixed(2)));
-  const handleZoomOut = () => setZoom((p) => Math.max(0.25, +(p / 1.25).toFixed(2)));
-  const handleZoomReset = () => setZoom(1);
+  const handleZoomIn = () => { setZoom((p) => Math.min(5, +(p * 1.25).toFixed(2))); setPanX(0); setPanY(0); };
+  const handleZoomOut = () => { setZoom((p) => Math.max(0.25, +(p / 1.25).toFixed(2))); setPanX(0); setPanY(0); };
+  const handleZoomReset = () => { setZoom(1); setPanX(0); setPanY(0); };
 
   const handleWheel = useCallback((e) => {
     if (e.ctrlKey || e.metaKey) {
@@ -263,6 +285,8 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete, onN
         const factor = e.deltaY > 0 ? 1 / 1.1 : 1.1;
         return Math.max(0.25, Math.min(5, +(p * factor).toFixed(2)));
       });
+      setPanX(0);
+      setPanY(0);
     }
   }, []);
 
@@ -270,8 +294,10 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete, onN
     if (e.touches.length === 2) {
       const dist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
       pinchRef.current = dist;
+    } else if (e.touches.length === 1 && zoom > 1) {
+      panRef.current = { startX: e.touches[0].clientX - panX, startY: e.touches[0].clientY - panY, dragging: true };
     }
-  }, []);
+  }, [zoom, panX, panY]);
 
   const handleTouchMove = useCallback((e) => {
     if (e.touches.length === 2 && pinchRef.current) {
@@ -279,11 +305,32 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete, onN
       const dist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
       const factor = dist / pinchRef.current;
       setZoom((p) => Math.max(0.25, Math.min(5, +(p * factor).toFixed(2))));
+      setPanX(0);
+      setPanY(0);
       pinchRef.current = dist;
+    } else if (e.touches.length === 1 && panRef.current?.dragging) {
+      setPanX(e.touches[0].clientX - panRef.current.startX);
+      setPanY(e.touches[0].clientY - panRef.current.startY);
     }
   }, []);
 
-  const handleTouchEnd = useCallback(() => { pinchRef.current = null; }, []);
+  const handleTouchEnd = useCallback(() => { pinchRef.current = null; if (panRef.current) panRef.current.dragging = false; }, []);
+
+  const handlePanMouseDown = useCallback((e) => {
+    if (zoom <= 1) return;
+    panRef.current = { startX: e.clientX - panX, startY: e.clientY - panY, dragging: true };
+    e.preventDefault();
+  }, [zoom, panX, panY]);
+
+  const handlePanMouseMove = useCallback((e) => {
+    if (!panRef.current?.dragging) return;
+    setPanX(e.clientX - panRef.current.startX);
+    setPanY(e.clientY - panRef.current.startY);
+  }, []);
+
+  const handlePanMouseUp = useCallback(() => {
+    if (panRef.current) panRef.current.dragging = false;
+  }, []);
 
   const handleSlider = (key, val) => {
     setAdjust((prev) => ({ ...prev, [key]: val }));
@@ -609,19 +656,25 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete, onN
     setExportFormat(format);
     setShowExportMenu(false);
     setExporting(true);
-    const ops = buildOperations();
+    const ops = isVideo ? buildVideoOperations() : buildOperations();
     try {
-      const { exportFile } = await import("../services/api");
-      const payload = { format, quality: exportQuality };
-      if (format === "ascii") {
-        payload.ascii_chars = asciiChars;
-        payload.ascii_width = asciiWidth;
+      const { exportFile, exportVideo } = await import("../services/api");
+      let blob;
+      if (isVideo) {
+        blob = await exportVideo(file.id, ops, { format, quality: exportQuality });
+      } else {
+        const payload = { format, quality: exportQuality };
+        if (format === "ascii") {
+          payload.ascii_chars = asciiChars;
+          payload.ascii_width = asciiWidth;
+        }
+        blob = await exportFile(file.id, ops, payload);
       }
-      const blob = await exportFile(file.id, ops, payload);
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      const ext = format === "jpeg" ? "jpg" : (format === "ascii" ? "txt" : format);
+      const extMap = { jpeg: "jpg", jpg: "jpg", ascii: "txt", webm: "webm", avi: "avi", mkv: "mkv", mov: "mov", mp4: "mp4" };
+      const ext = extMap[format] || format;
       const nameStem = file.filename.replace(/\.[^.]+$/, "");
       a.download = `${nameStem}_export.${ext}`;
       document.body.appendChild(a);
@@ -706,7 +759,10 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete, onN
       if (op.type === "flip" && op.direction === "vertical") sy *= -1;
     }
     const transforms = [];
-    if (zoom !== 1) transforms.push(`scale(${zoom})`);
+    if (zoom !== 1) {
+      transforms.push(`translate(${panX}px, ${panY}px)`);
+      transforms.push(`scale(${zoom})`);
+    }
     if (rot) transforms.push(`rotate(${rot}deg)`);
     if (sx !== 1 || sy !== 1) transforms.push(`scale(${sx}, ${sy})`);
     let clipPathVal;
@@ -790,14 +846,20 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete, onN
                   {showExportMenu && (
                     <div className="viewer-export-menu">
                       <div className="viewer-export-section">Format</div>
-                      {[
+                      {(isVideo ? [
+                        { fmt: "mp4", label: "MP4", ext: ".mp4" },
+                        { fmt: "webm", label: "WebM", ext: ".webm" },
+                        { fmt: "avi", label: "AVI", ext: ".avi" },
+                        { fmt: "mkv", label: "MKV", ext: ".mkv" },
+                        { fmt: "mov", label: "MOV", ext: ".mov" },
+                      ] : [
                         { fmt: "jpeg", label: "JPEG", ext: ".jpg" },
                         { fmt: "png", label: "PNG", ext: ".png" },
                         { fmt: "webp", label: "WebP", ext: ".webp" },
                         { fmt: "heic", label: "HEIC", ext: ".heic" },
                         { fmt: "pdf", label: "PDF", ext: ".pdf" },
                         { fmt: "ascii", label: "ASCII Art", ext: ".txt" },
-                      ].map((f) => (
+                      ]).map((f) => (
                         <button
                           key={f.fmt}
                           className={`viewer-export-item ${exportFormat === f.fmt ? "viewer-export-item--active" : ""}`}
@@ -808,21 +870,24 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete, onN
                           <span className="viewer-export-ext">{f.ext}</span>
                         </button>
                       ))}
-                      <div className="viewer-export-section">Options</div>
-                      {exportFormat !== "ascii" ? (
-                        <div className="viewer-export-quality">
-                          <span className="viewer-export-label">Quality</span>
-                          <input
-                            type="range"
-                            min={10}
-                            max={100}
-                            value={exportQuality}
-                            onChange={(e) => setExportQuality(parseInt(e.target.value))}
-                            className="viewer-slider"
-                          />
-                          <span className="viewer-export-val">{exportQuality}%</span>
-                        </div>
-                      ) : (
+                      {!isVideo && exportFormat !== "ascii" && (
+                        <>
+                          <div className="viewer-export-section">Options</div>
+                          <div className="viewer-export-quality">
+                            <span className="viewer-export-label">Quality</span>
+                            <input
+                              type="range"
+                              min={10}
+                              max={100}
+                              value={exportQuality}
+                              onChange={(e) => setExportQuality(parseInt(e.target.value))}
+                              className="viewer-slider"
+                            />
+                            <span className="viewer-export-val">{exportQuality}%</span>
+                          </div>
+                        </>
+                      )}
+                      {!isVideo && exportFormat === "ascii" && (
                         <div className="viewer-export-ascii-opts">
                           <div className="viewer-export-quality">
                             <span className="viewer-export-label">Chars</span>
@@ -864,12 +929,15 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete, onN
         </div>
 
         <div className="viewer-content">
-          <div className="viewer-body" onWheel={handleWheel} onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd}>
+          <div className="viewer-body" style={zoom > 1 ? { cursor: panRef.current?.dragging ? "grabbing" : "grab" } : {}} onWheel={handleWheel} onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd} onMouseDown={handlePanMouseDown} onMouseMove={handlePanMouseMove} onMouseUp={handlePanMouseUp} onMouseLeave={handlePanMouseUp}>
+            {mediaLoading && (
+              <div className="viewer-media-loading"><Spinner size={36} center /></div>
+            )}
             {isVideo ? (
-              <video ref={videoRef} className="viewer-media" src={fileUrl} controls autoPlay style={{ filter: showOriginal ? "none" : previewFilter }} />
+              <video ref={videoRef} className="viewer-media" src={fileUrl} controls autoPlay style={{ filter: showOriginal ? "none" : previewFilter }} onCanPlay={() => setMediaLoading(false)} />
             ) : (
-              <div className="viewer-media-wrap">
-                <img ref={imgRef} className="viewer-media" src={fileUrl} alt={file.filename} style={previewStyle} />
+              <div className="viewer-media-wrap" style={mediaLoading ? { visibility: "hidden", position: "absolute" } : {}}>
+                <img ref={imgRef} className="viewer-media" src={fileUrl} alt={file.filename} style={previewStyle} onLoad={() => setMediaLoading(false)} />
                 {editMode && adjust.vignette > 0 && (
                   <div className="viewer-vignette" style={{ opacity: adjust.vignette / 100 }} />
                 )}
@@ -923,65 +991,20 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete, onN
           {editMode && (
             <div className="viewer-edit-panel">
               <div className="viewer-edit-tabs">
-                {isVideo ? (
-                  <>
-                    <button className={`viewer-edit-tab ${editTab === "trim" ? "viewer-edit-tab--active" : ""}`} onClick={() => setEditTab("trim")} title="Trim">
-                      <Clock size={15} />
-                      <span>Trim</span>
+                {(tabOrder || (isVideo ? DEFAULT_VIDEO_TABS : DEFAULT_IMAGE_TABS)).map((tabId) => {
+                  const TabIcon = ICON_MAP[tabId] || SlidersHorizontal;
+                  return (
+                    <button
+                      key={tabId}
+                      className={`viewer-edit-tab ${editTab === tabId ? "viewer-edit-tab--active" : ""}`}
+                      onClick={() => setEditTab(tabId)}
+                      title={tabId.charAt(0).toUpperCase() + tabId.slice(1)}
+                    >
+                      <TabIcon size={15} />
+                      <span>{tabId.charAt(0).toUpperCase() + tabId.slice(1)}</span>
                     </button>
-                    <button className={`viewer-edit-tab ${editTab === "adjust" ? "viewer-edit-tab--active" : ""}`} onClick={() => setEditTab("adjust")} title="Adjust">
-                      <SlidersHorizontal size={15} />
-                      <span>Adjust</span>
-                    </button>
-                    <button className={`viewer-edit-tab ${editTab === "filters" ? "viewer-edit-tab--active" : ""}`} onClick={() => setEditTab("filters")} title="Filters">
-                      <Sparkles size={15} />
-                      <span>Filters</span>
-                    </button>
-                    <button className={`viewer-edit-tab ${editTab === "text" ? "viewer-edit-tab--active" : ""}`} onClick={() => setEditTab("text")} title="Text">
-                      <Type size={15} />
-                      <span>Text</span>
-                    </button>
-                    <button className={`viewer-edit-tab ${editTab === "effects" ? "viewer-edit-tab--active" : ""}`} onClick={() => setEditTab("effects")} title="Effects">
-                      <Drama size={15} />
-                      <span>Effects</span>
-                    </button>
-                    <button className={`viewer-edit-tab ${editTab === "crop" ? "viewer-edit-tab--active" : ""}`} onClick={() => setEditTab("crop")} title="Crop">
-                      <FlipHorizontal size={15} />
-                      <span>Crop</span>
-                    </button>
-                  </>
-                ) : (
-                  <>
-                    <button className={`viewer-edit-tab ${editTab === "filters" ? "viewer-edit-tab--active" : ""}`} onClick={() => setEditTab("filters")} title="Filters">
-                      <Sparkles size={15} />
-                      <span>Filters</span>
-                    </button>
-                    <button className={`viewer-edit-tab ${editTab === "adjust" ? "viewer-edit-tab--active" : ""}`} onClick={() => setEditTab("adjust")} title="Adjust">
-                      <SlidersHorizontal size={15} />
-                      <span>Adjust</span>
-                    </button>
-                    <button className={`viewer-edit-tab ${editTab === "light" ? "viewer-edit-tab--active" : ""}`} onClick={() => setEditTab("light")} title="Light">
-                      <Sun size={15} />
-                      <span>Light</span>
-                    </button>
-                    <button className={`viewer-edit-tab ${editTab === "effects" ? "viewer-edit-tab--active" : ""}`} onClick={() => setEditTab("effects")} title="Effects">
-                      <Contrast size={15} />
-                      <span>Effects</span>
-                    </button>
-                    <button className={`viewer-edit-tab ${editTab === "details" ? "viewer-edit-tab--active" : ""}`} onClick={() => setEditTab("details")} title="Details">
-                      <Grid3X3 size={15} />
-                      <span>Details</span>
-                    </button>
-                    <button className={`viewer-edit-tab ${editTab === "info" ? "viewer-edit-tab--active" : ""}`} onClick={() => setEditTab("info")} title="Info">
-                      <Info size={15} />
-                      <span>Info</span>
-                    </button>
-                    <button className={`viewer-edit-tab ${editTab === "crop" ? "viewer-edit-tab--active" : ""}`} onClick={() => setEditTab("crop")} title="Crop">
-                      <FlipHorizontal size={15} />
-                      <span>Crop</span>
-                    </button>
-                  </>
-                )}
+                  );
+                })}
               </div>
 
               <div className="viewer-edit-body">
@@ -1314,6 +1337,46 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete, onN
                       </div>
                     )}
 
+                    {editTab === "info" && (
+                      <div className="viewer-info">
+                        <div className="viewer-info-content">
+                          {editingInfoMd.split("\n").map((line, i) => {
+                            if (line.startsWith("# ")) return <h1 key={i}>{line.slice(2)}</h1>;
+                            if (line.startsWith("## ")) return <h2 key={i}>{line.slice(3)}</h2>;
+                            if (line.startsWith("### ")) return <h3 key={i}>{line.slice(4)}</h3>;
+                            if (line.startsWith("| ")) return null;
+                            if (line.startsWith("---")) return <hr key={i} />;
+                            if (line.startsWith("> ")) return <blockquote key={i}>{line.slice(2)}</blockquote>;
+                            if (line.startsWith("**")) {
+                              const bold = line.replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>");
+                              return <p key={i} dangerouslySetInnerHTML={{ __html: bold }} />;
+                            }
+                            if (line.trim()) return <p key={i}>{line}</p>;
+                            return <br key={i} />;
+                          })}
+                        </div>
+                        <div className="viewer-info-tables">
+                          {editingInfoMd.split("\n\n").filter(s => s.includes("|")).map((section, si) => {
+                            const lines = section.split("\n").filter(l => l.startsWith("|"));
+                            if (lines.length < 2) return null;
+                            const headers = lines[0].split("|").filter(Boolean).map(h => h.trim());
+                            const rows = lines.slice(2).map(row => row.split("|").filter(Boolean).map(c => c.trim()));
+                            const headerMatch = section.split("\n").find(l => l.startsWith("## "));
+                            const title = headerMatch ? headerMatch.slice(3) : "";
+                            return (
+                              <div key={si} className="viewer-info-table-wrap">
+                                {title && <h3 key={`t${si}`}>{title}</h3>}
+                                <table key={si}>
+                                  <thead><tr>{headers.map((h, hi) => <th key={hi}>{h}</th>)}</tr></thead>
+                                  <tbody>{rows.map((row, ri) => <tr key={ri}>{row.map((c, ci) => <td key={ci} dangerouslySetInnerHTML={{ __html: c.replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>") }} />)}</tr>)}</tbody>
+                                </table>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+
                     {editTab === "crop" && (
                       <div className="viewer-crop-tools">
                         <div className="viewer-crop-aspects">
@@ -1369,7 +1432,7 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete, onN
                     {saving ? <Spinner size={14} /> : <Save size={14} />} Save
                   </button>
                   <button className="viewer-btn viewer-btn--save-filter" onClick={() => setShowSaveFilter(true)} disabled={!hasEdits || savingFilter}>
-                    {savingFilter ? <Spinner size={14} /> : <Save size={14} />} Save Filter
+                    {savingFilter ? <Spinner size={14} /> : <Save size={14} />} Preset
                   </button>
                   <button className="viewer-btn viewer-btn--cancel" onClick={handleCancel}>
                     <Undo2 size={14} /> Reset

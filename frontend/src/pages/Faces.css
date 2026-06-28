@@ -173,6 +173,19 @@
   gap: 0.75rem;
 }
 
+.faces-grid-loading {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem 0;
+}
+
+.faces-sentinel {
+  grid-column: 1 / -1;
+  height: 1px;
+}
+
 .faces-card {
   position: relative;
   background: var(--color-surface);

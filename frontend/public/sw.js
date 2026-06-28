@@ -159,9 +159,15 @@ self.addEventListener("message", (e) => {
     (async () => {
       const keys = await caches.keys();
       await Promise.all(keys.map((k) => caches.delete(k)));
-      const clients = await self.clients.matchAll();
+      const clients = await self.clients.matchAll({ type: "window" });
       clients.forEach((c) => c.postMessage({ type: "CACHES_CLEARED" }));
     })();
+  }
+  if (e.data.type === "CLAIM") {
+    self.skipWaiting().then(() => self.clients.claim());
+  }
+  if (e.data.type === "SKIP_WAITING") {
+    self.skipWaiting();
   }
 });
 

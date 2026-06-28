@@ -223,8 +223,8 @@ export async function deleteFilter(filterId) {
   return data;
 }
 
-export async function listPersons() {
-  const { data } = await client.get("/persons");
+export async function listPersons(page = 1, perPage = 50) {
+  const { data } = await client.get("/persons", { params: { page, per_page: perPage } });
   return data;
 }
 
@@ -291,6 +291,11 @@ export async function updateFace(faceId, payload) {
 
 export async function exportFile(fileId, operations, opts = {}) {
   const { data } = await client.post(`/files/${fileId}/export`, { operations, ...opts }, { responseType: "blob" });
+  return data;
+}
+
+export async function exportVideo(fileId, operations, opts = {}) {
+  const { data } = await client.post(`/files/${fileId}/export-video`, { operations, ...opts }, { responseType: "blob" });
   return data;
 }
 

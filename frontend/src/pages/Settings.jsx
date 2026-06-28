@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Settings as SettingsIcon, ArrowRight, Palette, Save, Trash2 } from "lucide-react";
+import { Settings as SettingsIcon, ArrowRight, Palette, Save, Trash2, ArrowUp, ArrowDown } from "lucide-react";
 import { getPref, setPref } from "../services/db";
 import "./Settings.css";
 
@@ -14,6 +14,10 @@ const TABS = [
   { path: "/duplicates", label: "Duplicates" },
   { path: "/statistics", label: "Statistics" },
 ];
+
+const DEFAULT_IMAGE_TABS = ["filters", "adjust", "light", "effects", "details", "info", "crop"];
+const DEFAULT_VIDEO_TABS = ["trim", "adjust", "filters", "text", "effects", "crop"];
+const TAB_LABELS = { trim: "Trim", adjust: "Adjust", filters: "Filters", text: "Text", effects: "Effects", crop: "Crop", light: "Light", details: "Details", info: "Info" };
 
 const COLUMN_OPTIONS = [
   { value: "auto", label: "Auto" },
@@ -38,6 +42,8 @@ function Settings() {
   const [columns, setColumnsState] = useState("auto");
   const [savedNickname, setSavedNickname] = useState("");
   const [cacheStatus, setCacheStatus] = useState("idle");
+  const [imageTabs, setImageTabs] = useState(DEFAULT_IMAGE_TABS);
+  const [videoTabs, setVideoTabs] = useState(DEFAULT_VIDEO_TABS);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -45,7 +51,30 @@ function Settings() {
     getPref("accentColor", "#3498db").then(setAccentColor);
     getPref("homeColumns", "auto").then(setColumnsState);
     getPref("nickname", "").then(setSavedNickname);
+    getPref("imageEditTabs", null).then((s) => setImageTabs(s || DEFAULT_IMAGE_TABS));
+    getPref("videoEditTabs", null).then((s) => setVideoTabs(s || DEFAULT_VIDEO_TABS));
   }, []);
+
+  const handleMoveTab = (type, idx, dir) => {
+    const setter = type === "image" ? setImageTabs : setVideoTabs;
+    const key = type === "image" ? "imageEditTabs" : "videoEditTabs";
+    setter((prev) => {
+      const next = [...prev];
+      const target = idx + dir;
+      if (target < 0 || target >= next.length) return prev;
+      [next[idx], next[target]] = [next[target], next[idx]];
+      setPref(key, next);
+      return next;
+    });
+  };
+
+  const handleResetTabs = (type) => {
+    const def = type === "image" ? DEFAULT_IMAGE_TABS : DEFAULT_VIDEO_TABS;
+    const key = type === "image" ? "imageEditTabs" : "videoEditTabs";
+    const setter = type === "image" ? setImageTabs : setVideoTabs;
+    setter(def);
+    setPref(key, def);
+  };
 
   const handleTabChange = (e) => {
     const val = e.target.value;
@@ -68,13 +97,22 @@ function Settings() {
     setPref("nickname", savedNickname.trim());
   };
 
-  const handleClearCache = () => {
-    if (!("serviceWorker" in navigator) || !navigator.serviceWorker.controller) {
+  const handleClearCache = async () => {
+    if (!("serviceWorker" in navigator)) {
       setCacheStatus("no-sw");
       return;
     }
     setCacheStatus("clearing");
-    navigator.serviceWorker.controller.postMessage({ type: "CLEAR_CACHES" });
+    try {
+      const reg = await navigator.serviceWorker.ready;
+      if (reg.active) {
+        reg.active.postMessage({ type: "CLEAR_CACHES" });
+      } else {
+        setCacheStatus("no-sw");
+      }
+    } catch {
+      setCacheStatus("no-sw");
+    }
   };
 
   useEffect(() => {
@@ -157,6 +195,40 @@ function Settings() {
           {cacheStatus === "done" && <span className="settings__cache-ok">&checkmark; Cleared!</span>}
           {cacheStatus === "no-sw" && <span className="settings__cache-err">Service worker not available</span>}
         </div>
+      </div>
+
+      <div className="settings__card">
+        <h3 className="settings__label">Image Editor Tab Order</h3>
+        <p className="settings__desc">Reorder the tabs shown in the image editor.</p>
+        <div className="settings__tabs-list">
+          {imageTabs.map((tabId, i) => (
+            <div key={tabId} className="settings__tab-row">
+              <span className="settings__tab-name">{TAB_LABELS[tabId] || tabId}</span>
+              <div className="settings__tab-arrows">
+                <button className="settings__tab-btn" disabled={i === 0} onClick={() => handleMoveTab("image", i, -1)} title="Move up"><ArrowUp size={13} /></button>
+                <button className="settings__tab-btn" disabled={i === imageTabs.length - 1} onClick={() => handleMoveTab("image", i, 1)} title="Move down"><ArrowDown size={13} /></button>
+              </div>
+            </div>
+          ))}
+        </div>
+        <button className="settings__btn settings__btn--small" onClick={() => handleResetTabs("image")}>Reset to defaults</button>
+      </div>
+
+      <div className="settings__card">
+        <h3 className="settings__label">Video Editor Tab Order</h3>
+        <p className="settings__desc">Reorder the tabs shown in the video editor.</p>
+        <div className="settings__tabs-list">
+          {videoTabs.map((tabId, i) => (
+            <div key={tabId} className="settings__tab-row">
+              <span className="settings__tab-name">{TAB_LABELS[tabId] || tabId}</span>
+              <div className="settings__tab-arrows">
+                <button className="settings__tab-btn" disabled={i === 0} onClick={() => handleMoveTab("video", i, -1)} title="Move up"><ArrowUp size={13} /></button>
+                <button className="settings__tab-btn" disabled={i === videoTabs.length - 1} onClick={() => handleMoveTab("video", i, 1)} title="Move down"><ArrowDown size={13} /></button>
+              </div>
+            </div>
+          ))}
+        </div>
+        <button className="settings__btn settings__btn--small" onClick={() => handleResetTabs("video")}>Reset to defaults</button>
       </div>
 
       <div className="settings__card">

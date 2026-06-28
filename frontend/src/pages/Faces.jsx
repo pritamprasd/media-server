@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Eye, EyeOff, Search, UserPlus, UserMinus, IdCard, Scan, Image, SlidersHorizontal, X, ChevronLeft, ChevronRight, Tags, GitMerge, CheckSquare, Square, ChevronDown, Users } from "lucide-react";
 import Spinner from "../components/Spinner";
 import FileViewer from "../components/FileViewer";
@@ -9,6 +9,10 @@ function Faces() {
   const [persons, setPersons] = useState([]);
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [personPage, setPersonPage] = useState(1);
+  const [personTotal, setPersonTotal] = useState(0);
+  const [personPages, setPersonPages] = useState(0);
   const [scanning, setScanning] = useState(false);
   const [selectedPerson, setSelectedPerson] = useState(null);
   const [personFiles, setPersonFiles] = useState([]);
@@ -25,20 +29,43 @@ function Faces() {
   const [merging, setMerging] = useState(false);
   const [mergeName, setMergeName] = useState("");
   const [scanResult, setScanResult] = useState(null);
+  const sentinelRef = useRef(null);
 
-  const loadPersons = useCallback(async () => {
+  const loadPersons = useCallback(async (page = 1, append = false) => {
+    if (!append) setLoading(true);
+    else setLoadingMore(true);
     try {
-      const [pData, sData] = await Promise.all([listPersons(), getFaceStats()]);
-      setPersons(pData);
+      const [pData, sData] = await Promise.all([listPersons(page, 50), getFaceStats()]);
+      setPersons((prev) => append ? [...prev, ...pData.persons] : pData.persons);
       setStats(sData);
+      setPersonPage(pData.page);
+      setPersonTotal(pData.total);
+      setPersonPages(pData.pages);
     } catch (e) {
       console.error("Failed to load persons:", e);
     } finally {
       setLoading(false);
+      setLoadingMore(false);
     }
   }, []);
 
   useEffect(() => { loadPersons(); }, [loadPersons]);
+
+  useEffect(() => {
+    if (loading || loadingMore || personPage >= personPages) return;
+    const el = sentinelRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) {
+          loadPersons(personPage + 1, true);
+        }
+      },
+      { rootMargin: "200px" }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [loading, loadingMore, personPage, personPages, loadPersons]);
 
   const handleScan = async () => {
     setScanning(true);
@@ -279,6 +306,12 @@ function Faces() {
                   </div>
                 </div>
               ))}
+              {loadingMore && (
+                <div className="faces-grid-loading">
+                  <Spinner size={24} center />
+                </div>
+              )}
+              {personPage < personPages && <div ref={sentinelRef} className="faces-sentinel" />}
             </div>
           </div>
 

@@ -12,15 +12,26 @@ from app.tasks import detect_faces
 
 @api_bp.route("/persons", methods=["GET"])
 def list_persons():
-    persons = Person.query.order_by(Person.face_count.desc(), Person.created_at.desc()).all()
+    page = request.args.get("page", 1, type=int)
+    per_page = request.args.get("per_page", 50, type=int)
+    per_page = min(per_page, 200)
+    pagination = Person.query.order_by(
+        Person.face_count.desc(), Person.created_at.desc()
+    ).paginate(page=page, per_page=per_page, error_out=False)
     result = []
-    for p in persons:
+    for p in pagination.items:
         d = p.to_dict()
         sample_face = DetectedFace.query.filter_by(person_id=p.id).first()
         if sample_face:
             d["thumbnail"] = sample_face.thumbnail or d["thumbnail"]
         result.append(d)
-    return jsonify(result), 200
+    return jsonify({
+        "persons": result,
+        "page": page,
+        "per_page": per_page,
+        "total": pagination.total,
+        "pages": pagination.pages,
+    }), 200
 
 
 @api_bp.route("/persons/<int:person_id>", methods=["PUT"])

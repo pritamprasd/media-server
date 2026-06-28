@@ -157,6 +157,14 @@
   touch-action: pan-x pan-y;
 }
 
+.viewer-media-loading {
+  position: absolute;
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .viewer-media-wrap {
   position: relative;
   display: inline-flex;
@@ -1124,7 +1132,58 @@
   flex-wrap: wrap;
 }
 
+.viewer-crop-move {
+  position: absolute;
+  inset: 8px;
+  cursor: move;
+  z-index: 1;
+  border: 1px dashed rgba(255, 255, 255, 0.3);
+  border-radius: 4px;
+}
+.viewer-crop-move:hover {
+  border-color: rgba(255, 255, 255, 0.6);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.viewer-info {
+  padding: 0.75rem;
+  overflow-y: auto;
+  max-height: 50vh;
+}
+.viewer-info h1 { font-size: 1rem; margin-bottom: 0.5rem; color: var(--color-primary); }
+.viewer-info h2 { font-size: 0.875rem; margin: 0.75rem 0 0.25rem; color: var(--color-text); }
+.viewer-info h3 { font-size: 0.8125rem; margin: 0.5rem 0 0.25rem; color: var(--color-text-muted); }
+.viewer-info p { font-size: 0.75rem; line-height: 1.5; margin: 0.25rem 0; color: var(--color-text-muted); }
+.viewer-info hr { border: none; border-top: 1px solid var(--neu-dark); margin: 0.75rem 0; }
+.viewer-info blockquote {
+  border-left: 2px solid var(--color-primary);
+  padding-left: 0.5rem;
+  margin: 0.25rem 0;
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  opacity: 0.8;
+}
+.viewer-info-table-wrap { margin: 0.5rem 0; }
+.viewer-info table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.7rem;
+}
+.viewer-info th, .viewer-info td {
+  text-align: left;
+  padding: 0.25rem 0.35rem;
+  border-bottom: 1px solid var(--neu-dark);
+  color: var(--color-text-muted);
+  vertical-align: top;
+}
+.viewer-info th { color: var(--color-text); font-weight: 600; white-space: nowrap; }
+.viewer-info td:first-child { white-space: nowrap; font-weight: 500; color: var(--color-text); }
+.viewer-info strong { color: var(--color-text); }
+
 /* Mobile */
+@media (max-width: 768px) {
+  .viewer-info { max-height: 40vh; }
+}
 @media (max-width: 768px) {
   .viewer-overlay { padding: 0; }
 
@@ -1145,7 +1204,7 @@
 
   .viewer-content { flex-direction: column; flex: none; min-height: 0; }
 
-  .viewer-body { padding: 0; flex: none; align-items: flex-start; }
+  .viewer-body { padding: 3.5rem 0 0.5rem; flex: none; align-items: flex-start; }
 
   .viewer-float-actions {
     display: flex;
