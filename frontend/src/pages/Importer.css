@@ -312,7 +312,8 @@
   background: var(--color-primary);
   color: #fff;
   font-weight: 600;
-  font-size: 0.875rem;
+  font-size: 0.9rem;
+  letter-spacing: 0.02em;
   box-shadow: var(--neu-raised-sm);
   transition: all 0.2s;
   align-self: flex-start;

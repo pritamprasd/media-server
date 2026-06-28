@@ -278,9 +278,10 @@
   background: var(--color-surface);
   border: none;
   color: var(--color-text-muted);
-  padding: 0.5rem 0.75rem;
+  padding: 0.5rem 0.85rem;
   border-radius: var(--radius);
-  font-size: 0.8125rem;
+  font-size: 0.875rem;
+  font-weight: 500;
   cursor: pointer;
   box-shadow: var(--neu-raised-sm);
   transition: all 0.15s;
@@ -304,6 +305,7 @@
   background: var(--color-primary);
   box-shadow: var(--neu-inset-sm);
   color: #fff;
+  font-weight: 600;
 }
 
 .home__empty {
@@ -571,7 +573,8 @@
   color: var(--color-text-muted);
   padding: 0.35rem 0.65rem;
   border-radius: var(--radius);
-  font-size: 0.75rem;
+  font-size: 0.775rem;
+  font-weight: 500;
   cursor: pointer;
   box-shadow: var(--neu-raised-sm);
   transition: all 0.15s;
@@ -590,6 +593,7 @@
   background: var(--color-primary);
   box-shadow: var(--neu-inset-sm);
   color: #fff;
+  font-weight: 600;
 }
 
 .home__dim-select {
@@ -725,7 +729,8 @@
   color: var(--color-text-muted);
   padding: 0.4rem 1rem;
   border-radius: var(--radius);
-  font-size: 0.75rem;
+  font-size: 0.775rem;
+  font-weight: 500;
   cursor: pointer;
   box-shadow: var(--neu-raised-sm);
   transition: all 0.15s;
@@ -751,9 +756,10 @@
   background: var(--color-surface);
   border: none;
   color: var(--color-text-muted);
-  padding: 0.35rem 0.55rem;
+  padding: 0.35rem 0.6rem;
   border-radius: var(--radius);
-  font-size: 0.75rem;
+  font-size: 0.775rem;
+  font-weight: 500;
   cursor: pointer;
   box-shadow: var(--neu-raised-sm);
   transition: all 0.15s;
@@ -772,6 +778,7 @@
   background: var(--color-primary);
   box-shadow: var(--neu-inset-sm);
   color: #fff;
+  font-weight: 600;
 }
 
 .home__sort-dir {
@@ -796,7 +803,8 @@
   color: var(--color-text-muted);
   padding: 0.35rem 0.65rem;
   border-radius: var(--radius);
-  font-size: 0.75rem;
+  font-size: 0.775rem;
+  font-weight: 500;
   cursor: pointer;
   box-shadow: var(--neu-raised-sm);
   transition: all 0.15s;
@@ -815,6 +823,7 @@
   background: var(--color-primary);
   box-shadow: var(--neu-inset-sm);
   color: #fff;
+  font-weight: 600;
 }
 
 .home__grid--1 {

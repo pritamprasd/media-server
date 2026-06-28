@@ -22,8 +22,9 @@
   padding: 0.5rem 0.85rem;
   border-radius: var(--radius);
   color: var(--color-text-muted);
-  font-size: 0.8125rem;
+  font-size: 0.85rem;
   font-weight: 500;
+  letter-spacing: 0.01em;
   white-space: nowrap;
   background: var(--color-surface);
   box-shadow: var(--neu-raised-sm);
@@ -41,6 +42,7 @@
   background: var(--color-primary);
   box-shadow: var(--neu-inset-sm);
   color: #fff;
+  font-weight: 600;
 }
 
 .navbar__link-icon {

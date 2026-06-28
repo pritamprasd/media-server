@@ -64,9 +64,10 @@
   background: var(--color-surface);
   border: none;
   color: var(--color-text);
-  padding: 0.35rem 0.75rem;
+  padding: 0.4rem 0.85rem;
   border-radius: var(--radius);
-  font-size: 0.8125rem;
+  font-size: 0.875rem;
+  font-weight: 500;
   cursor: pointer;
   box-shadow: var(--neu-raised-sm);
   transition: all 0.15s;
@@ -81,7 +82,7 @@
   box-shadow: var(--neu-inset-sm);
 }
 
-.viewer-btn--save { color: var(--color-primary); }
+.viewer-btn--save { color: var(--color-primary); font-weight: 600; }
 .viewer-btn--original { color: var(--color-text-muted); }
 .viewer-btn--original:active, .viewer-btn--original:focus { color: var(--color-primary); box-shadow: var(--neu-inset-sm); }
 
@@ -91,9 +92,9 @@
   box-shadow: none;
 }
 
-.viewer-btn--cancel { color: var(--color-text-muted); }
+.viewer-btn--cancel { color: var(--color-text-muted); font-weight: 400; }
 
-.viewer-btn--delete { color: var(--color-danger); }
+.viewer-btn--delete { color: var(--color-danger); font-weight: 600; }
 
 .viewer-btn--delete:hover {
   color: var(--color-danger);
@@ -1057,12 +1058,14 @@
   gap: 0.35rem;
   width: calc(100% - 1rem);
   margin: 0.5rem;
-  padding: 0.4rem;
+  padding: 0.5rem;
   border: none;
   border-radius: var(--radius);
   background: var(--color-primary);
   color: #fff;
-  font-size: 0.8125rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
   cursor: pointer;
   transition: opacity 0.15s;
 }

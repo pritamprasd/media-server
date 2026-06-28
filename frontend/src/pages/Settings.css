@@ -56,8 +56,9 @@
   border: none;
   border-radius: var(--radius);
   color: #fff;
-  font-size: 0.875rem;
-  font-weight: 500;
+  font-size: 0.9rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
   cursor: pointer;
   box-shadow: var(--neu-raised-sm);
   transition: all 0.15s;

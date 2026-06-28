@@ -60,6 +60,7 @@
   background: var(--color-surface);
   color: var(--color-text);
   font-size: 0.8rem;
+  font-weight: 500;
   cursor: pointer;
   transition: all 0.15s;
   white-space: nowrap;
@@ -68,9 +69,9 @@
 .faces-btn:hover { box-shadow: var(--neu-raised-sm); }
 .faces-btn:disabled { opacity: 0.5; cursor: default; box-shadow: none; }
 
-.faces-btn--scan { color: var(--color-primary); }
+.faces-btn--scan { color: var(--color-primary); font-weight: 600; }
 .faces-btn--scanning { opacity: 0.7; }
-.faces-btn--large { padding: 0.6rem 1.2rem; font-size: 0.9rem; }
+.faces-btn--large { padding: 0.6rem 1.2rem; font-size: 0.9rem; font-weight: 600; }
 .faces-btn--toggle { }
 
 .faces-filter-group {
@@ -90,6 +91,7 @@
   background: transparent;
   color: var(--color-text-muted);
   font-size: 0.7rem;
+  font-weight: 500;
   cursor: pointer;
   transition: all 0.12s;
   white-space: nowrap;
@@ -107,7 +109,7 @@
 .faces-filter-btn--active {
   background: var(--color-surface);
   color: var(--color-text);
-  font-weight: 500;
+  font-weight: 600;
 }
 
 .faces-sort {
