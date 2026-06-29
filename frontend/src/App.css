@@ -6,6 +6,13 @@
   min-height: calc(100dvh - 50px);
 }
 
+@media (min-width: 769px) {
+  .main-content {
+    margin-left: 180px;
+    min-height: 100dvh;
+  }
+}
+
 .app__init-loader {
   display: flex;
   align-items: center;

@@ -1,12 +1,12 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { NavLink } from "react-router-dom";
 import { useTheme } from "../contexts/ThemeContext";
 import {
   House, FileUp, FolderOpen, Heart, Upload, Compass,
   CopyCheck, BarChart3, Settings, MapPin, MapPinned,
-  Scan, Info, Puzzle, Sun, Moon, Menu, X,
+  Scan, Info, Puzzle, Sun, Moon, Menu, X, GripVertical,
 } from "lucide-react";
-import { getPref } from "../services/db";
+import { getPref, setPref } from "../services/db";
 import "./Navbar.css";
 
 const DEFAULT_LINKS = [
@@ -30,6 +30,8 @@ function Navbar() {
   const { theme, toggleTheme } = useTheme();
   const [menuOpen, setMenuOpen] = useState(false);
   const [links, setLinks] = useState(DEFAULT_LINKS);
+  const [dragIdx, setDragIdx] = useState(null);
+  const [dropIdx, setDropIdx] = useState(null);
   const menuRef = useRef(null);
 
   useEffect(() => {
@@ -60,6 +62,43 @@ function Navbar() {
     return () => document.removeEventListener("mousedown", handler);
   }, [menuOpen]);
 
+  const persistOrder = useCallback((ordered) => {
+    setPref("navbarTabOrder", ordered.map((l) => l.to));
+  }, []);
+
+  const handleDragStart = (e, idx) => {
+    setDragIdx(idx);
+    e.dataTransfer.effectAllowed = "move";
+    e.dataTransfer.setData("text/plain", idx);
+  };
+
+  const handleDragOver = (e, idx) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+    setDropIdx(idx);
+  };
+
+  const handleDragLeave = () => {
+    setDropIdx(null);
+  };
+
+  const handleDrop = (e, idx) => {
+    e.preventDefault();
+    if (dragIdx === null || dragIdx === idx) return;
+    const next = [...links];
+    const [moved] = next.splice(dragIdx, 1);
+    next.splice(idx, 0, moved);
+    setLinks(next);
+    persistOrder(next);
+    setDragIdx(null);
+    setDropIdx(null);
+  };
+
+  const handleDragEnd = () => {
+    setDragIdx(null);
+    setDropIdx(null);
+  };
+
   return (
     <nav className="navbar" ref={menuRef}>
       <button
@@ -71,8 +110,22 @@ function Navbar() {
       </button>
 
       <div className="navbar__desktop">
-        {links.map((l) => (
-          <NavLink key={l.to} to={l.to} className="navbar__link" end={l.end}>
+        {links.map((l, i) => (
+          <NavLink
+            key={l.to}
+            to={l.to}
+            className={({ isActive }) =>
+              `navbar__link${isActive ? " active" : ""}${dragIdx === i ? " navbar__link--dragging" : ""}${dropIdx === i && dragIdx !== null && dragIdx !== i ? " navbar__link--drop-before" : ""}`
+            }
+            end={l.end}
+            draggable
+            onDragStart={(e) => handleDragStart(e, i)}
+            onDragOver={(e) => handleDragOver(e, i)}
+            onDragLeave={handleDragLeave}
+            onDrop={(e) => handleDrop(e, i)}
+            onDragEnd={handleDragEnd}
+          >
+            <GripVertical size={12} className="navbar__drag-handle" />
             <l.icon size={16} className="navbar__link-icon" />
             <span className="navbar__link-label">{l.label}</span>
           </NavLink>
