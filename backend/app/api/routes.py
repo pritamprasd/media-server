@@ -2501,15 +2501,14 @@ def explorer_move():
                 db.session.add(new_entry)
                 db.session.flush()
                 orig_meta = FileMetadata.query.filter_by(file_id=entry.id).first()
-                if orig_meta:
-                    new_meta = FileMetadata(file_id=new_entry.id, exif=orig_meta.exif,
-                        description=orig_meta.description, tags=orig_meta.tags,
-                        search_words=orig_meta.search_words, thumbnail=orig_meta.thumbnail,
-                        thumbnail_status=orig_meta.thumbnail_status,
-                        metadata_status=orig_meta.metadata_status,
-                        date_added=orig_meta.date_added)
-                    db.session.add(new_meta)
-                entry.deleted = True
+            if orig_meta:
+                new_meta = FileMetadata(file_id=new_entry.id, exif=orig_meta.exif,
+                    description=orig_meta.description, tags=orig_meta.tags,
+                    search_words=orig_meta.search_words, thumbnail=orig_meta.thumbnail,
+                    thumbnail_status=orig_meta.thumbnail_status,
+                    metadata_status=orig_meta.metadata_status)
+                db.session.add(new_meta)
+            entry.deleted = True
     db.session.commit()
     return jsonify({"message": "Items moved"}), 200
 
@@ -2556,8 +2555,7 @@ def explorer_copy():
                     description=orig_meta.description, tags=orig_meta.tags,
                     search_words=orig_meta.search_words, thumbnail=orig_meta.thumbnail,
                     thumbnail_status=orig_meta.thumbnail_status,
-                    metadata_status=orig_meta.metadata_status,
-                    date_added=orig_meta.date_added)
+                    metadata_status=orig_meta.metadata_status)
                 db.session.add(new_meta)
     db.session.commit()
     return jsonify({"message": "Items copied"}), 200
