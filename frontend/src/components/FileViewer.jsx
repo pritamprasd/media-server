@@ -290,7 +290,7 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete, onN
       if (!found) merged.push({ ...c });
     }
     merged.sort((a, b) => b.count - a.count);
-    setProminentColors(merged.slice(0, 10).map(c => ({
+    setProminentColors(merged.slice(0, 20).map(c => ({
       r: c.r, g: c.g, b: c.b,
       pct: Math.round(c.count / totalPixels * 100),
     })));
