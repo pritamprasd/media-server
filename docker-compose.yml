@@ -116,7 +116,6 @@ services:
       context: .
       dockerfile: frontend/Dockerfile
     ports:
-      - "18000:80"
       - "3443:443"
     volumes:
       - /home/pritam/media_server_files/certs:/etc/nginx/certs
