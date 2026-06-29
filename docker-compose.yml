@@ -25,7 +25,7 @@ services:
       context: .
       dockerfile: backend/Dockerfile
     env_file: ./backend/.env
-    command: celery -A app.tasks.celery worker -Q import_queue -l info --concurrency=1
+    command: celery -A app.tasks.celery worker -Q import_queue -l info --concurrency=1 --hostname=import@%h
     volumes:
       - /home/pritam/media_server_files/edited:/edited
       - ${MEDIA_PATH:-/media}:/media:ro
@@ -42,7 +42,7 @@ services:
       context: .
       dockerfile: backend/Dockerfile
     env_file: ./backend/.env
-    command: celery -A app.tasks.celery worker -Q metadata -l info --concurrency=3
+    command: celery -A app.tasks.celery worker -Q metadata -l info --concurrency=3 --hostname=metadata@%h
     volumes:
       - /home/pritam/media_server_files/edited:/edited
       - ${MEDIA_PATH:-/media}:/media:ro
@@ -59,7 +59,7 @@ services:
       context: .
       dockerfile: backend/Dockerfile
     env_file: ./backend/.env
-    command: celery -A app.tasks.celery worker -Q ai_metadata -l info --concurrency=1
+    command: celery -A app.tasks.celery worker -Q ai_metadata -l info --concurrency=1 --hostname=ai@%h
     volumes:
       - /home/pritam/media_server_files/edited:/edited
       - ${MEDIA_PATH:-/media}:/media:ro
@@ -76,7 +76,7 @@ services:
       context: .
       dockerfile: backend/Dockerfile
     env_file: ./backend/.env
-    command: celery -A app.tasks.celery worker -Q thumbnail -l info --concurrency=3
+    command: celery -A app.tasks.celery worker -Q thumbnail -l info --concurrency=3 --hostname=thumbnail@%h
     volumes:
       - /home/pritam/media_server_files/edited:/edited
       - ${MEDIA_PATH:-/media}:/media:ro
@@ -97,7 +97,7 @@ services:
       - FACE_PROVIDERS=CPUExecutionProvider
       - FACE_MATCH_THRESHOLD=0.4
       - FACE_DET_THRESH=0.3
-    command: celery -A app.tasks.celery worker -Q face_detection -l info --concurrency=1
+    command: celery -A app.tasks.celery worker -Q face_detection -l info --concurrency=1 --hostname=face@%h
     volumes:
       - /home/pritam/media_server_files/edited:/edited
       - ${MEDIA_PATH:-/media}:/media:ro
