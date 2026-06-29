@@ -184,7 +184,7 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete, onN
   const [exporting, setExporting] = useState(false);
   const [showOriginal, setShowOriginal] = useState(false);
   const [textOverlay, setTextOverlay] = useState({ text: "", x: 50, y: 50, fontSize: 24, color: "#ffffff", enabled: false });
-  const [selectedColor, setSelectedColor] = useState(null);
+  const [selectedColors, setSelectedColors] = useState([]);
   const [colorTolerance, setColorTolerance] = useState(30);
   const [prominentColors, setProminentColors] = useState([]);
   const [selectiveColorSrc, setSelectiveColorSrc] = useState(null);
@@ -261,12 +261,16 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete, onN
       colorMap[key].b += data[i + 2];
       colorMap[key].count += 1;
     }
-    const sorted = Object.values(colorMap).sort((a, b) => b.count - a.count).slice(0, 10);
-    setProminentColors(sorted.map(c => ({
-      r: Math.round(c.r / c.count),
-      g: Math.round(c.g / c.count),
-      b: Math.round(c.b / c.count),
-    })));
+    const sorted = Object.values(colorMap)
+      .sort((a, b) => b.count - a.count)
+      .map(c => ({
+        r: Math.round(c.r / c.count),
+        g: Math.round(c.g / c.count),
+        b: Math.round(c.b / c.count),
+      }))
+      .filter(c => Math.max(c.r, c.g, c.b) - Math.min(c.r, c.g, c.b) > 15)
+      .slice(0, 10);
+    setProminentColors(sorted);
   }, []);
 
   useEffect(() => {
@@ -275,7 +279,7 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete, onN
 
   const renderSelectiveColor = useCallback(() => {
     const img = imgRef.current;
-    if (!img || !img.complete || !selectedColor) { setSelectiveColorSrc(null); return; }
+    if (!img || !img.complete || selectedColors.length === 0) { setSelectiveColorSrc(null); return; }
     const canvas = document.createElement("canvas");
     canvas.width = img.naturalWidth;
     canvas.height = img.naturalHeight;
@@ -283,27 +287,30 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete, onN
     ctx.drawImage(img, 0, 0);
     const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
     const d = imageData.data;
-    const tr = selectedColor.r, tg = selectedColor.g, tb = selectedColor.b;
     const tolSq = colorTolerance * colorTolerance;
     for (let i = 0; i < d.length; i += 4) {
-      const dr = d[i] - tr, dg = d[i + 1] - tg, db = d[i + 2] - tb;
-      if (dr * dr + dg * dg + db * db > tolSq) {
+      let keep = false;
+      for (const sc of selectedColors) {
+        const dr = d[i] - sc.r, dg = d[i + 1] - sc.g, db = d[i + 2] - sc.b;
+        if (dr * dr + dg * dg + db * db <= tolSq) { keep = true; break; }
+      }
+      if (!keep) {
         const gray = Math.round(0.2126 * d[i] + 0.7152 * d[i + 1] + 0.0722 * d[i + 2]);
         d[i] = d[i + 1] = d[i + 2] = gray;
       }
     }
     ctx.putImageData(imageData, 0, 0);
     setSelectiveColorSrc(canvas.toDataURL("image/jpeg", 0.9));
-  }, [selectedColor, colorTolerance]);
+  }, [selectedColors, colorTolerance]);
 
   useEffect(() => {
-    if (selectedColor) {
+    if (selectedColors.length > 0) {
       const timer = setTimeout(renderSelectiveColor, 100);
       return () => clearTimeout(timer);
     } else {
       setSelectiveColorSrc(null);
     }
-  }, [selectedColor, colorTolerance, renderSelectiveColor]);
+  }, [selectedColors, colorTolerance, renderSelectiveColor]);
 
   useEffect(() => {
     if (meta && isVideo && meta.duration) {
@@ -540,8 +547,8 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete, onN
     if (adjust.blacks !== 0) ops.push({ type: "blacks", value: adjust.blacks });
     if (adjust.whites !== 0) ops.push({ type: "whites", value: adjust.whites });
     if (adjust.grain !== 0) ops.push({ type: "grain", value: adjust.grain });
-    if (selectedColor) {
-      ops.push({ type: "selective_color", color: [selectedColor.r, selectedColor.g, selectedColor.b], tolerance: colorTolerance });
+    if (selectedColors.length > 0) {
+      ops.push({ type: "selective_color", colors: selectedColors.map(c => [c.r, c.g, c.b]), tolerance: colorTolerance });
     } else if (adjust.grayscale) {
       ops.push({ type: "grayscale", value: true });
     }
@@ -1529,14 +1536,14 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete, onN
                           </div>
                         </div>
                         <div className="viewer-colors-hint">
-                          {selectedColor
-                            ? "Only the selected color remains; everything else turns grayscale."
-                            : "Pick a color to keep; other areas become grayscale."}
+                          {selectedColors.length > 0
+                            ? "Selected colors remain; everything else turns grayscale."
+                            : "Pick colors to keep; other areas become grayscale."}
                         </div>
                         <div className="viewer-colors-info">
-                          {selectedColor && (
-                            <button className="viewer-colors-clear" onClick={() => setSelectedColor(null)}>
-                              <X size={12} /> Clear selection
+                          {selectedColors.length > 0 && (
+                            <button className="viewer-colors-clear" onClick={() => setSelectedColors([])}>
+                              <X size={12} /> Clear all ({selectedColors.length})
                             </button>
                           )}
                         </div>
@@ -1546,20 +1553,29 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete, onN
                               <Spinner size={16} /> Analyzing colors...
                             </div>
                           )}
-                          {prominentColors.map((c, i) => (
-                            <button
-                              key={i}
-                              className={`viewer-colors-swatch ${selectedColor?.r === c.r && selectedColor?.g === c.g && selectedColor?.b === c.b ? "viewer-colors-swatch--selected" : ""}`}
-                              onClick={() => setSelectedColor(selectedColor?.r === c.r && selectedColor?.g === c.g && selectedColor?.b === c.b ? null : c)}
-                              title={`RGB(${c.r}, ${c.g}, ${c.b})`}
-                            >
-                              <span className="viewer-colors-swatch-color"
-                                style={{ background: `rgb(${c.r},${c.g},${c.b})` }} />
-                              <span className="viewer-colors-swatch-label">
-                                #{c.r.toString(16).padStart(2,"0")}{c.g.toString(16).padStart(2,"0")}{c.b.toString(16).padStart(2,"0")}
-                              </span>
-                            </button>
-                          ))}
+                          {prominentColors.map((c, i) => {
+                            const isSelected = selectedColors.some(sc => sc.r === c.r && sc.g === c.g && sc.b === c.b);
+                            return (
+                              <button
+                                key={i}
+                                className={`viewer-colors-swatch ${isSelected ? "viewer-colors-swatch--selected" : ""}`}
+                                onClick={() => {
+                                  if (isSelected) {
+                                    setSelectedColors(prev => prev.filter(sc => sc.r !== c.r || sc.g !== c.g || sc.b !== c.b));
+                                  } else {
+                                    setSelectedColors(prev => [...prev, c]);
+                                  }
+                                }}
+                                title={`RGB(${c.r}, ${c.g}, ${c.b})`}
+                              >
+                                <span className="viewer-colors-swatch-color"
+                                  style={{ background: `rgb(${c.r},${c.g},${c.b})` }} />
+                                <span className="viewer-colors-swatch-label">
+                                  #{c.r.toString(16).padStart(2,"0")}{c.g.toString(16).padStart(2,"0")}{c.b.toString(16).padStart(2,"0")}
+                                </span>
+                              </button>
+                            );
+                          })}
                         </div>
                         <div className="viewer-slider-hint">Changes applied on save</div>
                       </div>

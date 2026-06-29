@@ -11,6 +11,7 @@ const TABS = [
   { path: "/", label: "Home" },
   { path: "/import", label: "Import" },
   { path: "/gallery", label: "Imported Media" },
+  { path: "/explorer", label: "Explorer" },
   { path: "/favorites", label: "Favorites" },
   { path: "/upload", label: "Upload" },
   { path: "/map", label: "Map" },

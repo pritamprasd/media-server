@@ -27,6 +27,7 @@ from app.models.imported_file import ImportedFile
 from app.models.favorite_folder import FavoriteFolder
 from app.models.location import SavedLocation
 from app.models.filter_preset import FilterPreset
+from app.models.detected_face import DetectedFace
 from app.tasks import extract_file_metadata, generate_ai_metadata, generate_thumbnail, process_import_folder, detect_faces
 from app.utility.file_system import traverse_directory
 from app.utility.hash_utility import hamming_distance
@@ -730,19 +731,27 @@ def _apply_colorize(img, amount):
     b = b.point(b_lut)
     return Image.merge("RGB", (r, g, b))
 
-def _apply_selective_color(img, target_color, tolerance=30):
+def _apply_selective_color(img, colors, tolerance=30):
     img = img.convert("RGB")
     pixels = img.load()
     w, h = img.size
-    tr, tg, tb = target_color
+    if isinstance(colors[0], (list, tuple)):
+        targets = colors
+    else:
+        targets = [colors]
     tol_sq = tolerance * tolerance
     gray_img = img.convert("L").convert("RGB")
     gray_pixels = gray_img.load()
     for y in range(h):
         for x in range(w):
             r, g, b = pixels[x, y]
-            dr, dg, db = r - tr, g - tg, b - tb
-            if dr * dr + dg * dg + db * db > tol_sq:
+            keep = False
+            for tr, tg, tb in targets:
+                dr, dg, db = r - tr, g - tg, b - tb
+                if dr * dr + dg * dg + db * db <= tol_sq:
+                    keep = True
+                    break
+            if not keep:
                 pixels[x, y] = gray_pixels[x, y]
     return img
 
@@ -885,9 +894,9 @@ def edit_file(file_id):
         elif op_type == "grayscale":
             img = img.convert("L").convert("RGB")
         elif op_type == "selective_color":
-            target = op.get("color", [128, 128, 128])
+            colors = op.get("colors", [op.get("color", [128, 128, 128])])
             tol = op.get("tolerance", 30)
-            img = _apply_selective_color(img, target, tol)
+            img = _apply_selective_color(img, colors, tol)
         elif op_type == "colorize":
             v = op.get("value", 0)
             img = _apply_colorize(img, v)
@@ -2566,6 +2575,7 @@ def explorer_delete():
             ImportedFile.deleted != True, ImportedFile.relative_path == src_path,
         ).all()
         for f in files:
+            DetectedFace.query.filter_by(file_id=f.id).delete()
             meta = FileMetadata.query.filter_by(file_id=f.id).first()
             if meta:
                 DHashBand.query.filter_by(metadata_id=meta.id).delete()
@@ -2589,6 +2599,7 @@ def explorer_delete():
                     ImportedFile.directory_id == child.id,
                 ).all()
                 for cf in child_files:
+                    DetectedFace.query.filter_by(file_id=cf.id).delete()
                     session = ImportSession.query.get(cf.session_id)
                     if session:
                         session.total_files = max(0, (session.total_files or 0) - 1)
@@ -2603,6 +2614,7 @@ def explorer_delete():
                 ImportedFile.directory_id == d.id,
             ).all()
             for cf in child_files:
+                DetectedFace.query.filter_by(file_id=cf.id).delete()
                 session = ImportSession.query.get(cf.session_id)
                 if session:
                     session.total_files = max(0, (session.total_files or 0) - 1)
