@@ -967,7 +967,7 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete, onN
     const adjChanged = Object.keys(defaults).some((k) => adjust[k] !== defaults[k]);
     const videoAdj = defaultVideoAdjust();
     const videoAdjChanged = isVideo && (videoAdjust.speed !== videoAdj.speed || videoAdjust.volume !== videoAdj.volume || videoAdjust.audioMute !== videoAdj.audioMute || videoAdjust.reverse !== videoAdj.reverse);
-    return activeFilter !== "normal" || adjChanged || videoAdjChanged || operations.length > 0 || selectedColor !== null || (isVideo && (videoTrim.start > 0 || videoTrim.end < (meta?.duration || 0))) || !!((crop?.x || 0) > 0 || (crop?.y || 0) > 0 || (crop?.w || 1) < 1 || (crop?.h || 1) < 1) || cropApplied;
+    return activeFilter !== "normal" || adjChanged || videoAdjChanged || operations.length > 0 || selectedColors.length > 0 || (isVideo && (videoTrim.start > 0 || videoTrim.end < (meta?.duration || 0))) || !!((crop?.x || 0) > 0 || (crop?.y || 0) > 0 || (crop?.w || 1) < 1 || (crop?.h || 1) < 1) || cropApplied;
   })();
 
   const renderSlider = (key, label, min, max, step, icon) => (
