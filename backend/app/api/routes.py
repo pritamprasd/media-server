@@ -1004,6 +1004,7 @@ def serve_file(file_id):
 
     MAX_SERVE_SIZE = 1 * 1024 * 1024
     file_size = os.path.getsize(file_record.file_path)
+    current_app.logger.info("serve_file id=%s path=%s size=%s mime=%s", file_id, file_record.file_path, file_size, file_record.mime_type)
     if file_size > MAX_SERVE_SIZE and file_record.mime_type and file_record.mime_type.startswith("image/"):
         try:
             img = Image.open(file_record.file_path)
@@ -1034,9 +1035,12 @@ def serve_file(file_id):
             buf = io.BytesIO()
             img.save(buf, format="JPEG", quality=85)
             buf.seek(0)
-            return send_file(buf, mimetype="image/jpeg", as_attachment=False)
-        except Exception:
-            pass
+            current_app.logger.info("serve_file resized %dx%d -> %dx%d scale=%.3f", img.width, img.height, int(img.width*scale), int(img.height*scale), scale)
+            resp = send_file(buf, mimetype="image/jpeg", as_attachment=False)
+            resp.headers["Cache-Control"] = "private, max-age=60"
+            return resp
+        except Exception as e:
+            current_app.logger.warning("serve_file resize failed for id=%s: %s", file_id, e)
 
     return send_file(
         file_record.file_path,
