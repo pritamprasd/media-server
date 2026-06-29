@@ -108,6 +108,27 @@
 - **Combined-card constraints**: Edit/delete buttons hidden on combined cards. Operations use `loadId = selectedPerson._combined ? selectedPerson._persons[0].id : selectedPerson.id` for backend calls (backend doesn't support multi-person queries).
 - **Merge toolbar**: The merge toolbar (`selectedIds` set) correctly adds all individual IDs from combined cards, so merge-all-of-same-name works as expected.
 
+### Tools Tab
+- **Tool discovery**: `frontend/src/tools/index.js` uses `import.meta.glob` to auto-discover all `.js` and `.html` files in `frontend/src/tools/`. No registration needed — dropping a file there automatically adds it to the `/tools` grid.
+- **JS tool format** (recommended): Export the following from a `.js` file:
+  ```js
+  export const name = "Display Name";
+  export const description = "Short description shown on the tile";
+  export function init(container) { /* imperative setup, return optional cleanup fn */ }
+  export function destroy(container) { /* teardown */ }
+  ```
+  - `init(container)` receives a `<div>` DOM element — append UI to it. Return a cleanup function if needed (called before `destroy`).
+  - `destroy(container)` is called on unmount; set `container.innerHTML = ''` at minimum.
+  - Use `container.style.cssText` or class-based styling with `var(--color-*)` CSS variables for theme support.
+  - Example: `frontend/src/tools/qr-generator.js`, `frontend/src/tools/sample-three.js`.
+- **HTML tool format**: Drop a `.html` file; it renders in an iframe with `sandbox="allow-scripts allow-same-origin"`. The filename (minus extension) becomes the display name.
+- **Dependencies**: Install via `npm install <pkg>` in `frontend/`. Tools use bare imports (ESM) — Vite bundles them.
+- **Three.js tools**: Import from `three` and `three/examples/jsm/controls/OrbitControls.js`. Dispose geometries, materials, renderer, and cancel animation frame in cleanup. See `frontend/src/tools/sample-three.js`.
+- **Styling**: Use inline `cssText` or create elements with classes. Available CSS variables: `--color-bg`, `--color-surface`, `--color-text`, `--color-text-muted`, `--color-border`, `--color-primary`, `--color-surface`, `--radius`, `--neu-raised-sm`, `--neu-flat`, `--neu-inset-sm`.
+- **Grid tile**: Shows tool name, description (from exports), and a JS/HTML type badge. No thumbnail customization yet.
+- **Fullscreen view**: Clicking a tile navigates to `/tools/:toolId`. The ToolViewer component renders with a mandatory back button (top-left arrow or browser back). Tool fills entire viewport below the header.
+- **Adding a tool**: just create the `.js` or `.html` file in `frontend/src/tools/` and re-build. No route, import, or config changes needed.
+
 ## Production Deployment
 - Nginx reverse proxy with HTTPS, HTTP/2 support
 - Auto-generated SSL certificates at build time

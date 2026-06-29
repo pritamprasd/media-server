@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 
-export const name = '3D Demo';
+export const name = '3D';
 export const description = 'Interactive 3D scene with a rotating torus knot and adjustable controls';
 
 export function init(container) {
