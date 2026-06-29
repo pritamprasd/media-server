@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useLocation } from "react-router-dom";
-import { Search, List, Image, Video, Sparkles, FolderTree, Folder, FolderOpen, ChevronDown, X, Hash, Columns2, Heart, ArrowUpDown } from "lucide-react";
+import { Search, List, Image, Video, Sparkles, FolderTree, Folder, FolderOpen, ChevronDown, X, Hash, Columns2, Heart, ArrowUpDown, ArrowUp } from "lucide-react";
 import { listFiles, listDirectories, toggleFavorite as toggleFavApi, listTags } from "../services/api";
 import { getPref, setPref } from "../services/db";
 import FileViewer from "../components/FileViewer";
@@ -133,6 +133,7 @@ function Home() {
   const [hasAi, setHasAi] = useState(false);
   const [tag, setTag] = useState("");
   const [allTags, setAllTags] = useState([]);
+  const [showScrollTop, setShowScrollTop] = useState(false);
   const [showTagDropdown, setShowTagDropdown] = useState(false);
   const [tagSearch, setTagSearch] = useState("");
   const [totalCount, setTotalCount] = useState(0);
@@ -338,6 +339,12 @@ function Home() {
 
     observer.observe(el);
     return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    const onScroll = () => setShowScrollTop(window.scrollY > 800);
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
   useEffect(() => {
@@ -697,6 +704,12 @@ function Home() {
             </div>
           </div>
         </div>
+      )}
+
+      {showScrollTop && (
+        <button className="explorer__scroll-top" onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}>
+          <ArrowUp size={20} />
+        </button>
       )}
     </div>
   );
