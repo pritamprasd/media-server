@@ -251,6 +251,7 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete, onN
     const ctx = canvas.getContext("2d");
     ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
     const data = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+    const totalPixels = data.length / 4;
     const colorMap = {};
     for (let i = 0; i < data.length; i += 4) {
       const r = data[i] >> 3, g = data[i + 1] >> 3, b = data[i + 2] >> 3;
@@ -267,10 +268,32 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete, onN
         r: Math.round(c.r / c.count),
         g: Math.round(c.g / c.count),
         b: Math.round(c.b / c.count),
+        count: c.count,
       }))
-      .filter(c => Math.max(c.r, c.g, c.b) - Math.min(c.r, c.g, c.b) > 15)
-      .slice(0, 10);
-    setProminentColors(sorted);
+      .filter(c => Math.max(c.r, c.g, c.b) - Math.min(c.r, c.g, c.b) > 15);
+    const merged = [];
+    const threshold = 30;
+    for (const c of sorted) {
+      let found = false;
+      for (const m of merged) {
+        const dr = c.r - m.r, dg = c.g - m.g, db = c.b - m.b;
+        if (dr * dr + dg * dg + db * db <= threshold * threshold) {
+          const tc = m.count + c.count;
+          m.r = Math.round((m.r * m.count + c.r * c.count) / tc);
+          m.g = Math.round((m.g * m.count + c.g * c.count) / tc);
+          m.b = Math.round((m.b * m.count + c.b * c.count) / tc);
+          m.count = tc;
+          found = true;
+          break;
+        }
+      }
+      if (!found) merged.push({ ...c });
+    }
+    merged.sort((a, b) => b.count - a.count);
+    setProminentColors(merged.slice(0, 10).map(c => ({
+      r: c.r, g: c.g, b: c.b,
+      pct: Math.round(c.count / totalPixels * 100),
+    })));
   }, []);
 
   useEffect(() => {
@@ -342,7 +365,7 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete, onN
     setCrop(null);
     setCropAspect("free");
     setCropApplied(false);
-    setSelectedColor(null);
+    setSelectedColors([]);
     setColorTolerance(30);
     setSelectiveColorSrc(null);
     if (isVideo && meta?.duration) {
@@ -689,7 +712,11 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete, onN
       else if (op.type === "filter") newActiveFilter = op.name;
       else if (op.type === "selective_color") {
         newAdjust.grayscale = 0;
-        setSelectedColor({ r: op.color[0], g: op.color[1], b: op.color[2] });
+        if (op.colors && Array.isArray(op.colors)) {
+          setSelectedColors(op.colors.map(c => ({ r: c[0], g: c[1], b: c[2] })));
+        } else if (op.color) {
+          setSelectedColors([{ r: op.color[0], g: op.color[1], b: op.color[2] }]);
+        }
         setColorTolerance(op.tolerance || 30);
       }
       else if (op.type === "rotate" || op.type === "flip") newOps.push(op);
@@ -1572,6 +1599,7 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete, onN
                                   style={{ background: `rgb(${c.r},${c.g},${c.b})` }} />
                                 <span className="viewer-colors-swatch-label">
                                   #{c.r.toString(16).padStart(2,"0")}{c.g.toString(16).padStart(2,"0")}{c.b.toString(16).padStart(2,"0")}
+                                  {c.pct != null && <span className="viewer-colors-pct">{c.pct}%</span>}
                                 </span>
                               </button>
                             );
