@@ -1001,6 +1001,43 @@ def serve_file(file_id):
         if jpeg_data:
             return send_file(io.BytesIO(jpeg_data), mimetype="image/jpeg", as_attachment=False)
         return jsonify({"error": "Could not decode HEIC image"}), 500
+
+    MAX_SERVE_SIZE = 1 * 1024 * 1024
+    file_size = os.path.getsize(file_record.file_path)
+    if file_size > MAX_SERVE_SIZE and file_record.mime_type and file_record.mime_type.startswith("image/"):
+        try:
+            img = Image.open(file_record.file_path)
+            try:
+                exif = img._getexif()
+                if exif:
+                    orientation = exif.get(0x0112)
+                    if orientation == 2:
+                        img = img.transpose(Image.FLIP_LEFT_RIGHT)
+                    elif orientation == 3:
+                        img = img.rotate(180, expand=True)
+                    elif orientation == 4:
+                        img = img.transpose(Image.FLIP_TOP_BOTTOM)
+                    elif orientation == 5:
+                        img = img.transpose(Image.FLIP_LEFT_RIGHT).rotate(270, expand=True)
+                    elif orientation == 6:
+                        img = img.rotate(270, expand=True)
+                    elif orientation == 7:
+                        img = img.transpose(Image.FLIP_LEFT_RIGHT).rotate(90, expand=True)
+                    elif orientation == 8:
+                        img = img.rotate(90, expand=True)
+            except Exception:
+                pass
+            img = img.convert("RGB")
+            scale = math.sqrt(MAX_SERVE_SIZE / file_size)
+            new_size = (max(1, int(img.width * scale)), max(1, int(img.height * scale)))
+            img.thumbnail(new_size, Image.LANCZOS)
+            buf = io.BytesIO()
+            img.save(buf, format="JPEG", quality=85)
+            buf.seek(0)
+            return send_file(buf, mimetype="image/jpeg", as_attachment=False)
+        except Exception:
+            pass
+
     return send_file(
         file_record.file_path,
         mimetype=file_record.mime_type,
