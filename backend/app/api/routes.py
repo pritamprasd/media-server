@@ -989,6 +989,44 @@ def get_file(file_id):
     return jsonify(file_record.to_dict()), 200
 
 
+def _resize_image_bytes(data, source_size=None):
+    MAX_SERVE_SIZE = 1 * 1024 * 1024
+    size = source_size or len(data)
+    if size <= MAX_SERVE_SIZE:
+        return None
+    try:
+        img = Image.open(io.BytesIO(data))
+        try:
+            exif = img._getexif()
+            if exif:
+                orientation = exif.get(0x0112)
+                if orientation == 2:
+                    img = img.transpose(Image.FLIP_LEFT_RIGHT)
+                elif orientation == 3:
+                    img = img.rotate(180, expand=True)
+                elif orientation == 4:
+                    img = img.transpose(Image.FLIP_TOP_BOTTOM)
+                elif orientation == 5:
+                    img = img.transpose(Image.FLIP_LEFT_RIGHT).rotate(270, expand=True)
+                elif orientation == 6:
+                    img = img.rotate(270, expand=True)
+                elif orientation == 7:
+                    img = img.transpose(Image.FLIP_LEFT_RIGHT).rotate(90, expand=True)
+                elif orientation == 8:
+                    img = img.rotate(90, expand=True)
+        except Exception:
+            pass
+        img = img.convert("RGB")
+        scale = math.sqrt(MAX_SERVE_SIZE / size)
+        new_size = (max(1, int(img.width * scale)), max(1, int(img.height * scale)))
+        img.thumbnail(new_size, Image.LANCZOS)
+        buf = io.BytesIO()
+        img.save(buf, format="JPEG", quality=85)
+        return buf.getvalue()
+    except Exception:
+        return None
+
+
 @api_bp.route("/files/<int:file_id>/serve", methods=["GET"])
 def serve_file(file_id):
     file_record = db.session.get(ImportedFile, file_id)
@@ -996,49 +1034,30 @@ def serve_file(file_id):
         return jsonify({"error": "File not found"}), 404
     if not os.path.isfile(file_record.file_path):
         return jsonify({"error": "File no longer exists on disk"}), 404
+
     if file_record.mime_type in ("image/heic", "image/heif"):
         jpeg_data = _convert_heic_to_jpeg(file_record.file_path)
-        if jpeg_data:
-            return send_file(io.BytesIO(jpeg_data), mimetype="image/jpeg", as_attachment=False)
-        return jsonify({"error": "Could not decode HEIC image"}), 500
-
-    MAX_SERVE_SIZE = 1 * 1024 * 1024
-    file_size = os.path.getsize(file_record.file_path)
-    current_app.logger.info("serve_file id=%s path=%s size=%s mime=%s", file_id, file_record.file_path, file_size, file_record.mime_type)
-    if file_size > MAX_SERVE_SIZE and file_record.mime_type and file_record.mime_type.startswith("image/"):
-        try:
-            img = Image.open(file_record.file_path)
-            try:
-                exif = img._getexif()
-                if exif:
-                    orientation = exif.get(0x0112)
-                    if orientation == 2:
-                        img = img.transpose(Image.FLIP_LEFT_RIGHT)
-                    elif orientation == 3:
-                        img = img.rotate(180, expand=True)
-                    elif orientation == 4:
-                        img = img.transpose(Image.FLIP_TOP_BOTTOM)
-                    elif orientation == 5:
-                        img = img.transpose(Image.FLIP_LEFT_RIGHT).rotate(270, expand=True)
-                    elif orientation == 6:
-                        img = img.rotate(270, expand=True)
-                    elif orientation == 7:
-                        img = img.transpose(Image.FLIP_LEFT_RIGHT).rotate(90, expand=True)
-                    elif orientation == 8:
-                        img = img.rotate(90, expand=True)
-            except Exception:
-                pass
-            img = img.convert("RGB")
-            scale = math.sqrt(MAX_SERVE_SIZE / file_size)
-            new_size = (max(1, int(img.width * scale)), max(1, int(img.height * scale)))
-            img.thumbnail(new_size, Image.LANCZOS)
-            buf = io.BytesIO()
-            img.save(buf, format="JPEG", quality=85)
-            buf.seek(0)
-            current_app.logger.info("serve_file resized %dx%d -> %dx%d scale=%.3f", img.width, img.height, int(img.width*scale), int(img.height*scale), scale)
-            resp = send_file(buf, mimetype="image/jpeg", as_attachment=False)
+        if not jpeg_data:
+            return jsonify({"error": "Could not decode HEIC image"}), 500
+        resized = _resize_image_bytes(jpeg_data, source_size=len(jpeg_data))
+        if resized:
+            current_app.logger.info("serve_file id=%s heic resized %d -> %d bytes", file_id, len(jpeg_data), len(resized))
+            resp = send_file(io.BytesIO(resized), mimetype="image/jpeg", as_attachment=False)
             resp.headers["Cache-Control"] = "private, max-age=60"
             return resp
+        return send_file(io.BytesIO(jpeg_data), mimetype="image/jpeg", as_attachment=False)
+
+    file_size = os.path.getsize(file_record.file_path)
+    if file_size > 1 * 1024 * 1024 and file_record.mime_type and file_record.mime_type.startswith("image/"):
+        try:
+            with open(file_record.file_path, "rb") as f:
+                src_data = f.read()
+            resized = _resize_image_bytes(src_data, source_size=file_size)
+            if resized:
+                current_app.logger.info("serve_file id=%s resized %d -> %d bytes", file_id, file_size, len(resized))
+                resp = send_file(io.BytesIO(resized), mimetype="image/jpeg", as_attachment=False)
+                resp.headers["Cache-Control"] = "private, max-age=60"
+                return resp
         except Exception as e:
             current_app.logger.warning("serve_file resize failed for id=%s: %s", file_id, e)
 
