@@ -17,3 +17,4 @@ from app.models.location import SavedLocation  # noqa: E402, F401
 from app.models.filter_preset import FilterPreset  # noqa: E402, F401
 from app.models.person import Person  # noqa: E402, F401
 from app.models.detected_face import DetectedFace  # noqa: E402, F401
+from app.models.favorite_folder import FavoriteFolder  # noqa: E402, F401

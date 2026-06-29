@@ -22,7 +22,7 @@ A scalable, semantic-searchable media viewer for your home media collection. Fea
 - **Trash** — soft-delete files (library-only or library + disk)
 - **Nickname persistence** — default nickname stored in IndexedDB, editable from Settings
 - **Copy, Move, Rename** — clipboard (cut/copy/paste) and inline rename for files and folders; drag-and-drop to move items between directories
-- **Media Explorer** — file-browser-style page (grid/list view) with breadcrumb navigation; paginated browsing (100 per page, load-more button); strict folder hierarchy enforced via `directory_id` FK (not `relative_path` string matching); centered layout capped at 1600px / 90% viewport width
+- **Media Explorer** — file-browser-style page (grid/list view) with breadcrumb navigation; paginated browsing (100 per page, load-more button); strict folder hierarchy enforced via `directory_id` FK (not `relative_path` string matching); centered layout capped at 1600px / 90% viewport width; **folder favorites** — star-toggle any folder and see favorites as quick-navigation chips above the breadcrumbs
 
 ### 🖼️ Gallery & File Viewer
 - **Infinite-scroll grid** — Home page with configurable column layout (auto/1/2); click any thumbnail to open the overlay viewer
@@ -175,7 +175,7 @@ media-server/
 │   │   ├── api/
 │   │   │   ├── routes.py           # 50+ API endpoints
 │   │   │   └── face_routes.py      # Face/person API endpoints
-│   │   ├── models/                 # 9 SQLAlchemy models
+│   │   ├── models/                 # 10 SQLAlchemy models
 │   │   ├── utility/                # 11 utility modules
 │   │   ├── tasks.py                # 5 Celery task definitions
 │   │   ├── config.py               # App configuration

@@ -336,4 +336,19 @@ export async function explorerDelete(paths) {
   return data;
 }
 
+export async function explorerListFavorites() {
+  const { data } = await client.get("/explorer/favorites");
+  return data;
+}
+
+export async function explorerAddFavorite(path, name) {
+  const { data } = await client.post("/explorer/favorites", { path, name });
+  return data;
+}
+
+export async function explorerRemoveFavorite(path) {
+  const { data } = await client.delete("/explorer/favorites", { params: { path } });
+  return data;
+}
+
 export default client;

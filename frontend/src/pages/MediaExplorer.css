@@ -295,6 +295,60 @@
   user-select: none;
 }
 
+/* Favorites bar */
+.explorer__favorites-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.375rem 0;
+  flex-wrap: wrap;
+}
+
+.explorer__fav-icon {
+  color: var(--color-warning, #e6a817);
+  flex-shrink: 0;
+}
+
+.explorer__fav-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.2rem 0.5rem 0.2rem 0.6rem;
+  background: color-mix(in srgb, var(--color-warning, #e6a817) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-warning, #e6a817) 30%, transparent);
+  border-radius: 999px;
+  color: var(--color-text);
+  font-size: 0.75rem;
+  cursor: pointer;
+  transition: background 0.15s;
+  white-space: nowrap;
+}
+
+.explorer__fav-chip:hover {
+  background: color-mix(in srgb, var(--color-warning, #e6a817) 22%, transparent);
+}
+
+.explorer__fav-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  border: none;
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  border-radius: 50%;
+  font-size: 0.8rem;
+  line-height: 0;
+  padding: 0;
+}
+
+.explorer__fav-remove:hover {
+  color: var(--color-danger);
+  background: rgba(231, 76, 60, 0.1);
+}
+
 .explorer__action-btn {
   display: flex;
   align-items: center;
@@ -628,6 +682,49 @@
   flex-shrink: 0;
   width: 28px;
   height: 28px;
+}
+
+/* Favorite star button */
+.explorer__tile-fav {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-surface);
+  border: none;
+  border-radius: 50%;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.12s, background 0.12s, color 0.12s;
+  z-index: 2;
+}
+
+.explorer__tile--grid:hover .explorer__tile-fav,
+.explorer__tile--grid .explorer__tile-fav:focus-visible {
+  opacity: 1;
+}
+
+.explorer__tile-fav:hover {
+  color: var(--color-warning, #e6a817);
+  background: color-mix(in srgb, var(--color-warning, #e6a817) 12%, transparent);
+}
+
+.explorer__tile-fav--active {
+  opacity: 1;
+  color: var(--color-warning, #e6a817);
+}
+
+.explorer__tile--list .explorer__tile-fav {
+  position: static;
+  opacity: 1;
+  flex-shrink: 0;
+  width: 26px;
+  height: 26px;
 }
 
 /* Context menu (also used as actions dropdown) */

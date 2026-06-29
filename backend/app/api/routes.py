@@ -24,6 +24,7 @@ from app.models.file_metadata import FileMetadata, DHashBand
 from app.models.import_session import ImportSession
 from app.models.imported_directory import ImportedDirectory
 from app.models.imported_file import ImportedFile
+from app.models.favorite_folder import FavoriteFolder
 from app.models.location import SavedLocation
 from app.models.filter_preset import FilterPreset
 from app.tasks import extract_file_metadata, generate_ai_metadata, generate_thumbnail, process_import_folder, detect_faces
@@ -2206,58 +2207,81 @@ def explorer_browse():
     upload_session = ImportSession.query.filter_by(root_path=upload_dir).first()
     upload_session_id = upload_session.id if upload_session else -1
 
+    # Detect if browsing a synthetic session directory (e.g. edited-images)
+    synthetic_session_id = None
+    browse_prefix = prefix
+    if prefix.startswith("__session_"):
+        try:
+            synthetic_session_id = int(prefix.split("_")[2])
+            browse_prefix = ""
+        except (ValueError, IndexError):
+            pass
+
     # Directories — use parent_path for strict hierarchy
     db_dirs = ImportedDirectory.query.filter(
         ImportedDirectory.deleted != True,
         ImportedDirectory.session_id != upload_session_id,
     )
-    if prefix:
-        db_dirs = db_dirs.filter(ImportedDirectory.parent_path == prefix)
+    if synthetic_session_id is not None:
+        db_dirs = db_dirs.filter(
+            ImportedDirectory.parent_path == browse_prefix,
+            ImportedDirectory.session_id == synthetic_session_id,
+        )
+    elif browse_prefix:
+        db_dirs = db_dirs.filter(ImportedDirectory.parent_path == browse_prefix)
     else:
         db_dirs = db_dirs.filter(
-            db.or_(ImportedDirectory.parent_path == "", ImportedDirectory.parent_path.is_(None))
+            db.or_(ImportedDirectory.parent_path == "", ImportedDirectory.parent_path.is_(None)),
+            ImportedDirectory.path != "",
         )
     db_dirs = db_dirs.order_by(ImportedDirectory.name).all()
 
     # Files — use directory_id FK for strict hierarchy
     base_q = ImportedFile.query.filter(ImportedFile.deleted != True)
-    if prefix:
-        dir_record = ImportedDirectory.query.filter(
+    if synthetic_session_id is not None:
+        root_dir = ImportedDirectory.query.filter(
             ImportedDirectory.deleted != True,
-            ImportedDirectory.path == prefix,
-            ImportedDirectory.session_id != upload_session_id,
+            ImportedDirectory.path == browse_prefix,
+            ImportedDirectory.session_id == synthetic_session_id,
         ).first()
-        if dir_record:
-            base_q = base_q.filter(ImportedFile.directory_id == dir_record.id)
+        if root_dir:
+            base_q = base_q.filter(ImportedFile.directory_id == root_dir.id)
+        else:
+            base_q = base_q.filter(False)
+    elif browse_prefix:
+        dir_records = ImportedDirectory.query.filter(
+            ImportedDirectory.deleted != True,
+            ImportedDirectory.path == browse_prefix,
+            ImportedDirectory.session_id != upload_session_id,
+        ).all()
+        if dir_records:
+            base_q = base_q.filter(ImportedFile.directory_id.in_([d.id for d in dir_records]))
         else:
             base_q = base_q.filter(False)
     else:
-        subq = db.session.query(ImportedDirectory.id).filter(
-            ImportedDirectory.deleted != True,
-            ImportedDirectory.session_id != upload_session_id,
-            db.or_(ImportedDirectory.parent_path == "", ImportedDirectory.parent_path.is_(None)),
-        ).subquery()
-        base_q = base_q.filter(ImportedFile.directory_id.in_(subq))
+        base_q = base_q.filter(False)
 
     pagination = base_q.order_by(ImportedFile.filename).paginate(
         page=page, per_page=per_page, error_out=False
     )
     files = pagination.items
 
-    # Filesystem upload dirs (not yet imported)
-    scan_dir = os.path.join(upload_dir, prefix) if prefix else upload_dir
+    # Filesystem upload dirs (not yet imported) — only when browsing normally
     upload_dirs = []
-    if os.path.isdir(scan_dir):
-        for entry in sorted(os.listdir(scan_dir)):
-            full = os.path.join(scan_dir, entry)
-            if os.path.isdir(full):
-                upload_dirs.append({
-                    "name": entry,
-                    "path": os.path.join(prefix, entry) if prefix else entry,
-                    "session_id": upload_session_id,
-                    "is_upload": True,
-                })
+    if synthetic_session_id is None:
+        scan_dir = os.path.join(upload_dir, browse_prefix) if browse_prefix else upload_dir
+        if os.path.isdir(scan_dir):
+            for entry in sorted(os.listdir(scan_dir)):
+                full = os.path.join(scan_dir, entry)
+                if os.path.isdir(full):
+                    upload_dirs.append({
+                        "name": entry,
+                        "path": os.path.join(browse_prefix, entry) if browse_prefix else entry,
+                        "session_id": upload_session_id,
+                        "is_upload": True,
+                    })
 
+    # Build directory result
     dir_result = []
     seen_paths = set()
     for d in db_dirs:
@@ -2269,6 +2293,52 @@ def explorer_browse():
                 "session_id": d.session_id,
                 "is_upload": False,
             })
+
+    # Synthetic directories at root level for sessions with root-only files
+    if not browse_prefix and synthetic_session_id is None:
+        edited_dir = current_app.config.get("EDITED_IMAGES_DIR", "")
+        edited_session = ImportSession.query.filter_by(root_path=edited_dir).first() if edited_dir else None
+
+        all_sessions = ImportSession.query.filter(
+            ImportSession.id != upload_session_id,
+        ).all()
+        for s in all_sessions:
+            if edited_session and s.id == edited_session.id:
+                continue
+            root_dir = ImportedDirectory.query.filter_by(
+                session_id=s.id, path=""
+            ).first()
+            if not root_dir:
+                continue
+            file_count = ImportedFile.query.filter(
+                ImportedFile.directory_id == root_dir.id,
+                ImportedFile.deleted != True,
+            ).count()
+            if file_count == 0:
+                continue
+            dir_basename = os.path.basename(s.root_path.rstrip("/"))
+            if dir_basename and dir_basename not in seen_paths:
+                seen_paths.add(dir_basename)
+                dir_result.append({
+                    "name": dir_basename,
+                    "path": f"__session_{s.id}__",
+                    "session_id": s.id,
+                    "is_upload": False,
+                })
+
+        # Edited-images folder
+        if edited_session:
+            edited_name = os.path.basename(edited_dir.rstrip("/"))
+            edited_key = f"__session_{edited_session.id}__"
+            if edited_key not in seen_paths and edited_name not in seen_paths:
+                seen_paths.add(edited_key)
+                dir_result.insert(0, {
+                    "name": edited_name,
+                    "path": edited_key,
+                    "session_id": edited_session.id,
+                    "is_upload": False,
+                })
+
     for ud in upload_dirs:
         if ud["path"] not in seen_paths:
             seen_paths.add(ud["path"])
@@ -2544,6 +2614,47 @@ def explorer_delete():
             db.session.delete(d)
     db.session.commit()
     return jsonify({"message": "Items deleted"}), 200
+
+
+# ──────────────────────────────────────────────
+# Folder favorites
+# ──────────────────────────────────────────────
+
+
+@api_bp.route("/explorer/favorites", methods=["GET"])
+def explorer_list_favorites():
+    favorites = FavoriteFolder.query.order_by(FavoriteFolder.name).all()
+    return jsonify({
+        "favorites": [{"path": f.path, "name": f.name, "created_at": f.created_at.isoformat() if f.created_at else None} for f in favorites],
+    }), 200
+
+
+@api_bp.route("/explorer/favorites", methods=["POST"])
+def explorer_add_favorite():
+    data = request.get_json(silent=True) or {}
+    path = data.get("path", "").strip()
+    name = data.get("name", "").strip()
+    if not path or not name:
+        return jsonify({"error": "path and name are required"}), 400
+    existing = FavoriteFolder.query.filter_by(path=path).first()
+    if existing:
+        return jsonify({"message": "Already favorited", "favorite": {"path": existing.path, "name": existing.name}}), 200
+    fav = FavoriteFolder(path=path, name=name)
+    db.session.add(fav)
+    db.session.commit()
+    return jsonify({"message": "Folder favorited", "favorite": {"path": fav.path, "name": fav.name}}), 201
+
+
+@api_bp.route("/explorer/favorites", methods=["DELETE"])
+def explorer_remove_favorite():
+    path = request.args.get("path", "").strip()
+    if not path:
+        return jsonify({"error": "path query parameter is required"}), 400
+    fav = FavoriteFolder.query.filter_by(path=path).first()
+    if fav:
+        db.session.delete(fav)
+        db.session.commit()
+    return jsonify({"message": "Favorite removed"}), 200
 
 
 def _root_dir_id(upload_session, upload_dir):

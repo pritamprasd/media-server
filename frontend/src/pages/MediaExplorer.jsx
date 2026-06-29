@@ -4,10 +4,11 @@ import {
   Folder, FolderOpen, File, Image, Video, Search, X,
   Grid3X3, List, ChevronDown, Plus, FileUp, Eye,
   MoreVertical, Scissors, Copy, ClipboardPaste, Pencil, ArrowRight,
-  ArrowLeft, Loader2,
+  ArrowLeft, Loader2, Star,
 } from "lucide-react";
 import {
   explorerBrowse, explorerRename, explorerMove, explorerCopy, explorerDelete,
+  explorerListFavorites, explorerAddFavorite, explorerRemoveFavorite,
   uploadFiles, listNicknames, createUploadDir,
 } from "../services/api";
 import { getPref, setPref } from "../services/db";
@@ -39,6 +40,7 @@ function MediaExplorer() {
   const [renameValue, setRenameValue] = useState("");
   const [dropTarget, setDropTarget] = useState(null);
   const [pasteLoading, setPasteLoading] = useState(false);
+  const [favoriteFolders, setFavoriteFolders] = useState([]);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -59,13 +61,34 @@ function MediaExplorer() {
     } catch {}
   }, []);
 
+  const loadFavorites = useCallback(async () => {
+    try {
+      const data = await explorerListFavorites();
+      setFavoriteFolders(data.favorites || []);
+    } catch {}
+  }, []);
+
+  const toggleFavorite = useCallback(async (path, name) => {
+    const idx = favoriteFolders.findIndex((f) => f.path === path);
+    try {
+      if (idx >= 0) {
+        await explorerRemoveFavorite(path);
+        setFavoriteFolders((prev) => prev.filter((f) => f.path !== path));
+      } else {
+        await explorerAddFavorite(path, name);
+        setFavoriteFolders((prev) => [...prev, { path, name }]);
+      }
+    } catch {}
+  }, [favoriteFolders]);
+
   useEffect(() => {
     refreshItems("");
+    loadFavorites();
     getPref("nickname", "").then((v) => setNickname(v));
     listNicknames()
       .then((d) => setNicknames(d.nicknames || []))
       .catch(() => {});
-  }, [refreshItems]);
+  }, [refreshItems, loadFavorites]);
 
   useEffect(() => {
     if (!showNewMenu) return;
@@ -508,6 +531,21 @@ function MediaExplorer() {
         </div>
       </div>
 
+      {favoriteFolders.length > 0 && (
+        <div className="explorer__favorites-bar">
+          <Star size={13} className="explorer__fav-icon" />
+          {favoriteFolders.map((fav) => (
+            <button key={fav.path} className="explorer__fav-chip"
+              onClick={(e) => { e.stopPropagation(); navigateTo(fav.path); }}
+              title={`Navigate to ${fav.name}`}>
+              {fav.name}
+              <span className="explorer__fav-remove" onClick={(e) => { e.stopPropagation(); toggleFavorite(fav.path, fav.name); }}
+                title="Remove favorite" role="button" tabIndex={0}>&times;</span>
+            </button>
+          ))}
+        </div>
+      )}
+
       <div className="explorer__breadcrumbs">
         {currentPrefix && (
           <button className="explorer__back-btn" onClick={(e) => { e.stopPropagation(); handleBack(); }} title="Go to parent folder">
@@ -593,6 +631,11 @@ function MediaExplorer() {
                 </div>
                 <button className="explorer__tile-actions" onClick={(e) => handleShowActions(e, it)} title="Actions">
                   <MoreVertical size={14} />
+                </button>
+                <button className={`explorer__tile-fav ${favoriteFolders.some((f) => f.path === it.path) ? "explorer__tile-fav--active" : ""}`}
+                  onClick={(e) => { e.stopPropagation(); toggleFavorite(it.path, it.name); }}
+                  title={favoriteFolders.some((f) => f.path === it.path) ? "Remove from favorites" : "Add to favorites"}>
+                  <Star size={12} />
                 </button>
                 {viewMode === "list" && <div className="explorer__tile-meta">Folder</div>}
               </div>
