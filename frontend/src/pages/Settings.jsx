@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Settings as SettingsIcon, ArrowRight, Palette, Save, Trash2,
-  ArrowUp, ArrowDown, RotateCcw,
+  ArrowUp, ArrowDown, RotateCcw, Check,
 } from "lucide-react";
 import { getPref, setPref } from "../services/db";
 import "./Settings.css";
@@ -53,6 +53,7 @@ function Settings() {
   const [imageTabs, setImageTabs] = useState(DEFAULT_IMAGE_TABS);
   const [videoTabs, setVideoTabs] = useState(DEFAULT_VIDEO_TABS);
   const [navTabs, setNavTabs] = useState(TABS.map((t) => t.path));
+  const [mapZoomLevel, setMapZoomLevel] = useState(18);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -65,6 +66,7 @@ function Settings() {
     getPref("navbarTabOrder", null).then((order) => {
       if (order && Array.isArray(order) && order.length > 0) setNavTabs(order);
     });
+    getPref("mapZoomLevel", 18).then(setMapZoomLevel);
   }, []);
 
   const handleMoveTab = (type, idx, dir) => {
@@ -103,6 +105,19 @@ function Settings() {
     const def = TABS.map((t) => t.path);
     setNavTabs(def);
     setPref("navbarTabOrder", def);
+  };
+
+  const [mapZoomSaved, setMapZoomSaved] = useState(false);
+
+  const handleMapZoomChange = (e) => {
+    setMapZoomLevel(Number(e.target.value));
+    setMapZoomSaved(false);
+  };
+
+  const handleMapZoomSave = () => {
+    setPref("mapZoomLevel", mapZoomLevel);
+    setMapZoomSaved(true);
+    setTimeout(() => setMapZoomSaved(false), 2000);
   };
 
   const handleTabChange = (e) => {
@@ -233,6 +248,20 @@ function Settings() {
           </button>
           {cacheStatus === "done" && <span className="settings__cache-ok">&checkmark; Cleared!</span>}
           {cacheStatus === "no-sw" && <span className="settings__cache-err">Service worker not available</span>}
+        </div>
+      </div>
+
+      <div className="settings__card">
+        <h3 className="settings__label">Map Zoom Level</h3>
+        <p className="settings__desc">
+          Zoom depth when clicking "Zoom In" on a map pin. Higher values zoom closer (10–19).
+        </p>
+        <div className="settings__map-zoom-row">
+          <input type="range" className="settings__map-zoom-slider" min={10} max={19} value={mapZoomLevel} onChange={handleMapZoomChange} />
+          <span className="settings__map-zoom-value">{mapZoomLevel}</span>
+          <button className="settings__btn" onClick={handleMapZoomSave}>
+            {mapZoomSaved ? <Check size={14} /> : <Save size={14} />} {mapZoomSaved ? "Saved!" : "Save"}
+          </button>
         </div>
       </div>
 

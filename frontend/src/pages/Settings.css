@@ -243,6 +243,50 @@
 .settings__tab-btn:hover:not(:disabled) { background: var(--neu-flat); color: var(--color-text); }
 .settings__tab-btn:disabled { opacity: 0.3; cursor: default; }
 
+.settings__map-zoom-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.settings__map-zoom-slider {
+  flex: 1;
+  -webkit-appearance: none;
+  appearance: none;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--color-surface-light);
+  outline: none;
+  cursor: pointer;
+}
+
+.settings__map-zoom-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--color-primary);
+  cursor: pointer;
+  border: none;
+}
+
+.settings__map-zoom-slider::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--color-primary);
+  cursor: pointer;
+  border: none;
+}
+
+.settings__map-zoom-value {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--color-text);
+  min-width: 2ch;
+  text-align: center;
+}
+
 .settings__btn--small {
   padding: 0.35rem 0.75rem;
   font-size: 0.75rem;

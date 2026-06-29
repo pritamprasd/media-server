@@ -22,7 +22,7 @@ A scalable, semantic-searchable media viewer for your home media collection. Fea
 - **Trash** — soft-delete files (library-only or library + disk)
 - **Nickname persistence** — default nickname stored in IndexedDB, editable from Settings
 - **Copy, Move, Rename** — clipboard (cut/copy/paste) and inline rename for files and folders; drag-and-drop to move items between directories
-- **Media Explorer** — file-browser-style page (grid/list view) with breadcrumb navigation; paginated browsing (100 per page, load-more button); strict folder hierarchy enforced via `directory_id` FK (not `relative_path` string matching); centered layout capped at 1600px / 90% viewport width; **folder favorites** — star-toggle any folder and see favorites as quick-navigation chips above the breadcrumbs
+- **Media Explorer** — file-browser-style page (grid/list view) with breadcrumb navigation; paginated browsing (100 per page, load-more button + IntersectionObserver infinite scroll); strict folder hierarchy enforced via `directory_id` FK (not `relative_path` string matching); centered layout capped at 1600px / 90% viewport width; **folder favorites** — star-toggle any folder and see favorites as quick-navigation chips above the breadcrumbs; **folder customization** — click the pencil hint on any folder tile to choose from 13 Lucide icons and 10 colors, persisted per-folder in IndexedDB
 
 ### 🖼️ Gallery & File Viewer
 - **Infinite-scroll grid** — Home page with configurable column layout (auto/1/2); click any thumbnail to open the overlay viewer
@@ -74,11 +74,13 @@ A scalable, semantic-searchable media viewer for your home media collection. Fea
 - **Tag propagation** — naming a person adds the name as a tag to all containing images (removed on rename)
 - **Face viewer** — view detected face thumbnails per image in the file viewer sidebar; name individual faces inline (creates or reuses persons)
 - **Infinite scroll** — Faces page uses paginated backend (50 per page) with IntersectionObserver for seamless scrolling
+- **Combine duplicates** — persons with the same name (case-insensitive) are grouped into a single card showing a 2×2 thumbnail grid, total face count, and group size; edit/delete hidden on combined cards to avoid ambiguity
 - **Stats** — total persons, faces, named persons, files with faces
 
 ### 📍 Map & Locations
 - **GPS visualization** — Leaflet map with clustered markers for all GPS-tagged files; markers grouped by rounded coordinates (3 decimal places)
-- **Nearby filtering** — click on the map to find files within a configurable radius (default 10 km via `VITE_MAP_NEARBY_KM`)
+- **Nearby filtering** — click on the map to find files within a configurable radius (1–100 km slider with explicit Search button); radius only activates on button press, not on slider drag
+- **Zoom In on pin** — each pin popup has a "Zoom In" button that flies the map to a configurable zoom level (10–19, default 18 via Settings)
 - **Thumbnail gallery** — split-panel layout: map (left) + scrollable thumbnail grid (right); paginated (32 per page via `VITE_MAP_THUMBS_PER_PAGE`)
 - **Saved locations** — CRUD management of named locations (name, lat/lng, radius); click a saved location to navigate the map
 - **Tile caching** — OpenStreetMap tiles cached via service worker (cache-first, persistent across sessions)
@@ -113,6 +115,7 @@ A scalable, semantic-searchable media viewer for your home media collection. Fea
 - **Nickname** — edit default upload nickname
 - **Editor Tab Order** — reorder image and video editor tabs via move-up/move-down; persisted to IndexedDB and reflected in the viewer
 - **Cache clear** — clear all IndexedDB caches and service worker caches; uses `navigator.serviceWorker.ready` for Chrome PWA compatibility
+- **Map Zoom Level** — slider (10–19) with explicit Save button; persisted to IndexedDB and consumed by the Map tab's Zoom In button
 
 ### 🌍 Geocoding
 - **Reverse geocoding** — backend endpoint calls Nominatim API with 1 req/s rate limiting; results cached in-memory by rounded coordinates (4 decimal places)

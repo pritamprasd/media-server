@@ -115,7 +115,7 @@ function Upload() {
       setNewFolderName("");
       setShowNewFolderInput(false);
       setShowNewMenu(false);
-      refreshItems(currentPrefix);
+      await refreshItems(currentPrefix);
     } catch {
       setError("Failed to create directory");
     }
@@ -125,7 +125,7 @@ function Upload() {
     if (!window.confirm(`Delete folder "${name}" and all its files?`)) return;
     try {
       await softDeleteDir(path);
-      refreshItems(currentPrefix);
+      await refreshItems(currentPrefix);
     } catch {
       setError("Failed to delete directory");
     }
@@ -135,7 +135,7 @@ function Upload() {
     if (!window.confirm(`Delete file "${filename}"?`)) return;
     try {
       await softDeleteFiles([fileId]);
-      refreshItems(currentPrefix);
+      await refreshItems(currentPrefix);
     } catch {
       setError("Failed to delete file");
     }
@@ -153,7 +153,7 @@ function Upload() {
     if (fls.length) ops.push(softDeleteFiles(fls.map((f) => f.id)).catch(() => {}));
     await Promise.all(ops);
     setSelectedIds(new Set());
-    refreshItems(currentPrefix);
+    await refreshItems(currentPrefix);
   };
 
   const getSelectedPaths = () => {
@@ -186,13 +186,14 @@ function Upload() {
     const paths = getSelectedPaths();
     if (paths.length) {
       setPasteLoading(true);
-      moveUploadItems(paths, currentPrefix)
-        .then(() => {
-          setSelectedIds(new Set());
-          refreshItems(currentPrefix);
-        })
-        .catch(() => setError("Failed to move items"))
-        .finally(() => setPasteLoading(false));
+      try {
+        await moveUploadItems(paths, currentPrefix);
+        setSelectedIds(new Set());
+        await refreshItems(currentPrefix);
+      } catch {
+        setError("Failed to move items");
+      }
+      setPasteLoading(false);
     }
   };
 
@@ -218,7 +219,7 @@ function Upload() {
       setPref("nickname", nickname.trim());
       setFiles([]);
       if (inputRef.current) inputRef.current.value = "";
-      refreshItems(currentPrefix);
+      await refreshItems(currentPrefix);
       listNicknames().then((d) => setNicknames(d.nicknames || [])).catch(() => {});
     } catch (err) {
       setError(err?.response?.data?.error || err.message || "Upload failed");
@@ -290,7 +291,7 @@ function Upload() {
       }
       setClipboard(null);
       setSelectedIds(new Set());
-      refreshItems(currentPrefix);
+      await refreshItems(currentPrefix);
     } catch {
       setError("Failed to paste items");
     }
@@ -314,7 +315,7 @@ function Upload() {
     try {
       await renameUploadItem(path, val);
       setRenamingId(null);
-      refreshItems(currentPrefix);
+      await refreshItems(currentPrefix);
     } catch {
       setError("Failed to rename");
     }
@@ -327,7 +328,7 @@ function Upload() {
     try {
       await moveUploadItems(paths, targetDir);
       setSelectedIds(new Set());
-      refreshItems(currentPrefix);
+      await refreshItems(currentPrefix);
     } catch {
       setError("Failed to move items");
     }
@@ -341,7 +342,7 @@ function Upload() {
     setPasteLoading(true);
     try {
       await copyUploadItems(paths, targetDir);
-      refreshItems(currentPrefix);
+      await refreshItems(currentPrefix);
     } catch {
       setError("Failed to copy items");
     }
@@ -389,7 +390,7 @@ function Upload() {
     try {
       await moveUploadItems(paths, item.path);
       setSelectedIds(new Set());
-      refreshItems(currentPrefix);
+      await refreshItems(currentPrefix);
     } catch {
       setError("Failed to move items");
     }
@@ -661,7 +662,7 @@ function Upload() {
               </button>
             )}
             {currentPrefix && (
-              <button onClick={() => { handleMoveTo(currentPrefix); setContextMenu(null); }}>
+              <button onClick={() => { handleMoveTo(currentPrefix.split("/").slice(0, -1).join("/") || ""); setContextMenu(null); }}>
                 <ArrowRight size={15} /> Move to parent
               </button>
             )}

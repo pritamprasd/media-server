@@ -183,7 +183,7 @@ function MediaExplorer() {
       setNewFolderName("");
       setShowNewFolderInput(false);
       setShowNewMenu(false);
-      refreshItems(currentPrefix);
+      await refreshItems(currentPrefix);
     } catch {
       setError("Failed to create directory");
     }
@@ -200,7 +200,7 @@ function MediaExplorer() {
     try {
       await explorerDelete(paths);
       setSelectedIds(new Set());
-      refreshItems(currentPrefix);
+      await refreshItems(currentPrefix);
     } catch {
       setError("Failed to delete items");
     }
@@ -237,13 +237,14 @@ function MediaExplorer() {
     const paths = getSelectedPaths();
     if (paths.length) {
       setPasteLoading(true);
-      explorerMove(paths, currentPrefix)
-        .then(() => {
-          setSelectedIds(new Set());
-          refreshItems(currentPrefix);
-        })
-        .catch(() => setError("Failed to move items"))
-        .finally(() => setPasteLoading(false));
+      try {
+        await explorerMove(paths, currentPrefix);
+        setSelectedIds(new Set());
+        await refreshItems(currentPrefix);
+      } catch {
+        setError("Failed to move items");
+      }
+      setPasteLoading(false);
     }
   };
 
@@ -269,7 +270,7 @@ function MediaExplorer() {
       setPref("nickname", nickname.trim());
       setFiles([]);
       if (inputRef.current) inputRef.current.value = "";
-      refreshItems(currentPrefix);
+      await refreshItems(currentPrefix);
       listNicknames().then((d) => setNicknames(d.nicknames || [])).catch(() => {});
     } catch (err) {
       setError(err?.response?.data?.error || err.message || "Upload failed");
@@ -341,7 +342,7 @@ function MediaExplorer() {
       }
       setClipboard(null);
       setSelectedIds(new Set());
-      refreshItems(currentPrefix);
+      await refreshItems(currentPrefix);
     } catch {
       setError("Failed to paste items");
     }
@@ -367,7 +368,7 @@ function MediaExplorer() {
     try {
       await explorerRename(path, val, itemType);
       setRenamingId(null);
-      refreshItems(currentPrefix);
+      await refreshItems(currentPrefix);
     } catch {
       setError("Failed to rename");
     }
@@ -381,7 +382,7 @@ function MediaExplorer() {
     try {
       await explorerMove(paths, targetDir);
       setSelectedIds(new Set());
-      refreshItems(currentPrefix);
+      await refreshItems(currentPrefix);
     } catch {
       setError("Failed to move items");
     }
@@ -395,7 +396,7 @@ function MediaExplorer() {
     setPasteLoading(true);
     try {
       await explorerCopy(paths, targetDir);
-      refreshItems(currentPrefix);
+      await refreshItems(currentPrefix);
     } catch {
       setError("Failed to copy items");
     }
@@ -443,7 +444,7 @@ function MediaExplorer() {
     try {
       await explorerMove(paths, item.path);
       setSelectedIds(new Set());
-      refreshItems(currentPrefix);
+      await refreshItems(currentPrefix);
     } catch {
       setError("Failed to move items");
     }
@@ -759,7 +760,7 @@ function MediaExplorer() {
               </button>
             )}
             {currentPrefix && (
-              <button onClick={() => { handleMoveTo(currentPrefix); setContextMenu(null); }}>
+              <button onClick={() => { handleMoveTo(currentPrefix.split("/").slice(0, -1).join("/") || ""); setContextMenu(null); }}>
                 <ArrowRight size={15} /> Move to parent
               </button>
             )}

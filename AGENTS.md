@@ -1,5 +1,7 @@
 # AGENTS.md - Media Server Repository
 
+> **MUST**: Before making any feature change or feature addition, read this file in full and ensure the change is consistent with all documented patterns and decisions below. Add a new entry under the relevant section for every decision made during the change.
+
 ## Quick Setup
 - `make backend-setup` - Complete backend setup (venv + pip install + migrations)
 - `make frontend-setup` - Frontend setup and dependencies
@@ -74,6 +76,37 @@
 - HEIC support: pillow-heif + ImageMagick with HEIF support required
 - AI pipeline: Ollama vision model runs in separate `ai_metadata` worker
 - Offline PWA: Service worker caches shell/API/media/map tiles for offline access
+
+## Key Patterns & Decisions
+
+### General Rules
+- **No auto-save on slider drag**: Sliders that persist settings (map zoom level) or trigger expensive computations (map search radius) use a separate explicit Save/Search button. The slider controls a "draft" state; only the button commits it.
+- **Pencil hint as sole click target**: When a UI element has both a navigation action and a customization action, the customization trigger is always the smaller/supplementary control (pencil icon), never the primary tile/icon. The primary click navigates.
+- **IntersectionObserver over scroll events**: Infinite scroll uses IntersectionObserver with 200px root margin for simplicity and modern browser support; a Load More button remains as fallback.
+- **IndexedDB for UI-only persistence**: All user preferences and UI state (folder styles, editor tab order, navbar tab order, map zoom level) go to IndexedDB via `getPref`/`setPref` (in `frontend/src/services/db.js`). Backend persistence (database) is for data, not UI state.
+
+### Colors Tab (FileViewer)
+- **Grayscale exclusion**: Colors with RGB range (max-min) ≤ 15 are filtered out from the top 20 to avoid picking up near-white/black/near-gray values.
+- **Similar-color merging**: Within `extractProminentColors`, shades with Euclidean distance ≤ 30 in 0–255 RGB space are merged by weighted average (weighted by pixel count).
+- **Multi-select with toggle**: `selectedColors` is an array of `{r,g,b}` objects; clicking a swatch toggles it in/out. Backwards compatibility maintained: backend `_apply_selective_color` checks for `colors` array first, falls back to legacy single `color`.
+- **Swatch display**: CSS `auto-fill, minmax(120px, 1fr)` grid with vertical swatch layout; each swatch shows an area percentage (`pct`) label.
+
+### Media Explorer
+- **Strict folder hierarchy**: `directory_id` FK on `ImportedFile` is the source of truth. `relative_path` is NOT used for tree traversal. The `explorer_browse()` endpoint enforces root-level = directories only (no files); files only appear when browsing into a subdirectory.
+- **Synthetic session folders**: Non-upload sessions with root-only files get a synthetic directory entry with `path = "__session_{session.id}__"`. Parsed by `prefix.startswith("__session_")` → `int(prefix.split("_")[2])` to get the session ID.
+- **No upload-session exclusion**: The `explorer_browse` endpoint does NOT filter out the upload session — all sessions' files appear in Explorer. The `seen_paths` dedup logic prevents duplicate directory entries.
+- **Folder icon/color per path**: Customizations stored as a single IndexedDB key `explorer_folder_styles = { [relative_path]: { icon: string, color: string } }`. Supports 13 Lucide icons and 10 color options.
+- **File operations guards**: `explorer_delete` must `DetectedFace.query.filter_by(file_id=...).delete()` before hard-deleting any `ImportedFile` to avoid FK NOT NULL violations (autoflush cascade). `FileMetadata` has no `date_added` column — do not reference it in metadata copy constructors.
+
+### Map
+- **Explicit search**: The distance radius slider (1–100 km) controls a `pendingKm` draft state. Only clicking the "Search" button copies it to the active `nearbyKm` state, triggering `filteredMarkers` recalculation. Map click and Zoom In also sync `pendingKm = nearbyKm` so the slider reflects the active radius.
+- **Zoom In button on pin popups**: Flies the map to the configured `mapZoomLevel` (default 18, range 10–19, set in Settings). `MapController` receives `zoomToCoords` and `mapZoomLevel` as props; the zoom effect uses `mapZoomLevel` directly rather than `map.getMaxZoom() - 1`.
+- **Map zoom level settings**: Persisted to IndexedDB as `mapZoomLevel`. Settings UI shows a range slider + explicit "Save" button (not auto-save on drag).
+
+### Faces Tab
+- **Case-insensitive name grouping**: `displayPersons` computed via `useMemo` groups persons by `(p.name || "").toLowerCase()`. Combined entries have `_combined: true`, `id: number[]`, `_persons: original[]`, `thumbnails: string[]`.
+- **Combined-card constraints**: Edit/delete buttons hidden on combined cards. Operations use `loadId = selectedPerson._combined ? selectedPerson._persons[0].id : selectedPerson.id` for backend calls (backend doesn't support multi-person queries).
+- **Merge toolbar**: The merge toolbar (`selectedIds` set) correctly adds all individual IDs from combined cards, so merge-all-of-same-name works as expected.
 
 ## Production Deployment
 - Nginx reverse proxy with HTTPS, HTTP/2 support

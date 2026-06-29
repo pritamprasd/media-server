@@ -1334,6 +1334,7 @@ def move_upload_items():
         if file_entry:
             new_rel = rel_target + os.path.basename(src_path)
             file_entry.relative_path = new_rel
+            file_entry.file_path = os.path.join(upload_dir, new_rel)
             dir_name = os.path.dirname(new_rel)
             new_dir = _ensure_upload_subdir(session, dir_name) if dir_name else _root_dir
             file_entry.directory_id = new_dir.id
@@ -2229,7 +2230,6 @@ def explorer_browse():
     # Directories — use parent_path for strict hierarchy
     db_dirs = ImportedDirectory.query.filter(
         ImportedDirectory.deleted != True,
-        ImportedDirectory.session_id != upload_session_id,
     )
     if synthetic_session_id is not None:
         db_dirs = db_dirs.filter(
@@ -2261,7 +2261,6 @@ def explorer_browse():
         dir_records = ImportedDirectory.query.filter(
             ImportedDirectory.deleted != True,
             ImportedDirectory.path == browse_prefix,
-            ImportedDirectory.session_id != upload_session_id,
         ).all()
         if dir_records:
             base_q = base_q.filter(ImportedFile.directory_id.in_([d.id for d in dir_records]))
@@ -2466,6 +2465,8 @@ def explorer_move():
         return jsonify({"error": "Upload session not found"}), 400
     target_fs = os.path.join(upload_dir, target) if target else upload_dir
     os.makedirs(target_fs, exist_ok=True)
+    moved_count = 0
+    not_found = []
     for src_path in paths:
         src_path = src_path.strip().strip("/")
         name = os.path.basename(src_path)
@@ -2473,6 +2474,9 @@ def explorer_move():
         entries = ImportedFile.query.filter(
             ImportedFile.deleted != True, ImportedFile.relative_path == src_path,
         ).all()
+        if not entries:
+            not_found.append(src_path)
+            continue
         for entry in entries:
             session = db.session.get(ImportSession, entry.session_id)
             if session and session.root_path == upload_dir:
@@ -2481,36 +2485,51 @@ def explorer_move():
                 if os.path.exists(src_fs):
                     os.renames(src_fs, dst_fs)
                 entry.relative_path = dst_rel
+                entry.file_path = dst_fs
                 dir_name = os.path.dirname(dst_rel)
                 if dir_name:
                     dir_entry = _ensure_upload_subdir(upload_session, dir_name)
                     entry.directory_id = dir_entry.id
+                else:
+                    entry.directory_id = _root_dir_id(upload_session, upload_dir)
+                moved_count += 1
             else:
                 src_fs = os.path.join(session.root_path, src_path) if session else ""
                 dst_fs = os.path.join(target_fs, name)
                 if os.path.isfile(src_fs):
                     os.makedirs(os.path.dirname(dst_fs), exist_ok=True)
                     shutil.copy2(src_fs, dst_fs)
+                dir_name = os.path.dirname(dst_rel)
+                if dir_name:
+                    new_dir_entry = _ensure_upload_subdir(upload_session, dir_name)
+                    new_directory_id = new_dir_entry.id
+                else:
+                    new_directory_id = _root_dir_id(upload_session, upload_dir)
                 new_entry = ImportedFile(
                     session_id=upload_session.id, filename=name,
                     file_path=dst_fs, relative_path=dst_rel,
                     mime_type=entry.mime_type, size=entry.size,
                     modified=entry.modified, nickname=entry.nickname,
-                    directory_id=_root_dir_id(upload_session, upload_dir),
+                    is_favorite=entry.is_favorite,
+                    directory_id=new_directory_id,
                 )
                 db.session.add(new_entry)
                 db.session.flush()
                 orig_meta = FileMetadata.query.filter_by(file_id=entry.id).first()
-            if orig_meta:
-                new_meta = FileMetadata(file_id=new_entry.id, exif=orig_meta.exif,
-                    description=orig_meta.description, tags=orig_meta.tags,
-                    search_words=orig_meta.search_words, thumbnail=orig_meta.thumbnail,
-                    thumbnail_status=orig_meta.thumbnail_status,
-                    metadata_status=orig_meta.metadata_status)
-                db.session.add(new_meta)
-            entry.deleted = True
+                if orig_meta:
+                    new_meta = FileMetadata(file_id=new_entry.id, exif=orig_meta.exif,
+                        description=orig_meta.description, tags=orig_meta.tags,
+                        search_words=orig_meta.search_words, thumbnail=orig_meta.thumbnail,
+                        thumbnail_status=orig_meta.thumbnail_status,
+                        metadata_status=orig_meta.metadata_status)
+                    db.session.add(new_meta)
+                entry.deleted = True
+                moved_count += 1
     db.session.commit()
-    return jsonify({"message": "Items moved"}), 200
+    msg = f"Moved {moved_count} item(s)"
+    if not_found:
+        msg += f"; {len(not_found)} path(s) not found"
+    return jsonify({"message": msg}), 200 if moved_count else 404
 
 
 @api_bp.route("/explorer/copy", methods=["POST"])

@@ -2,14 +2,13 @@ import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { MapContainer, TileLayer, Marker, Popup, useMap, useMapEvents } from "react-leaflet";
 import L from "leaflet";
-import { X, Grid3X3, BookmarkPlus, Eye, EyeOff, ChevronDown } from "lucide-react";
+import { X, Grid3X3, BookmarkPlus, Eye, EyeOff, ChevronDown, ZoomIn } from "lucide-react";
+import { getPref } from "../services/db";
 import { listFilesWithGps, createLocation } from "../services/api";
 import FileViewer from "../components/FileViewer";
 import Spinner from "../components/Spinner";
 import "./Map.css";
 
-const NEARBY_KM = Number(import.meta.env.VITE_MAP_NEARBY_KM) || 10;
-const NEARBY_THRESHOLD = NEARBY_KM / 111;
 const ITEMS_PER_PAGE = Number(import.meta.env.VITE_MAP_THUMBS_PER_PAGE) || 32;
 
 function roundCoord(v) {
@@ -49,7 +48,7 @@ function FitBounds({ markers }) {
   return null;
 }
 
-function MapController({ markers, activeMarkerId, onMapClick }) {
+function MapController({ markers, activeMarkerId, onMapClick, zoomToCoords, mapZoomLevel }) {
   const map = useMap();
   const clickRef = useRef(onMapClick);
   clickRef.current = onMapClick;
@@ -68,7 +67,31 @@ function MapController({ markers, activeMarkerId, onMapClick }) {
       }
     }
   }, [activeMarkerId, markers, map]);
+
+  useEffect(() => {
+    if (!zoomToCoords) return;
+    map.flyTo([zoomToCoords.lat, zoomToCoords.lng], mapZoomLevel, { duration: 0.5 });
+  }, [zoomToCoords, map, mapZoomLevel]);
+
   return null;
+}
+
+function DistanceControls({ nearbyKm, onSearch }) {
+  const [pending, setPending] = useState(nearbyKm);
+
+  return (
+    <div className="map__distance">
+      <label className="map__distance-label">
+        <span>Search radius</span>
+        <span className="map__distance-value">{pending} km</span>
+      </label>
+      <input type="range" className="map__distance-slider" min={1} max={100} value={pending}
+        onChange={(e) => setPending(Number(e.target.value))} />
+      <button className="map__distance-search" onClick={() => onSearch(pending)} disabled={pending === nearbyKm}>
+        Search
+      </button>
+    </div>
+  );
 }
 
 function Map() {
@@ -80,6 +103,10 @@ function Map() {
   const [filter, setFilter] = useState(null);
   const [showThumbs, setShowThumbs] = useState(false);
   const [visibleCount, setVisibleCount] = useState(ITEMS_PER_PAGE);
+  const [nearbyKm, setNearbyKm] = useState(Number(import.meta.env.VITE_MAP_NEARBY_KM) || 10);
+  const [distanceResetKey, setDistanceResetKey] = useState(0);
+  const [zoomToCoords, setZoomToCoords] = useState(null);
+  const [mapZoomLevel, setMapZoomLevel] = useState(18);
   const navigate = useNavigate();
   const location_state = useLocation();
 
@@ -115,6 +142,10 @@ function Map() {
   }, []);
 
   useEffect(() => {
+    getPref("mapZoomLevel", 18).then(setMapZoomLevel);
+  }, []);
+
+  useEffect(() => {
     const init = location_state?.state?.filter;
     if (init && !loading && markers.length > 0) {
       setFilter({ type: "click", lat: init.lat, lng: init.lng, label: init.label });
@@ -140,15 +171,17 @@ function Map() {
     return map;
   }, [markers]);
 
+  const nearbyThreshold = nearbyKm / 111;
+
   const filteredMarkers = useMemo(() => {
     if (!filter) return markers;
     if (filter.type === "marker") return locations[filter.key] || [];
     return markers.filter((m) => {
       const dlat = m.latitude - filter.lat;
       const dlng = m.longitude - filter.lng;
-      return Math.sqrt(dlat * dlat + dlng * dlng) < NEARBY_THRESHOLD;
+      return Math.sqrt(dlat * dlat + dlng * dlng) < nearbyThreshold;
     });
-  }, [filter, markers, locations]);
+  }, [filter, markers, locations, nearbyThreshold]);
 
   const handleMarkerClick = useCallback((file) => {
     const key = makeLocationKey(file.latitude, file.longitude);
@@ -163,12 +196,26 @@ function Map() {
     setFilter({ type: "click", lat, lng });
     setVisibleCount(ITEMS_PER_PAGE);
     setShowThumbs(true);
+    setDistanceResetKey(k => k + 1);
   }, []);
 
   const handleClearFilter = useCallback(() => {
     setFilter(null);
     setActiveMarkerId(null);
     setVisibleCount(ITEMS_PER_PAGE);
+  }, []);
+
+  const handleSearch = useCallback((km) => {
+    setNearbyKm(km);
+  }, []);
+
+  const handleZoomIn = useCallback((lat, lng) => {
+    setZoomToCoords({ lat, lng });
+    setActiveMarkerId(null);
+    setFilter({ type: "click", lat, lng });
+    setVisibleCount(ITEMS_PER_PAGE);
+    setShowThumbs(true);
+    setDistanceResetKey(k => k + 1);
   }, []);
 
   const handleThumbnailClick = (file) => {
@@ -185,10 +232,10 @@ function Map() {
         name: name.trim(),
         latitude: filter.lat,
         longitude: filter.lng,
-        radius: NEARBY_KM / 111,
+        radius: nearbyKm / 111,
       });
     } catch {}
-  }, [filter]);
+  }, [filter, nearbyKm]);
 
   const visibleFiles = filteredMarkers.slice(0, visibleCount);
   const hasMore = visibleCount < filteredMarkers.length;
@@ -215,11 +262,12 @@ function Map() {
               attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
               crossOrigin="anonymous"
-              keepBuffer={5}
-              updateWhenIdle={false}
+              keepBuffer={2}
+              updateWhenIdle={true}
+              updateWhenZooming={false}
             />
             <FitBounds markers={markers} />
-            <MapController markers={markers} activeMarkerId={activeMarkerId} onMapClick={handleMapClick} />
+            <MapController markers={markers} activeMarkerId={activeMarkerId} onMapClick={handleMapClick} zoomToCoords={zoomToCoords} mapZoomLevel={mapZoomLevel} />
             {markers.map((f) => (
               <Marker
                 key={f.id}
@@ -234,7 +282,10 @@ function Map() {
                       <div className="map__popup-no-thumb" />
                     )}
                     <p className="map__popup-name">{f.filename}</p>
-                    <button className="map__popup-view" onClick={() => setPreviewFile({ id: f.id, filename: f.filename })}><Eye size={12} /> View</button>
+                    <div className="map__popup-actions">
+                      <button className="map__popup-view" onClick={() => setPreviewFile({ id: f.id, filename: f.filename })}><Eye size={12} /> View</button>
+                      <button className="map__popup-zoomin" onClick={() => handleZoomIn(f.latitude, f.longitude)}><ZoomIn size={12} /> Zoom In</button>
+                    </div>
                   </div>
                 </Popup>
               </Marker>
@@ -259,6 +310,7 @@ function Map() {
                 </div>
               </div>
             )}
+            <DistanceControls key={distanceResetKey} nearbyKm={nearbyKm} onSearch={handleSearch} />
             <div className="map__thumbs-grid">
               {visibleFiles.map((f) => (
                 <button
