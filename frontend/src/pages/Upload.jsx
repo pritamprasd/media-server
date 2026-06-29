@@ -173,7 +173,7 @@ function Upload() {
   const handleFileChange = (e) => handleFilesPicked(e.target.files);
   const handleFolderChange = (e) => handleFilesPicked(e.target.files);
 
-  const handleDrop = (e) => {
+  const handleDrop = async (e) => {
     e.preventDefault();
     setDragOver(false);
     const externalFiles = Array.from(e.dataTransfer.files || []);
