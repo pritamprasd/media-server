@@ -645,10 +645,10 @@ function MediaExplorer() {
                 onDragOver={(e) => handleTileDragOver(e, it)}
                 onDragLeave={(e) => handleTileDragLeave(e, it)}
                 onDrop={(e) => handleTileDrop(e, it)}>
-                <div className="explorer__tile-thumb" style={folderColor ? { color: folderColor } : undefined}
-                  onClick={(e) => { e.stopPropagation(); setIconPicker(it.path); }}>
+                <div className="explorer__tile-thumb" style={folderColor ? { color: folderColor } : undefined}>
                   <FolderIconComp size={viewMode === "grid" ? 48 : 20} />
-                  <span className="explorer__tile-customize-hint" title="Customize folder icon">
+                  <span className="explorer__tile-customize-hint" title="Customize folder icon"
+                    onClick={(e) => { e.stopPropagation(); setIconPicker(it.path); }}>
                     <Pencil size={viewMode === "grid" ? 10 : 8} />
                   </span>
                 </div>
