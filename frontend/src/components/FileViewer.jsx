@@ -215,6 +215,7 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete, onN
 
   const isVideo = file.mime_type && file.mime_type.startsWith("video/");
   const fileUrl = `/api/files/${file.id}/serve`;
+  const downloadUrl = `/api/files/${file.id}/download`;
 
   const ASPECT_RATIOS = [
     { label: "Free", value: "free" },
@@ -1126,7 +1127,7 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete, onN
                     </div>
                   )}
                 </div>
-                <a className="viewer-btn viewer-btn--download" href={fileUrl} download title="Download file"><Download size={15} /></a>
+                <a className="viewer-btn viewer-btn--download" href={downloadUrl} download title="Download file"><Download size={15} /></a>
                 <button className="viewer-btn" onClick={handleShare} title="Copy share link">{shareCopied ? <span style={{fontSize:"0.65rem"}}>Copied!</span> : <Share2 size={15} />}</button>
                 <button className="viewer-btn viewer-btn--delete" onClick={handleDeleteClick} title="Delete file"><Trash2 size={15} /></button>
                 <button className={`viewer-fav ${isFav ? "viewer-fav--active" : ""}`} onClick={handleToggleFav} title={isFav ? "Remove from favorites" : "Add to favorites"}>
@@ -1178,7 +1179,7 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete, onN
                     <FolderOpen size={16} />
                   </button>
                 )}
-                <a className="viewer-float-btn" href={fileUrl} download title="Download"><Download size={16} /></a>
+                <a className="viewer-float-btn" href={downloadUrl} download title="Download"><Download size={16} /></a>
                 <button className="viewer-float-btn" onClick={handleShare} title="Copy share link"><Share2 size={16} /></button>
                 <button className="viewer-float-btn" onClick={handleDeleteClick} title="Delete"><Trash2 size={16} /></button>
                 <button className={`viewer-float-btn ${isFav ? "viewer-float-btn--active" : ""}`} onClick={handleToggleFav} title={isFav ? "Remove from favorites" : "Add to favorites"}>

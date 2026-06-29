@@ -1069,6 +1069,31 @@ def serve_file(file_id):
     )
 
 
+@api_bp.route("/files/<int:file_id>/download", methods=["GET"])
+def download_file(file_id):
+    file_record = db.session.get(ImportedFile, file_id)
+    if not file_record:
+        return jsonify({"error": "File not found"}), 404
+    if not os.path.isfile(file_record.file_path):
+        return jsonify({"error": "File no longer exists on disk"}), 404
+
+    if file_record.mime_type in ("image/heic", "image/heif"):
+        jpeg_data = _convert_heic_to_jpeg(file_record.file_path)
+        if not jpeg_data:
+            return jsonify({"error": "Could not decode HEIC image"}), 500
+        return send_file(
+            io.BytesIO(jpeg_data), mimetype="image/jpeg",
+            as_attachment=True, download_name=f"{file_record.filename}.jpg",
+        )
+
+    return send_file(
+        file_record.file_path,
+        mimetype=file_record.mime_type,
+        as_attachment=True,
+        download_name=file_record.filename,
+    )
+
+
 @api_bp.route("/files/<int:file_id>", methods=["DELETE"])
 def delete_file(file_id):
     data = request.get_json(silent=True) or {}
