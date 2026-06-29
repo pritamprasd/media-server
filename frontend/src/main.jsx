@@ -17,7 +17,8 @@ createRoot(document.getElementById("root")).render(
 
 if ("serviceWorker" in navigator) {
   navigator.serviceWorker.register("/sw.js", { scope: "/", updateViaCache: "none" }).then((reg) => {
-    if (reg.active && !navigator.serviceWorker.controller) {
+    let isInitialClaim = reg.active && !navigator.serviceWorker.controller;
+    if (isInitialClaim) {
       reg.active.postMessage({ type: "CLAIM" });
     }
     if (reg.waiting) {
@@ -36,6 +37,7 @@ if ("serviceWorker" in navigator) {
     });
     let reloadTimeout;
     navigator.serviceWorker.addEventListener("controllerchange", () => {
+      if (isInitialClaim) { isInitialClaim = false; return; }
       clearTimeout(reloadTimeout);
       reloadTimeout = setTimeout(() => window.location.reload(), 500);
     });

@@ -4,7 +4,7 @@ import {
   Folder, FolderOpen, FolderHeart, FolderTree, File, Image, Video, Search, X,
   Grid3X3, List, ChevronDown, Plus, FileUp, Eye,
   MoreVertical, Scissors, Copy, ClipboardPaste, Pencil, ArrowRight,
-  ArrowLeft, Loader2, Star, Heart, Home, Camera, Music, Globe, Bookmark,
+  ArrowLeft, ArrowUp, Loader2, Star, Heart, Home, Camera, Music, Globe, Bookmark,
 } from "lucide-react";
 import {
   explorerBrowse, explorerRename, explorerMove, explorerCopy, explorerDelete,
@@ -52,6 +52,7 @@ function MediaExplorer() {
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [showScrollTop, setShowScrollTop] = useState(false);
   const [folderStyles, setFolderStyles] = useState({});
   const [iconPicker, setIconPicker] = useState(null);
   const inputRef = useRef(null);
@@ -155,6 +156,12 @@ function MediaExplorer() {
     obs.observe(sentinelRef.current);
     return () => obs.disconnect();
   }, [page, totalPages, searchQuery, loadMore]);
+
+  useEffect(() => {
+    const onScroll = () => setShowScrollTop(window.scrollY > 800);
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
 
   const navigateTo = (path) => {
     setCurrentPrefix(path);
@@ -862,6 +869,12 @@ function MediaExplorer() {
           <Loader2 className="explorer__loading-spinner" size={32} />
           <span>Processing...</span>
         </div>
+      )}
+
+      {showScrollTop && (
+        <button className="explorer__scroll-top" onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}>
+          <ArrowUp size={20} />
+        </button>
       )}
 
       {previewFile && <FileViewer file={previewFile} onClose={() => setPreviewFile(null)} />}

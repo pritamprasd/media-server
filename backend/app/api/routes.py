@@ -1110,6 +1110,7 @@ def delete_file(file_id):
         DHashBand.query.filter_by(metadata_id=meta.id).delete()
         db.session.delete(meta)
 
+    DetectedFace.query.filter_by(file_id=file_id).delete()
     session = ImportSession.query.get(file_record.session_id)
     db.session.delete(file_record)
     if session:

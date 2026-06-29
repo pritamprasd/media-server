@@ -1003,7 +1003,30 @@
 }
 
 .explorer__loading-spinner {
-  animation: upload-spin 0.8s linear infinite;
+  animation: spin 1s linear infinite;
+}
+
+.explorer__scroll-top {
+  position: fixed;
+  bottom: 2rem;
+  right: 2rem;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: none;
+  background: var(--color-primary);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+  z-index: 100;
+  transition: opacity 0.15s, transform 0.15s;
+}
+.explorer__scroll-top:hover {
+  opacity: 0.85;
+  transform: scale(1.05);
 }
 
 @keyframes upload-spin {
