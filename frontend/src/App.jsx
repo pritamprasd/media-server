@@ -10,6 +10,7 @@ import Gallery from "./pages/Gallery";
 import Favorites from "./pages/Favorites";
 import Duplicates from "./pages/Duplicates";
 import Upload from "./pages/Upload";
+import MediaExplorer from "./pages/MediaExplorer";
 import Statistics from "./pages/Statistics";
 import Settings from "./pages/Settings";
 import MapPage from "./pages/Map";
@@ -80,6 +81,7 @@ function App() {
           <Route path="/favorites" element={<Favorites />} />
           <Route path="/duplicates" element={<Duplicates />} />
           <Route path="/upload" element={<Upload />} />
+          <Route path="/explorer" element={<MediaExplorer />} />
           <Route path="/statistics" element={<Statistics />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="/map" element={<MapPage />} />

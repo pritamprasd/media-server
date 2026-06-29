@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback, useRef } from "react";
-import { Eye, EyeOff, Search, UserPlus, UserMinus, IdCard, Scan, Image, SlidersHorizontal, X, ChevronLeft, ChevronRight, Tags, GitMerge, CheckSquare, Square, ChevronDown, Users } from "lucide-react";
+import { useState, useEffect, useCallback } from "react";
+import { Eye, EyeOff, Search, UserPlus, UserMinus, IdCard, Scan, Image, SlidersHorizontal, X, ChevronLeft, ChevronRight, Tags, GitMerge, CheckSquare, Square, ChevronDown, Users, List, Grid3X3 } from "lucide-react";
 import Spinner from "../components/Spinner";
 import FileViewer from "../components/FileViewer";
 import { listPersons, updatePerson, deletePerson, scanAllFaces, listPersonFiles, getFaceStats, mergePersons } from "../services/api";
@@ -24,18 +24,19 @@ function Faces() {
   const [nameValue, setNameValue] = useState("");
   const [viewerFile, setViewerFile] = useState(null);
   const [sortBy, setSortBy] = useState("face_count");
+  const [searchName, setSearchName] = useState("");
   const [filterMode, setFilterMode] = useState("all");
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [merging, setMerging] = useState(false);
   const [mergeName, setMergeName] = useState("");
   const [scanResult, setScanResult] = useState(null);
-  const sentinelRef = useRef(null);
+  const [viewMode, setViewMode] = useState("grid");
 
   const loadPersons = useCallback(async (page = 1, append = false) => {
     if (!append) setLoading(true);
     else setLoadingMore(true);
     try {
-      const [pData, sData] = await Promise.all([listPersons(page, 50), getFaceStats()]);
+      const [pData, sData] = await Promise.all([listPersons(page, 50, searchName), getFaceStats()]);
       setPersons((prev) => append ? [...prev, ...pData.persons] : pData.persons);
       setStats(sData);
       setPersonPage(pData.page);
@@ -47,9 +48,9 @@ function Faces() {
       setLoading(false);
       setLoadingMore(false);
     }
-  }, []);
+  }, [searchName]);
 
-  useEffect(() => { loadPersons(); }, [loadPersons]);
+  useEffect(() => { setPersonPage(1); loadPersons(1); }, [loadPersons]);
 
   useEffect(() => {
     if (selectedPerson && window.innerWidth <= 768) {
@@ -57,22 +58,6 @@ function Faces() {
       if (wrap) wrap.scrollTop = wrap.scrollHeight;
     }
   }, [selectedPerson]);
-
-  useEffect(() => {
-    if (loading || loadingMore || personPage >= personPages) return;
-    const el = sentinelRef.current;
-    if (!el) return;
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0].isIntersecting) {
-          loadPersons(personPage + 1, true);
-        }
-      },
-      { rootMargin: "200px" }
-    );
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, [loading, loadingMore, personPage, personPages, loadPersons]);
 
   const handleScan = async () => {
     setScanning(true);
@@ -228,6 +213,11 @@ function Faces() {
               </button>
             </div>
           )}
+          <div className="faces-search-wrap">
+            <Search size={13} className="faces-search-icon" />
+            <input className="faces-search" type="text" placeholder="Search by name..." value={searchName} onChange={(e) => setSearchName(e.target.value)} />
+            {searchName && <button className="faces-search-clear" onClick={() => setSearchName("")}><X size={12} /></button>}
+          </div>
           <div className="faces-filter-group">
             <button className={`faces-filter-btn ${filterMode === "all" ? "faces-filter-btn--active" : ""}`} onClick={() => setFilterMode("all")} title="Show all persons"><Users size={13} /> All</button>
             <button className={`faces-filter-btn ${filterMode === "named" ? "faces-filter-btn--active" : ""}`} onClick={() => setFilterMode("named")} title="Named only"><Eye size={13} /> Named</button>
@@ -242,6 +232,13 @@ function Faces() {
             </select>
             <ChevronDown size={12} className="faces-sort-arrow" />
           </div>
+          <button
+            className="faces-btn"
+            onClick={() => setViewMode(viewMode === "grid" ? "list" : "grid")}
+            title={viewMode === "grid" ? "List view" : "Grid view"}
+          >
+            {viewMode === "grid" ? <List size={14} /> : <Grid3X3 size={14} />}
+          </button>
         </div>
       </div>
 
@@ -257,11 +254,11 @@ function Faces() {
       ) : (
         <div className="faces-layout">
           <div className="faces-grid-wrap">
-            <div className="faces-grid">
+            <div className={`faces-grid ${viewMode === "grid" ? "faces-grid--grid" : "faces-grid--list"}`}>
               {sortedPersons.map((person) => (
                 <div
                   key={person.id}
-                  className={`faces-card ${selectedPerson?.id === person.id ? "faces-card--selected" : ""} ${selectedIds.has(person.id) ? "faces-card--checked" : ""}`}
+                  className={`faces-card ${viewMode === "grid" ? "faces-card--grid" : "faces-card--list"} ${selectedPerson?.id === person.id ? "faces-card--selected" : ""} ${selectedIds.has(person.id) ? "faces-card--checked" : ""}`}
                   onClick={() => handleSelectPerson(person)}
                 >
                   <div className="faces-card-check" onClick={(e) => { e.stopPropagation(); toggleSelect(person.id); }}>
@@ -309,6 +306,7 @@ function Faces() {
                     <div className="faces-card-meta">
                       {person.meta_info?.gender === 0 ? <span title="Female">♀</span> : person.meta_info?.gender === 1 ? <span title="Male">♂</span> : ""}
                       <span title="Database ID">#{person.id}</span>
+                      {viewMode === "list" && <span title="Face count">{person.face_count} images</span>}
                     </div>
                   </div>
                 </div>
@@ -318,7 +316,13 @@ function Faces() {
                   <Spinner size={24} center />
                 </div>
               )}
-              {personPage < personPages && <div ref={sentinelRef} className="faces-sentinel" />}
+              {personPage < personPages && !loadingMore && (
+                <div className="faces-grid-loadmore-wrap">
+                  <button className="faces-btn faces-load-more" onClick={() => loadPersons(personPage + 1, true)}>
+                    Load More ({personTotal - persons.length} remaining)
+                  </button>
+                </div>
+              )}
             </div>
           </div>
 

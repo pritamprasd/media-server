@@ -22,6 +22,7 @@ A scalable, semantic-searchable media viewer for your home media collection. Fea
 - **Trash** — soft-delete files (library-only or library + disk)
 - **Nickname persistence** — default nickname stored in IndexedDB, editable from Settings
 - **Copy, Move, Rename** — clipboard (cut/copy/paste) and inline rename for files and folders; drag-and-drop to move items between directories
+- **Media Explorer** — file-browser-style page (grid/list view) with breadcrumb navigation; paginated browsing (100 per page, load-more button); strict folder hierarchy enforced via `directory_id` FK (not `relative_path` string matching); centered layout capped at 1600px / 90% viewport width
 
 ### 🖼️ Gallery & File Viewer
 - **Infinite-scroll grid** — Home page with configurable column layout (auto/1/2); click any thumbnail to open the overlay viewer
@@ -174,12 +175,12 @@ media-server/
 │   │   ├── api/
 │   │   │   ├── routes.py           # 50+ API endpoints
 │   │   │   └── face_routes.py      # Face/person API endpoints
-│   │   ├── models/                 # 8 SQLAlchemy models
+│   │   ├── models/                 # 9 SQLAlchemy models
 │   │   ├── utility/                # 11 utility modules
 │   │   ├── tasks.py                # 5 Celery task definitions
 │   │   ├── config.py               # App configuration
 │   │   └── __init__.py             # App factory
-│   ├── migrations/                 # 8 Alembic migrations
+│   ├── migrations/                 # 10 Alembic migrations
 │   ├── scripts/
 │   │   └── regenerate_heic_thumbnails.py
 │   ├── tests/
@@ -257,6 +258,43 @@ flask db upgrade              # Apply pending migrations
 flask db migrate -m "desc"    # Create new migration
 flask db downgrade            # Rollback one migration
 ```
+
+## Database Optimization
+
+The following indexes are defined across 9 tables to support the most frequent query patterns:
+
+| Table | Index | Type | Covers |
+|-------|-------|------|--------|
+| `import_sessions` | `root_path` | Single | Session lookup by root path |
+| `import_sessions` | `created_at` | Single | Session listing sort |
+| `imported_directories` | `session_id + parent_path` | Composite | Browse hierarchy queries |
+| `imported_directories` | `name` | Single | Directory listing sort |
+| `imported_directories` | `path`, `parent_path`, `deleted` | Single | Explorer hierarchy filters |
+| `imported_files` | `session_id + relative_path` | Composite | Upload management (8+ queries) |
+| `imported_files` | `created_at + deleted` | Composite | Default file listing sort + filter |
+| `imported_files` | `directory_id` | Single | FK join to directories |
+| `imported_files` | `mime_type` | Single | Media type filtering (7+ queries) |
+| `imported_files` | `relative_path` | Single | Path matching (10+ queries) |
+| `imported_files` | `filename` | Single | File name sort |
+| `imported_files` | `is_favorite` | Single | Favorites listing |
+| `imported_files` | `nickname` | Single | Upload nickname filtering |
+| `imported_files` | `deleted` | Single | Trash filtering |
+| `file_metadata` | `file_hash` | Single | Duplicate detection |
+| `file_metadata` | `latitude + longitude` | Composite | GIS range queries (saved locations) |
+| `file_metadata` | `metadata_status` | Single | Metadata status stats |
+| `file_metadata` | `thumbnail_status` | Single | Thumbnail status stats |
+| `dhash_bands` | `band_index + band_value` | Composite | Near-duplicate lookup |
+| `dhash_bands` | `metadata_id` | Single | FK cascade deletes |
+| `persons` | `name` | Single | Face assignment lookup + search |
+| `persons` | `face_count` | Single | Person listing sort |
+| `persons` | `created_at` | Single | Person listing sort |
+| `detected_faces` | `file_id`, `person_id` | Single | FK joins |
+| `detected_faces` | `created_at` | Single | Face listing pagination |
+| `detected_faces` | `confidence` | Single | Face confidence sort |
+| `saved_locations` | `name` | Single | Location listing sort |
+| `filter_presets` | `name` | Single | Preset listing + lookup |
+
+Run `make db-upgrade` to apply new indexes after pulling.
 
 ## Configuration
 

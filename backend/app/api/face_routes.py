@@ -15,7 +15,14 @@ def list_persons():
     page = request.args.get("page", 1, type=int)
     per_page = request.args.get("per_page", 50, type=int)
     per_page = min(per_page, 200)
-    pagination = Person.query.order_by(
+    q = request.args.get("q", "").strip()
+    query = Person.query
+    if q:
+        words = q.split()
+        from sqlalchemy import and_
+        name_conditions = [Person.name.ilike(f"%{w}%") for w in words]
+        query = query.filter(and_(*name_conditions))
+    pagination = query.order_by(
         Person.face_count.desc(), Person.created_at.desc()
     ).paginate(page=page, per_page=per_page, error_out=False)
     result = []

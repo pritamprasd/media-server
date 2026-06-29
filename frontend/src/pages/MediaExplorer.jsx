@@ -7,14 +7,14 @@ import {
   ArrowLeft, Loader2,
 } from "lucide-react";
 import {
-  uploadFiles, listUploadDirs, createUploadDir, listNicknames, softDeleteFiles, softDeleteDir, listRecentFiles,
-  moveUploadItems, copyUploadItems, renameUploadItem,
+  explorerBrowse, explorerRename, explorerMove, explorerCopy, explorerDelete,
+  uploadFiles, listNicknames, createUploadDir,
 } from "../services/api";
 import { getPref, setPref } from "../services/db";
 import FileViewer from "../components/FileViewer";
-import "./Upload.css";
+import "./MediaExplorer.css";
 
-function Upload() {
+function MediaExplorer() {
   const [files, setFiles] = useState([]);
   const [nickname, setNickname] = useState("");
   const [nicknames, setNicknames] = useState([]);
@@ -39,21 +39,23 @@ function Upload() {
   const [renameValue, setRenameValue] = useState("");
   const [dropTarget, setDropTarget] = useState(null);
   const [pasteLoading, setPasteLoading] = useState(false);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [loadingMore, setLoadingMore] = useState(false);
   const inputRef = useRef(null);
   const fileInputRef = useRef(null);
   const folderInputRef = useRef(null);
   const newMenuRef = useRef(null);
-  const nicknameId = "upload-nickname-input";
+  const nicknameId = "explorer-nickname-input";
 
   const refreshItems = useCallback(async (prefix) => {
     try {
-      const [d, r] = await Promise.all([
-        listUploadDirs(prefix),
-        listRecentFiles(prefix),
-      ]);
-      const dirs = (d.directories || []).map((x) => ({ ...x, kind: "dir" }));
-      const fils = (r.files || []).map((x) => ({ ...x, kind: "file" }));
+      const data = await explorerBrowse(prefix, 1);
+      const dirs = (data.directories || []).map((x) => ({ ...x, kind: "dir" }));
+      const fils = (data.files || []).map((x) => ({ ...x, kind: "file" }));
       setItems([...dirs, ...fils]);
+      setPage(1);
+      setTotalPages(data.total_pages || 1);
     } catch {}
   }, []);
 
@@ -77,16 +79,30 @@ function Upload() {
   const filtered = useMemo(() => {
     const q = searchQuery.toLowerCase().trim();
     let list = items;
-    if (q) list = list.filter((it) => it.name?.toLowerCase().includes(q));
+    if (q) list = list.filter((it) => (it.name || it.filename || "").toLowerCase().includes(q));
     return [...list].sort((a, b) => {
       if (a.kind !== b.kind) return a.kind === "dir" ? -1 : 1;
       const dir = sortBy === "date" ? -1 : 1;
-      if (sortBy === "name") return (a.name || "").localeCompare(b.name || "") * dir;
+      if (sortBy === "name") return (a.name || a.filename || "").localeCompare(b.name || b.filename || "") * dir;
       if (sortBy === "size") return ((a.size || 0) - (b.size || 0)) * dir;
       if (sortBy === "date") return (new Date(a.created_at || 0) - new Date(b.created_at || 0)) * dir;
       return 0;
     });
   }, [items, searchQuery, sortBy]);
+
+  const loadMore = useCallback(async () => {
+    if (loadingMore || page >= totalPages) return;
+    setLoadingMore(true);
+    try {
+      const next = page + 1;
+      const data = await explorerBrowse(currentPrefix, next);
+      const fils = (data.files || []).map((x) => ({ ...x, kind: "file" }));
+      setItems((prev) => [...prev, ...fils]);
+      setPage(next);
+      setTotalPages(data.total_pages || 1);
+    } catch {}
+    setLoadingMore(false);
+  }, [loadingMore, page, totalPages, currentPrefix]);
 
   const navigateTo = (path) => {
     setCurrentPrefix(path);
@@ -121,39 +137,22 @@ function Upload() {
     }
   };
 
-  const handleDeleteDir = async (path, name) => {
-    if (!window.confirm(`Delete folder "${name}" and all its files?`)) return;
-    try {
-      await softDeleteDir(path);
-      refreshItems(currentPrefix);
-    } catch {
-      setError("Failed to delete directory");
-    }
-  };
-
-  const handleDeleteFile = async (fileId, filename) => {
-    if (!window.confirm(`Delete file "${filename}"?`)) return;
-    try {
-      await softDeleteFiles([fileId]);
-      refreshItems(currentPrefix);
-    } catch {
-      setError("Failed to delete file");
-    }
-  };
-
   const handleDeleteSelected = async () => {
-    const dirs = filtered.filter((it) => selectedIds.has(it.id || it.path) && it.kind === "dir");
-    const fls = filtered.filter((it) => selectedIds.has(it.id || it.path) && it.kind === "file");
-    const msg = [];
-    if (dirs.length) msg.push(`${dirs.length} folder(s)`);
-    if (fls.length) msg.push(`${fls.length} file(s)`);
-    if (!msg.length) return;
-    if (!window.confirm(`Delete ${msg.join(" and ")}?`)) return;
-    const ops = dirs.map((d) => softDeleteDir(d.path).catch(() => {}));
-    if (fls.length) ops.push(softDeleteFiles(fls.map((f) => f.id)).catch(() => {}));
-    await Promise.all(ops);
-    setSelectedIds(new Set());
-    refreshItems(currentPrefix);
+    const paths = filtered
+      .filter((it) => selectedIds.has(it.id || it.path) && (it.kind === "file" || it.kind === "dir"))
+      .map((it) => it.path || it.relative_path)
+      .filter(Boolean);
+    if (!paths.length) return;
+    if (!window.confirm(`Delete ${paths.length} item(s)?`)) return;
+    setPasteLoading(true);
+    try {
+      await explorerDelete(paths);
+      setSelectedIds(new Set());
+      refreshItems(currentPrefix);
+    } catch {
+      setError("Failed to delete items");
+    }
+    setPasteLoading(false);
   };
 
   const getSelectedPaths = () => {
@@ -186,7 +185,7 @@ function Upload() {
     const paths = getSelectedPaths();
     if (paths.length) {
       setPasteLoading(true);
-      moveUploadItems(paths, currentPrefix)
+      explorerMove(paths, currentPrefix)
         .then(() => {
           setSelectedIds(new Set());
           refreshItems(currentPrefix);
@@ -284,9 +283,9 @@ function Upload() {
     setPasteLoading(true);
     try {
       if (clipboard.action === "cut") {
-        await moveUploadItems(clipboard.paths, target);
+        await explorerMove(clipboard.paths, target);
       } else {
-        await copyUploadItems(clipboard.paths, target);
+        await explorerCopy(clipboard.paths, target);
       }
       setClipboard(null);
       setSelectedIds(new Set());
@@ -311,13 +310,16 @@ function Upload() {
     const path = item.path || item.relative_path;
     const oldName = item.name || item.filename;
     if (val === oldName) { setRenamingId(null); return; }
+    const itemType = item.kind === "dir" ? "dir" : "file";
+    setPasteLoading(true);
     try {
-      await renameUploadItem(path, val);
+      await explorerRename(path, val, itemType);
       setRenamingId(null);
       refreshItems(currentPrefix);
     } catch {
       setError("Failed to rename");
     }
+    setPasteLoading(false);
   };
 
   const handleMoveTo = async (targetDir) => {
@@ -325,7 +327,7 @@ function Upload() {
     if (!paths.length) return;
     setPasteLoading(true);
     try {
-      await moveUploadItems(paths, targetDir);
+      await explorerMove(paths, targetDir);
       setSelectedIds(new Set());
       refreshItems(currentPrefix);
     } catch {
@@ -340,7 +342,7 @@ function Upload() {
     if (!paths.length) return;
     setPasteLoading(true);
     try {
-      await copyUploadItems(paths, targetDir);
+      await explorerCopy(paths, targetDir);
       refreshItems(currentPrefix);
     } catch {
       setError("Failed to copy items");
@@ -387,7 +389,7 @@ function Upload() {
     if (item.kind !== "dir") return;
     setPasteLoading(true);
     try {
-      await moveUploadItems(paths, item.path);
+      await explorerMove(paths, item.path);
       setSelectedIds(new Set());
       refreshItems(currentPrefix);
     } catch {
@@ -415,34 +417,34 @@ function Upload() {
 
   return (
     <div
-      className={`upload ${dragOver ? "upload--drag-over" : ""}`}
+      className={`explorer ${dragOver ? "explorer--drag-over" : ""}`}
       onDrop={handleDrop}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onClick={() => { setContextMenu(null); setShowNewMenu(false); setRenamingId(null); setDropTarget(null); }}
     >
-      <div className="upload__header">
-        <div className="upload__header-row">
-          <h2 className="upload__title">Upload Media</h2>
-          <div className="upload__header-actions">
-            <div className="upload__nickname-wrap">
+      <div className="explorer__header">
+        <div className="explorer__header-row">
+          <h2 className="explorer__title">Media Explorer</h2>
+          <div className="explorer__header-actions">
+            <div className="explorer__nickname-wrap">
               <input
                 id={nicknameId}
-                className="upload__input upload__input--nickname"
+                className="explorer__input explorer__input--nickname"
                 type="text"
-                list="nickname-list"
+                list="explorer-nickname-list"
                 placeholder="Nickname"
                 value={nickname}
                 onChange={(e) => setNickname(e.target.value)}
                 disabled={uploading}
                 autoComplete="off"
               />
-              <datalist id="nickname-list">
+              <datalist id="explorer-nickname-list">
                 {nicknames.map((n) => <option key={n} value={n} />)}
               </datalist>
             </div>
             {files.length > 0 && (
-              <button className="upload__btn upload__btn--primary" onClick={handleUpload}
+              <button className="explorer__btn explorer__btn--primary" onClick={handleUpload}
                 disabled={uploading || !nickname.trim()}>
                 {uploading ? `${progress}%` : <><UploadIcon size={15} /> Upload {files.length} file{files.length > 1 ? "s" : ""}</>}
               </button>
@@ -450,47 +452,47 @@ function Upload() {
           </div>
         </div>
         {uploading && (
-          <div className="upload__progress-wrap">
-            <div className="upload__progress-bar"><div className="upload__progress-fill" style={{ width: `${progress}%` }} /></div>
-            <span className="upload__progress-text">{progress}%</span>
+          <div className="explorer__progress-wrap">
+            <div className="explorer__progress-bar"><div className="explorer__progress-fill" style={{ width: `${progress}%` }} /></div>
+            <span className="explorer__progress-text">{progress}%</span>
           </div>
         )}
-        {error && <p className="upload__error">{error}</p>}
+        {error && <p className="explorer__error">{error}</p>}
       </div>
 
-      <div className="upload__toolbar">
-        <div className="upload__search-wrap">
-          <Search size={15} className="upload__search-icon" />
-          <input className="upload__search-input" type="text" placeholder="Search in this folder..."
+      <div className="explorer__toolbar">
+        <div className="explorer__search-wrap">
+          <Search size={15} className="explorer__search-icon" />
+          <input className="explorer__search-input" type="text" placeholder="Search in this folder..."
             value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
             onClick={(e) => e.stopPropagation()} />
-          {searchQuery && <button className="upload__search-clear" onClick={() => setSearchQuery("")}><X size={14} /></button>}
+          {searchQuery && <button className="explorer__search-clear" onClick={() => setSearchQuery("")}><X size={14} /></button>}
         </div>
-        <div className="upload__toolbar-right">
+        <div className="explorer__toolbar-right">
           {clipboard && (
-            <button className="upload__paste-btn" onClick={(e) => { e.stopPropagation(); handlePaste(); }}
+            <button className="explorer__paste-btn" onClick={(e) => { e.stopPropagation(); handlePaste(); }}
               disabled={pasteLoading}
               title={`Paste ${clipboard.paths.length} item(s)`}>
-              {pasteLoading ? <Loader2 size={15} className="upload__loading-btn-spin" /> : <ClipboardPaste size={15} />}
+              {pasteLoading ? <Loader2 size={15} className="explorer__loading-btn-spin" /> : <ClipboardPaste size={15} />}
               {' '}Paste ({clipboard.paths.length})
             </button>
           )}
-          <select className="upload__sort" value={sortBy} onChange={(e) => setSortBy(e.target.value)}
+          <select className="explorer__sort" value={sortBy} onChange={(e) => setSortBy(e.target.value)}
             onClick={(e) => e.stopPropagation()}>
             <option value="name">Name</option>
             <option value="date">Newest</option>
             <option value="size">Size</option>
           </select>
-          <button className="upload__view-btn" onClick={(e) => { e.stopPropagation(); setViewMode(viewMode === "grid" ? "list" : "grid"); }}
+          <button className="explorer__view-btn" onClick={(e) => { e.stopPropagation(); setViewMode(viewMode === "grid" ? "list" : "grid"); }}
             title={viewMode === "grid" ? "List view" : "Grid view"}>
             {viewMode === "grid" ? <List size={16} /> : <Grid3X3 size={16} />}
           </button>
-          <div className="upload__new-wrap" ref={newMenuRef}>
-            <button className="upload__new-btn" onClick={(e) => { e.stopPropagation(); setShowNewMenu((v) => !v); }}>
+          <div className="explorer__new-wrap" ref={newMenuRef}>
+            <button className="explorer__new-btn" onClick={(e) => { e.stopPropagation(); setShowNewMenu((v) => !v); }}>
               <Plus size={16} /> New <ChevronDown size={12} />
             </button>
             {showNewMenu && (
-              <div className="upload__new-dropdown" onClick={(e) => e.stopPropagation()}>
+              <div className="explorer__new-dropdown" onClick={(e) => e.stopPropagation()}>
                 <button onClick={() => { setShowNewFolderInput(true); setShowNewMenu(false); }}>
                   <FolderPlus size={15} /> New folder
                 </button>
@@ -506,33 +508,33 @@ function Upload() {
         </div>
       </div>
 
-      <div className="upload__breadcrumbs">
+      <div className="explorer__breadcrumbs">
         {currentPrefix && (
-          <button className="upload__back-btn" onClick={(e) => { e.stopPropagation(); handleBack(); }} title="Go to parent folder">
+          <button className="explorer__back-btn" onClick={(e) => { e.stopPropagation(); handleBack(); }} title="Go to parent folder">
             <ArrowLeft size={16} />
           </button>
         )}
-        <span className="upload__crumb" onClick={(e) => { e.stopPropagation(); navigateTo(""); }}>My Drive</span>
+        <span className="explorer__crumb" onClick={(e) => { e.stopPropagation(); navigateTo(""); }}>All Media</span>
         {breadcrumbs.map((part, i) => {
           const path = breadcrumbs.slice(0, i + 1).join("/");
           return (
-            <span key={path} className="upload__crumb-row">
-              <span className="upload__crumb-sep">/</span>
-              <span className="upload__crumb" onClick={(e) => { e.stopPropagation(); navigateTo(path); }}>{part}</span>
+            <span key={path} className="explorer__crumb-row">
+              <span className="explorer__crumb-sep">/</span>
+              <span className="explorer__crumb" onClick={(e) => { e.stopPropagation(); navigateTo(path); }}>{part}</span>
             </span>
           );
         })}
         {selCount > 0 && (
           <>
-            <button className="upload__action-btn" onClick={(e) => { e.stopPropagation(); handleCut(); }}
+            <button className="explorer__action-btn" onClick={(e) => { e.stopPropagation(); handleCut(); }}
               disabled={pasteLoading}>
               <Scissors size={13} /> Cut
             </button>
-            <button className="upload__action-btn" onClick={(e) => { e.stopPropagation(); handleCopy(); }}
+            <button className="explorer__action-btn" onClick={(e) => { e.stopPropagation(); handleCopy(); }}
               disabled={pasteLoading}>
               <Copy size={13} /> Copy
             </button>
-            <button className="upload__del-selected" onClick={(e) => { e.stopPropagation(); handleDeleteSelected(); }}
+            <button className="explorer__del-selected" onClick={(e) => { e.stopPropagation(); handleDeleteSelected(); }}
               disabled={pasteLoading}>
               <Trash2 size={13} /> Delete {selCount} item{selCount > 1 ? "s" : ""}
             </button>
@@ -541,19 +543,19 @@ function Upload() {
       </div>
 
       {showNewFolderInput && (
-        <div className="upload__new-folder" onClick={(e) => e.stopPropagation()}>
-          <input className="upload__input" type="text" placeholder="Folder name"
+        <div className="explorer__new-folder" onClick={(e) => e.stopPropagation()}>
+          <input className="explorer__input" type="text" placeholder="Folder name"
             value={newFolderName} onChange={(e) => setNewFolderName(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && handleCreateDir()} autoFocus />
-          <button className="upload__btn upload__btn--small" onClick={handleCreateDir}
+          <button className="explorer__btn explorer__btn--small" onClick={handleCreateDir}
             disabled={!newFolderName.trim()}><Check size={14} /> Create</button>
-          <button className="upload__btn upload__btn--small" onClick={() => { setShowNewFolderInput(false); setNewFolderName(""); }}><X size={14} /> Cancel</button>
+          <button className="explorer__btn explorer__btn--small" onClick={() => { setShowNewFolderInput(false); setNewFolderName(""); }}><X size={14} /> Cancel</button>
         </div>
       )}
 
-      <div className={`upload__items ${viewMode === "grid" ? "upload__items--grid" : "upload__items--list"}`}>
+      <div className={`explorer__items ${viewMode === "grid" ? "explorer__items--grid" : "explorer__items--list"}`}>
         {filtered.length === 0 && (
-          <div className="upload__empty">
+          <div className="explorer__empty">
             {searchQuery ? `No results for "${searchQuery}"` : "This folder is empty"}
           </div>
         )}
@@ -565,7 +567,7 @@ function Upload() {
           if (it.kind === "dir") {
             return (
               <div key={id}
-                className={`upload__tile ${viewMode === "grid" ? "upload__tile--grid" : "upload__tile--list"} ${sel ? "upload__tile--sel" : ""} ${isDropTarget ? "upload__tile--drop-target" : ""}`}
+                className={`explorer__tile ${viewMode === "grid" ? "explorer__tile--grid" : "explorer__tile--list"} ${sel ? "explorer__tile--sel" : ""} ${isDropTarget ? "explorer__tile--drop-target" : ""}`}
                 onClick={(e) => { if (!isRenaming) { e.stopPropagation(); navigateTo(it.path); } }}
                 onContextMenu={(e) => handleContextMenu(e, it)}
                 draggable
@@ -573,26 +575,26 @@ function Upload() {
                 onDragOver={(e) => handleTileDragOver(e, it)}
                 onDragLeave={(e) => handleTileDragLeave(e, it)}
                 onDrop={(e) => handleTileDrop(e, it)}>
-                <div className="upload__tile-thumb">
+                <div className="explorer__tile-thumb">
                   <Folder size={viewMode === "grid" ? 48 : 20} />
                 </div>
                 {isRenaming ? (
-                  <input className="upload__rename-input" type="text" value={renameValue}
+                  <input className="explorer__rename-input" type="text" value={renameValue}
                     onChange={(e) => setRenameValue(e.target.value)}
                     onKeyDown={(e) => { if (e.key === "Enter") handleRenameSubmit(it); if (e.key === "Escape") setRenamingId(null); }}
                     onBlur={() => handleRenameSubmit(it)}
                     onClick={(e) => e.stopPropagation()} autoFocus />
                 ) : (
-                  <div className="upload__tile-name" title={it.name}>{it.name}</div>
+                  <div className="explorer__tile-name" title={it.name}>{it.name}</div>
                 )}
-                <div className={`upload__tile-check ${sel ? "upload__tile-check--visible" : ""}`}
+                <div className={`explorer__tile-check ${sel ? "explorer__tile-check--visible" : ""}`}
                   onClick={(e) => { e.stopPropagation(); toggleSelect(id, e); }}>
                   <Check size={12} />
                 </div>
-                <button className="upload__tile-actions" onClick={(e) => handleShowActions(e, it)} title="Actions">
+                <button className="explorer__tile-actions" onClick={(e) => handleShowActions(e, it)} title="Actions">
                   <MoreVertical size={14} />
                 </button>
-                {viewMode === "list" && <div className="upload__tile-meta">Folder</div>}
+                {viewMode === "list" && <div className="explorer__tile-meta">Folder</div>}
               </div>
             );
           }
@@ -600,14 +602,14 @@ function Upload() {
           const thumbUrl = it.thumbnail && it.thumbnail_status === "completed" ? it.thumbnail : null;
           return (
             <div key={id}
-              className={`upload__tile ${viewMode === "grid" ? "upload__tile--grid" : "upload__tile--list"} ${sel ? "upload__tile--sel" : ""}`}
+              className={`explorer__tile ${viewMode === "grid" ? "explorer__tile--grid" : "explorer__tile--list"} ${sel ? "explorer__tile--sel" : ""}`}
               onClick={(e) => { if (!isRenaming) { e.stopPropagation(); handleItemClick(it); } }}
               onContextMenu={(e) => handleContextMenu(e, it)}
               draggable
               onDragStart={(e) => handleDragStart(e, it)}>
-              <div className="upload__tile-thumb">
+              <div className="explorer__tile-thumb">
                 {thumbUrl ? (
-                  <img src={thumbUrl} alt="" className="upload__tile-img" loading="lazy" />
+                  <img src={thumbUrl} alt="" className="explorer__tile-img" loading="lazy" />
                 ) : isVideo ? (
                   <Video size={viewMode === "grid" ? 48 : 20} />
                 ) : (
@@ -615,23 +617,23 @@ function Upload() {
                 )}
               </div>
               {isRenaming ? (
-                <input className="upload__rename-input" type="text" value={renameValue}
+                <input className="explorer__rename-input" type="text" value={renameValue}
                   onChange={(e) => setRenameValue(e.target.value)}
                   onKeyDown={(e) => { if (e.key === "Enter") handleRenameSubmit(it); if (e.key === "Escape") setRenamingId(null); }}
                   onBlur={() => handleRenameSubmit(it)}
                   onClick={(e) => e.stopPropagation()} autoFocus />
               ) : (
-                <div className="upload__tile-name" title={it.filename || it.name}>{it.filename || it.name}</div>
+                <div className="explorer__tile-name" title={it.filename || it.name}>{it.filename || it.name}</div>
               )}
-              <div className={`upload__tile-check ${sel ? "upload__tile-check--visible" : ""}`}
+              <div className={`explorer__tile-check ${sel ? "explorer__tile-check--visible" : ""}`}
                 onClick={(e) => { e.stopPropagation(); toggleSelect(id, e); }}>
                 <Check size={12} />
               </div>
-              <button className="upload__tile-actions" onClick={(e) => handleShowActions(e, it)} title="Actions">
+              <button className="explorer__tile-actions" onClick={(e) => handleShowActions(e, it)} title="Actions">
                 <MoreVertical size={14} />
               </button>
               {viewMode === "list" && (
-                <div className="upload__tile-meta">
+                <div className="explorer__tile-meta">
                   {formatSize(it.size)}{it.created_at ? ` · ${formatDate(it.created_at)}` : ""}{it.nickname ? ` · ${it.nickname}` : ""}
                 </div>
               )}
@@ -640,9 +642,17 @@ function Upload() {
         })}
       </div>
 
+      {page < totalPages && !searchQuery && (
+        <div className="explorer__loadmore-wrap">
+          <button className="explorer__load-more" onClick={(e) => { e.stopPropagation(); loadMore(); }} disabled={loadingMore}>
+            {loadingMore ? "Loading..." : `Load more (${page}/${totalPages})`}
+          </button>
+        </div>
+      )}
+
       {contextMenu && (
-        <div className="upload__ctx-overlay" onClick={() => setContextMenu(null)}>
-          <div className="upload__ctx-menu" style={{ left: contextMenu.x, top: contextMenu.y }} onClick={(e) => e.stopPropagation()}>
+        <div className="explorer__ctx-overlay" onClick={() => setContextMenu(null)}>
+          <div className="explorer__ctx-menu" style={{ left: contextMenu.x, top: contextMenu.y }} onClick={(e) => e.stopPropagation()}>
             <button onClick={() => { const it = contextMenu.item; it.kind === "dir" ? navigateTo(it.path) : handleItemClick(it); setContextMenu(null); }}>
               {contextMenu.item.kind === "dir" ? <><FolderOpen size={15} /> Open</> : <><Eye size={15} /> Preview</>}
             </button>
@@ -668,7 +678,7 @@ function Upload() {
             <button onClick={() => { handleStartRename(contextMenu.item); }}>
               <Pencil size={15} /> Rename
             </button>
-            <button onClick={() => { const it = contextMenu.item; it.kind === "dir" ? handleDeleteDir(it.path, it.name) : handleDeleteFile(it.id, it.filename); setContextMenu(null); }}>
+            <button onClick={() => { setContextMenu(null); handleDeleteSelected(); }}>
               <Trash2 size={15} /> Delete
             </button>
           </div>
@@ -676,47 +686,47 @@ function Upload() {
       )}
 
       {result && (
-        <div className="upload__result">
-          <p className="upload__result-ok">
+        <div className="explorer__result">
+          <p className="explorer__result-ok">
             Uploaded {result.saved?.length || 0} file(s)
             {result.errors?.length > 0 && `, ${result.errors.length} error(s)`}
           </p>
         </div>
       )}
 
-      <input ref={fileInputRef} className="upload__hidden-input" type="file" multiple
+      <input ref={fileInputRef} className="explorer__hidden-input" type="file" multiple
         accept="image/*,video/*" onChange={handleFileChange} />
-      <input ref={folderInputRef} className="upload__hidden-input" type="file" multiple
+      <input ref={folderInputRef} className="explorer__hidden-input" type="file" multiple
         webkitdirectory="" onChange={handleFolderChange} />
 
       {files.length > 0 && (
-        <div className="upload__bottom-bar">
-          <div className="upload__bottom-info">
-            <span className="upload__bottom-count">{files.length} file{files.length > 1 ? "s" : ""} selected</span>
-            <span className="upload__bottom-size">{formatSize(totalSize)}</span>
+        <div className="explorer__bottom-bar">
+          <div className="explorer__bottom-info">
+            <span className="explorer__bottom-count">{files.length} file{files.length > 1 ? "s" : ""} selected</span>
+            <span className="explorer__bottom-size">{formatSize(totalSize)}</span>
           </div>
-          <div className="upload__bottom-files">
+          <div className="explorer__bottom-files">
             {files.map((f, i) => (
-              <div key={i} className="upload__bottom-file">
-                <span className="upload__bottom-fname">{f.name}</span>
-                <span className="upload__bottom-fsize">{formatSize(f.size)}</span>
+              <div key={i} className="explorer__bottom-file">
+                <span className="explorer__bottom-fname">{f.name}</span>
+                <span className="explorer__bottom-fsize">{formatSize(f.size)}</span>
               </div>
             ))}
           </div>
-          <div className="upload__bottom-actions">
-            <button className="upload__btn upload__btn--primary" onClick={handleUpload}
+          <div className="explorer__bottom-actions">
+            <button className="explorer__btn explorer__btn--primary" onClick={handleUpload}
               disabled={uploading || !nickname.trim()}>
               {uploading ? `Uploading ${progress}%` : <><UploadIcon size={15} /> Upload</>}
             </button>
-            <button className="upload__btn" onClick={() => { setFiles([]); setResult(null); }}
+            <button className="explorer__btn" onClick={() => { setFiles([]); setResult(null); }}
               disabled={uploading}><X size={14} /> Cancel</button>
           </div>
         </div>
       )}
 
       {pasteLoading && (
-        <div className="upload__loading-overlay">
-          <Loader2 className="upload__loading-spinner" size={32} />
+        <div className="explorer__loading-overlay">
+          <Loader2 className="explorer__loading-spinner" size={32} />
           <span>Processing...</span>
         </div>
       )}
@@ -726,4 +736,4 @@ function Upload() {
   );
 }
 
-export default Upload;
+export default MediaExplorer;

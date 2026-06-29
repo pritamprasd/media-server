@@ -888,6 +888,35 @@
 
 .viewer-face-save:disabled { opacity: 0.5; cursor: default; }
 
+.viewer-face-suggestions {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 20;
+  background: var(--color-surface);
+  border: 1px solid var(--neu-dark);
+  border-radius: var(--radius);
+  box-shadow: var(--neu-raised);
+  max-height: 160px;
+  overflow-y: auto;
+  margin-top: 2px;
+}
+
+.viewer-face-suggestion {
+  padding: 0.35rem 0.5rem;
+  font-size: 0.75rem;
+  color: var(--color-text);
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.viewer-face-suggestion:hover,
+.viewer-face-suggestion--active {
+  background: var(--neu-flat);
+  color: var(--color-primary);
+}
+
 /* Delete confirmation */
 .viewer-delete-overlay {
   position: absolute;
@@ -1201,6 +1230,85 @@
 .viewer-crop-move:hover {
   border-color: rgba(255, 255, 255, 0.6);
   background: rgba(255, 255, 255, 0.06);
+}
+
+.viewer-colors {
+  padding: 0.75rem;
+  overflow-y: auto;
+  max-height: 50vh;
+}
+.viewer-colors-hint {
+  font-size: 0.7rem;
+  color: var(--color-text-muted);
+  margin: 0 0 0.5rem;
+  line-height: 1.4;
+}
+.viewer-colors-info {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+.viewer-colors-clear {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  background: none;
+  border: 1px solid var(--neu-dark);
+  border-radius: var(--radius);
+  padding: 0.2rem 0.5rem;
+  font-size: 0.7rem;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+.viewer-colors-clear:hover {
+  color: var(--color-text);
+  border-color: var(--color-text-muted);
+}
+.viewer-colors-loading {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  grid-column: 1 / -1;
+  justify-content: center;
+  padding: 1rem 0;
+}
+.viewer-colors-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.4rem;
+  margin-bottom: 0.5rem;
+}
+.viewer-colors-swatch {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: var(--neu-bg);
+  border: 2px solid transparent;
+  border-radius: var(--radius);
+  padding: 0.3rem;
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+.viewer-colors-swatch:hover {
+  border-color: var(--color-text-muted);
+}
+.viewer-colors-swatch--selected {
+  border-color: var(--color-primary);
+}
+.viewer-colors-swatch-color {
+  display: block;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+.viewer-colors-swatch-label {
+  font-size: 0.65rem;
+  color: var(--color-text-muted);
+  font-family: monospace;
 }
 
 .viewer-info {

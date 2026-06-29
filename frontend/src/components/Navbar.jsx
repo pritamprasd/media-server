@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { NavLink } from "react-router-dom";
 import { useTheme } from "../contexts/ThemeContext";
 import {
-  House, FileUp, FolderOpen, Heart, Upload,
+  House, FileUp, FolderOpen, Heart, Upload, Compass,
   CopyCheck, BarChart3, Settings, MapPin, MapPinned,
   Scan, Info, Sun, Moon, Menu, X,
 } from "lucide-react";
@@ -15,6 +15,7 @@ const DEFAULT_LINKS = [
   { to: "/gallery", label: "Imported Media", icon: FolderOpen },
   { to: "/favorites", label: "Favorites", icon: Heart },
   { to: "/upload", label: "Upload", icon: Upload },
+  { to: "/explorer", label: "Explorer", icon: Compass },
   { to: "/map", label: "Map", icon: MapPin },
   { to: "/locations", label: "Locations", icon: MapPinned },
   { to: "/faces", label: "Faces", icon: Scan },

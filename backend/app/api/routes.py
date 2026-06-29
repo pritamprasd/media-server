@@ -225,21 +225,25 @@ def list_files():
         query = query.filter(ImportedFile.mime_type.like("video/%"))
 
     if q:
-        like = f"%{q}%"
         from app.models.detected_face import DetectedFace
         from app.models.person import Person
-        person_file_ids = db.session.query(DetectedFace.file_id).join(
-            Person, Person.id == DetectedFace.person_id
-        ).filter(Person.name.ilike(like)).distinct().subquery()
-        query = query.filter(
-            db.or_(
-                db.cast(FileMetadata.tags, db.String).ilike(like),
-                FileMetadata.description.ilike(like),
-                FileMetadata.search_words.ilike(like),
-                ImportedFile.filename.ilike(like),
-                ImportedFile.id.in_(db.session.query(person_file_ids.c.file_id)),
+        words = q.split()
+        word_conditions = []
+        for word in words:
+            like = f"%{word}%"
+            person_file_ids = db.session.query(DetectedFace.file_id).join(
+                Person, Person.id == DetectedFace.person_id
+            ).filter(Person.name.ilike(like)).distinct().subquery()
+            word_conditions.append(
+                db.or_(
+                    db.cast(FileMetadata.tags, db.String).ilike(like),
+                    FileMetadata.description.ilike(like),
+                    FileMetadata.search_words.ilike(like),
+                    ImportedFile.filename.ilike(like),
+                    ImportedFile.id.in_(db.session.query(person_file_ids.c.file_id)),
+                )
             )
-        )
+        query = query.filter(db.and_(*word_conditions))
 
     tag = request.args.get("tag", "").strip().lower()
     if tag:
@@ -725,6 +729,22 @@ def _apply_colorize(img, amount):
     b = b.point(b_lut)
     return Image.merge("RGB", (r, g, b))
 
+def _apply_selective_color(img, target_color, tolerance=30):
+    img = img.convert("RGB")
+    pixels = img.load()
+    w, h = img.size
+    tr, tg, tb = target_color
+    tol_sq = tolerance * tolerance
+    gray_img = img.convert("L").convert("RGB")
+    gray_pixels = gray_img.load()
+    for y in range(h):
+        for x in range(w):
+            r, g, b = pixels[x, y]
+            dr, dg, db = r - tr, g - tg, b - tb
+            if dr * dr + dg * dg + db * db > tol_sq:
+                pixels[x, y] = gray_pixels[x, y]
+    return img
+
 
 def _edit_video_file(file_record, operations):
     from app.utility.video_utility import edit_video
@@ -863,6 +883,10 @@ def edit_file(file_id):
             img = _apply_grain(img, v)
         elif op_type == "grayscale":
             img = img.convert("L").convert("RGB")
+        elif op_type == "selective_color":
+            target = op.get("color", [128, 128, 128])
+            tol = op.get("tolerance", 30)
+            img = _apply_selective_color(img, target, tol)
         elif op_type == "colorize":
             v = op.get("value", 0)
             img = _apply_colorize(img, v)
@@ -971,6 +995,7 @@ def serve_file(file_id):
         file_record.file_path,
         mimetype=file_record.mime_type,
         as_attachment=False,
+        conditional=True,
     )
 
 
@@ -2164,3 +2189,365 @@ def export_video(file_id):
             os.unlink(tmp.name)
         except Exception:
             pass
+
+
+# ──────────────────────────────────────────────
+# Media Explorer endpoints (unified browse + ops)
+# ──────────────────────────────────────────────
+
+@api_bp.route("/explorer/browse", methods=["GET"])
+def explorer_browse():
+    prefix = request.args.get("prefix", "").strip().strip("/")
+    page = request.args.get("page", 1, type=int)
+    per_page = request.args.get("per_page", 100, type=int)
+    per_page = min(per_page, 500)
+    upload_dir = current_app.config["UPLOAD_DIR"]
+
+    upload_session = ImportSession.query.filter_by(root_path=upload_dir).first()
+    upload_session_id = upload_session.id if upload_session else -1
+
+    # Directories — use parent_path for strict hierarchy
+    db_dirs = ImportedDirectory.query.filter(
+        ImportedDirectory.deleted != True,
+        ImportedDirectory.session_id != upload_session_id,
+    )
+    if prefix:
+        db_dirs = db_dirs.filter(ImportedDirectory.parent_path == prefix)
+    else:
+        db_dirs = db_dirs.filter(
+            db.or_(ImportedDirectory.parent_path == "", ImportedDirectory.parent_path.is_(None))
+        )
+    db_dirs = db_dirs.order_by(ImportedDirectory.name).all()
+
+    # Files — use directory_id FK for strict hierarchy
+    base_q = ImportedFile.query.filter(ImportedFile.deleted != True)
+    if prefix:
+        dir_record = ImportedDirectory.query.filter(
+            ImportedDirectory.deleted != True,
+            ImportedDirectory.path == prefix,
+            ImportedDirectory.session_id != upload_session_id,
+        ).first()
+        if dir_record:
+            base_q = base_q.filter(ImportedFile.directory_id == dir_record.id)
+        else:
+            base_q = base_q.filter(False)
+    else:
+        subq = db.session.query(ImportedDirectory.id).filter(
+            ImportedDirectory.deleted != True,
+            ImportedDirectory.session_id != upload_session_id,
+            db.or_(ImportedDirectory.parent_path == "", ImportedDirectory.parent_path.is_(None)),
+        ).subquery()
+        base_q = base_q.filter(ImportedFile.directory_id.in_(subq))
+
+    pagination = base_q.order_by(ImportedFile.filename).paginate(
+        page=page, per_page=per_page, error_out=False
+    )
+    files = pagination.items
+
+    # Filesystem upload dirs (not yet imported)
+    scan_dir = os.path.join(upload_dir, prefix) if prefix else upload_dir
+    upload_dirs = []
+    if os.path.isdir(scan_dir):
+        for entry in sorted(os.listdir(scan_dir)):
+            full = os.path.join(scan_dir, entry)
+            if os.path.isdir(full):
+                upload_dirs.append({
+                    "name": entry,
+                    "path": os.path.join(prefix, entry) if prefix else entry,
+                    "session_id": upload_session_id,
+                    "is_upload": True,
+                })
+
+    dir_result = []
+    seen_paths = set()
+    for d in db_dirs:
+        if d.path not in seen_paths:
+            seen_paths.add(d.path)
+            dir_result.append({
+                "name": d.name,
+                "path": d.path,
+                "session_id": d.session_id,
+                "is_upload": False,
+            })
+    for ud in upload_dirs:
+        if ud["path"] not in seen_paths:
+            seen_paths.add(ud["path"])
+            dir_result.append(ud)
+
+    # Batch-load metadata to avoid N+1
+    file_ids = [f.id for f in files]
+    metas = {}
+    if file_ids:
+        for m in FileMetadata.query.filter(FileMetadata.file_id.in_(file_ids)).all():
+            metas[m.file_id] = m
+
+    file_result = []
+    for f in files:
+        d = f.to_dict()
+        meta = metas.get(f.id)
+        d["thumbnail"] = meta.thumbnail if meta else None
+        d["thumbnail_status"] = meta.thumbnail_status if meta else "pending"
+        d["session_id"] = f.session_id
+        d["created_at"] = f.created_at.isoformat() if f.created_at else None
+        file_result.append(d)
+
+    return jsonify({
+        "directories": dir_result,
+        "files": file_result,
+        "page": pagination.page,
+        "per_page": pagination.per_page,
+        "total": pagination.total,
+        "total_pages": pagination.pages,
+    }), 200
+
+
+@api_bp.route("/explorer/rename", methods=["POST"])
+def explorer_rename():
+    data = request.get_json(silent=True) or {}
+    path = data.get("path", "").strip().strip("/")
+    new_name = data.get("new_name", "").strip().strip("/")
+    item_type = data.get("type", "file")
+    if not path or not new_name:
+        return jsonify({"error": "path and new_name are required"}), 400
+    upload_dir = current_app.config["UPLOAD_DIR"]
+
+    if item_type == "dir":
+        entries = ImportedDirectory.query.filter(
+            ImportedDirectory.deleted != True, ImportedDirectory.path == path
+        ).all()
+        if not entries:
+            return jsonify({"error": "Directory not found"}), 404
+        parent = os.path.dirname(path)
+        new_path = os.path.join(parent, new_name) if parent else new_name
+        for entry in entries:
+            old_prefix = entry.path + "/"
+            new_prefix = new_path + "/"
+            children = ImportedDirectory.query.filter(
+                ImportedDirectory.session_id == entry.session_id,
+                ImportedDirectory.path.like(f"{old_prefix}%"),
+            ).all()
+            child_files = ImportedFile.query.filter(
+                ImportedFile.session_id == entry.session_id,
+                ImportedFile.relative_path.like(f"{old_prefix}%"),
+            ).all()
+            entry.path = new_path
+            entry.name = new_name
+            entry.parent_path = parent
+            for child in children:
+                suffix = child.path[len(old_prefix):]
+                child.path = new_prefix + suffix
+                child.parent_path = "/".join(child.path.split("/")[:-1])
+            for cf in child_files:
+                suffix = cf.relative_path[len(old_prefix):]
+                cf.relative_path = new_prefix + suffix
+                dir_name = os.path.dirname(cf.relative_path)
+                dir_entry = ImportedDirectory.query.filter_by(
+                    session_id=cf.session_id, path=dir_name
+                ).first()
+                if dir_entry:
+                    cf.directory_id = dir_entry.id
+        src_fs = os.path.join(upload_dir, path)
+        dst_fs = os.path.join(upload_dir, parent, new_name) if parent else os.path.join(upload_dir, new_name)
+        if os.path.exists(src_fs):
+            os.renames(src_fs, dst_fs)
+    else:
+        entries = ImportedFile.query.filter(
+            ImportedFile.deleted != True, ImportedFile.relative_path == path
+        ).all()
+        if not entries:
+            return jsonify({"error": "File not found"}), 404
+        for entry in entries:
+            old_name = entry.filename
+            entry.filename = new_name
+            parent = os.path.dirname(entry.relative_path)
+            entry.relative_path = os.path.join(parent, new_name) if parent else new_name
+            meta = FileMetadata.query.filter_by(file_id=entry.id).first()
+            if meta and meta.search_words:
+                meta.search_words = meta.search_words.replace(old_name, new_name)
+            session = db.session.get(ImportSession, entry.session_id)
+            if session and session.root_path == upload_dir:
+                src_fs = os.path.join(upload_dir, path)
+                dst_fs = os.path.join(upload_dir, entry.relative_path)
+                if os.path.exists(src_fs):
+                    os.renames(src_fs, dst_fs)
+    db.session.commit()
+    return jsonify({"message": "Renamed"}), 200
+
+
+@api_bp.route("/explorer/move", methods=["POST"])
+def explorer_move():
+    data = request.get_json(silent=True) or {}
+    paths = data.get("paths", [])
+    target = data.get("target", "").strip().strip("/")
+    upload_dir = current_app.config["UPLOAD_DIR"]
+    if not paths:
+        return jsonify({"error": "paths is required"}), 400
+    upload_session = ImportSession.query.filter_by(root_path=upload_dir).first()
+    if not upload_session:
+        return jsonify({"error": "Upload session not found"}), 400
+    target_fs = os.path.join(upload_dir, target) if target else upload_dir
+    os.makedirs(target_fs, exist_ok=True)
+    for src_path in paths:
+        src_path = src_path.strip().strip("/")
+        name = os.path.basename(src_path)
+        dst_rel = os.path.join(target, name) if target else name
+        entries = ImportedFile.query.filter(
+            ImportedFile.deleted != True, ImportedFile.relative_path == src_path,
+        ).all()
+        for entry in entries:
+            session = db.session.get(ImportSession, entry.session_id)
+            if session and session.root_path == upload_dir:
+                src_fs = os.path.join(upload_dir, src_path)
+                dst_fs = os.path.join(target_fs, name)
+                if os.path.exists(src_fs):
+                    os.renames(src_fs, dst_fs)
+                entry.relative_path = dst_rel
+                dir_name = os.path.dirname(dst_rel)
+                if dir_name:
+                    dir_entry = _ensure_upload_subdir(upload_session, dir_name)
+                    entry.directory_id = dir_entry.id
+            else:
+                src_fs = os.path.join(session.root_path, src_path) if session else ""
+                dst_fs = os.path.join(target_fs, name)
+                if os.path.isfile(src_fs):
+                    os.makedirs(os.path.dirname(dst_fs), exist_ok=True)
+                    shutil.copy2(src_fs, dst_fs)
+                new_entry = ImportedFile(
+                    session_id=upload_session.id, filename=name,
+                    file_path=dst_fs, relative_path=dst_rel,
+                    mime_type=entry.mime_type, size=entry.size,
+                    modified=entry.modified, nickname=entry.nickname,
+                    directory_id=_root_dir_id(upload_session, upload_dir),
+                )
+                db.session.add(new_entry)
+                db.session.flush()
+                orig_meta = FileMetadata.query.filter_by(file_id=entry.id).first()
+                if orig_meta:
+                    new_meta = FileMetadata(file_id=new_entry.id, exif=orig_meta.exif,
+                        description=orig_meta.description, tags=orig_meta.tags,
+                        search_words=orig_meta.search_words, thumbnail=orig_meta.thumbnail,
+                        thumbnail_status=orig_meta.thumbnail_status,
+                        metadata_status=orig_meta.metadata_status,
+                        date_added=orig_meta.date_added)
+                    db.session.add(new_meta)
+                entry.deleted = True
+    db.session.commit()
+    return jsonify({"message": "Items moved"}), 200
+
+
+@api_bp.route("/explorer/copy", methods=["POST"])
+def explorer_copy():
+    data = request.get_json(silent=True) or {}
+    paths = data.get("paths", [])
+    target = data.get("target", "").strip().strip("/")
+    upload_dir = current_app.config["UPLOAD_DIR"]
+    if not paths:
+        return jsonify({"error": "paths is required"}), 400
+    upload_session = ImportSession.query.filter_by(root_path=upload_dir).first()
+    if not upload_session:
+        return jsonify({"error": "Upload session not found"}), 400
+    target_fs = os.path.join(upload_dir, target) if target else upload_dir
+    os.makedirs(target_fs, exist_ok=True)
+    for src_path in paths:
+        src_path = src_path.strip().strip("/")
+        name = os.path.basename(src_path)
+        dst_rel = os.path.join(target, name) if target else name
+        dst_fs = os.path.join(target_fs, name)
+        entries = ImportedFile.query.filter(
+            ImportedFile.deleted != True, ImportedFile.relative_path == src_path,
+        ).all()
+        for entry in entries:
+            session = db.session.get(ImportSession, entry.session_id)
+            src_fs = os.path.join(session.root_path, src_path) if session else ""
+            if os.path.isfile(src_fs):
+                os.makedirs(os.path.dirname(dst_fs), exist_ok=True)
+                shutil.copy2(src_fs, dst_fs)
+            new_entry = ImportedFile(
+                session_id=upload_session.id, filename=name,
+                file_path=dst_fs, relative_path=dst_rel,
+                mime_type=entry.mime_type, size=entry.size,
+                modified=entry.modified, nickname=entry.nickname,
+                directory_id=_root_dir_id(upload_session, upload_dir),
+            )
+            db.session.add(new_entry)
+            db.session.flush()
+            orig_meta = FileMetadata.query.filter_by(file_id=entry.id).first()
+            if orig_meta:
+                new_meta = FileMetadata(file_id=new_entry.id, exif=orig_meta.exif,
+                    description=orig_meta.description, tags=orig_meta.tags,
+                    search_words=orig_meta.search_words, thumbnail=orig_meta.thumbnail,
+                    thumbnail_status=orig_meta.thumbnail_status,
+                    metadata_status=orig_meta.metadata_status,
+                    date_added=orig_meta.date_added)
+                db.session.add(new_meta)
+    db.session.commit()
+    return jsonify({"message": "Items copied"}), 200
+
+
+@api_bp.route("/explorer/delete", methods=["POST"])
+def explorer_delete():
+    data = request.get_json(silent=True) or {}
+    paths = data.get("paths", [])
+    if not paths:
+        return jsonify({"error": "paths is required"}), 400
+    for src_path in paths:
+        src_path = src_path.strip().strip("/")
+        files = ImportedFile.query.filter(
+            ImportedFile.deleted != True, ImportedFile.relative_path == src_path,
+        ).all()
+        for f in files:
+            meta = FileMetadata.query.filter_by(file_id=f.id).first()
+            if meta:
+                DHashBand.query.filter_by(metadata_id=meta.id).delete()
+                db.session.delete(meta)
+            db.session.delete(f)
+            session = ImportSession.query.get(f.session_id)
+            if session:
+                session.total_files = max(0, (session.total_files or 0) - 1)
+        dirs = ImportedDirectory.query.filter(
+            ImportedDirectory.deleted != True, ImportedDirectory.path == src_path,
+        ).all()
+        for d in dirs:
+            old_prefix = d.path + "/"
+            children = ImportedDirectory.query.filter(
+                ImportedDirectory.session_id == d.session_id,
+                ImportedDirectory.path.like(f"{old_prefix}%"),
+            ).all()
+            for child in children:
+                child_files = ImportedFile.query.filter(
+                    ImportedFile.session_id == child.session_id,
+                    ImportedFile.directory_id == child.id,
+                ).all()
+                for cf in child_files:
+                    session = ImportSession.query.get(cf.session_id)
+                    if session:
+                        session.total_files = max(0, (session.total_files or 0) - 1)
+                    meta = FileMetadata.query.filter_by(file_id=cf.id).first()
+                    if meta:
+                        DHashBand.query.filter_by(metadata_id=meta.id).delete()
+                        db.session.delete(meta)
+                    db.session.delete(cf)
+                db.session.delete(child)
+            child_files = ImportedFile.query.filter(
+                ImportedFile.session_id == d.session_id,
+                ImportedFile.directory_id == d.id,
+            ).all()
+            for cf in child_files:
+                session = ImportSession.query.get(cf.session_id)
+                if session:
+                    session.total_files = max(0, (session.total_files or 0) - 1)
+                meta = FileMetadata.query.filter_by(file_id=cf.id).first()
+                if meta:
+                    DHashBand.query.filter_by(metadata_id=meta.id).delete()
+                    db.session.delete(meta)
+                db.session.delete(cf)
+            db.session.delete(d)
+    db.session.commit()
+    return jsonify({"message": "Items deleted"}), 200
+
+
+def _root_dir_id(upload_session, upload_dir):
+    root = ImportedDirectory.query.filter_by(
+        session_id=upload_session.id, path=""
+    ).first()
+    return root.id if root else None

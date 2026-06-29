@@ -228,8 +228,10 @@ export async function deleteFilter(filterId) {
   return data;
 }
 
-export async function listPersons(page = 1, perPage = 50) {
-  const { data } = await client.get("/persons", { params: { page, per_page: perPage } });
+export async function listPersons(page = 1, perPage = 50, q = "") {
+  const params = { page, per_page: perPage };
+  if (q) params.q = q;
+  const { data } = await client.get("/persons", { params });
   return data;
 }
 
@@ -306,6 +308,31 @@ export async function exportVideo(fileId, operations, opts = {}) {
 
 export async function reverseGeocode(lat, lng) {
   const { data } = await client.get("/geocode/reverse", { params: { lat, lng } });
+  return data;
+}
+
+export async function explorerBrowse(prefix, page = 1) {
+  const { data } = await client.get("/explorer/browse", { params: { prefix, page } });
+  return data;
+}
+
+export async function explorerRename(path, newName, itemType) {
+  const { data } = await client.post("/explorer/rename", { path, new_name: newName, type: itemType });
+  return data;
+}
+
+export async function explorerMove(paths, target) {
+  const { data } = await client.post("/explorer/move", { paths, target });
+  return data;
+}
+
+export async function explorerCopy(paths, target) {
+  const { data } = await client.post("/explorer/copy", { paths, target });
+  return data;
+}
+
+export async function explorerDelete(paths) {
+  const { data } = await client.post("/explorer/delete", { paths });
   return data;
 }
 

@@ -4,7 +4,7 @@ import {
   Heart, Download, Trash2, X, RotateCcw, RotateCw, ArrowLeftRight,
   ArrowUpDown, Contrast, Image, FileJson, MapPin,
   Hash, Tag, AlignLeft, Clock, Maximize2, Camera,
-  ZoomIn, ZoomOut, Save, Filter, SlidersHorizontal, Sun,
+  Save, Filter, SlidersHorizontal, Sun, ZoomOut,
   Sparkles, Undo2, Paintbrush, FlipHorizontal, Search, IdCard, FolderOpen,
   ChevronLeft, ChevronRight, Scissors, Palette, Droplets, Eye,
   Grid3X3, Sigma, ChevronDown, FileImage, Drama, Volume2,
@@ -18,6 +18,8 @@ import {
   updateFace,
   detectFaces,
   reverseGeocode,
+  listPersons,
+  listTags,
 } from "../services/api";
 import Spinner from "./Spinner";
 import { getPref, setPref } from "../services/db";
@@ -39,25 +41,40 @@ const FILTERS = [
 const ICON_MAP = {
   trim: Clock, adjust: SlidersHorizontal, filters: Sparkles, text: Type,
   effects: Contrast, crop: FlipHorizontal, light: Sun, details: Grid3X3,
-  info: Info,
+  info: Info, colors: Palette,
 };
 
-const DEFAULT_IMAGE_TABS = ["filters", "adjust", "light", "effects", "details", "info", "crop"];
+const DEFAULT_IMAGE_TABS = ["filters", "adjust", "light", "effects", "details", "colors", "info", "crop"];
 const DEFAULT_VIDEO_TABS = ["trim", "adjust", "filters", "text", "effects", "crop"];
 
 function FaceNameTag({ face, onNameChange }) {
   const [editing, setEditing] = useState(false);
   const [inputVal, setInputVal] = useState(face.person_name || "");
   const [saving, setSaving] = useState(false);
+  const [personNames, setPersonNames] = useState([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [activeSuggestion, setActiveSuggestion] = useState(-1);
+  const inputRef = useRef(null);
 
-  const handleSave = async () => {
-    const val = inputVal.trim();
-    if (!val && !face.person_name) return;
-    if (val === (face.person_name || "")) { setEditing(false); return; }
+  useEffect(() => {
+    listPersons(1, 1000).then((data) => {
+      setPersonNames(data.persons.filter((p) => p.name).map((p) => p.name));
+    }).catch(() => {});
+  }, []);
+
+  const filteredSuggestions = inputVal.trim()
+    ? personNames.filter((n) => n.toLowerCase().includes(inputVal.toLowerCase()) && n !== face.person_name)
+    : [];
+
+  const handleSave = async (val) => {
+    const v = (val ?? inputVal).trim();
+    if (!v && !face.person_name) return;
+    if (v === (face.person_name || "")) { setEditing(false); return; }
     setSaving(true);
     try {
-      await onNameChange(val || null);
+      await onNameChange(v || null);
       setEditing(false);
+      setShowSuggestions(false);
     } catch {
     } finally {
       setSaving(false);
@@ -65,24 +82,50 @@ function FaceNameTag({ face, onNameChange }) {
   };
 
   const handleKeyDown = (e) => {
-    if (e.key === "Enter") handleSave();
-    if (e.key === "Escape") { setInputVal(face.person_name || ""); setEditing(false); }
+    if (showSuggestions && filteredSuggestions.length > 0) {
+      if (e.key === "ArrowDown") { e.preventDefault(); setActiveSuggestion((p) => Math.min(p + 1, filteredSuggestions.length - 1)); return; }
+      if (e.key === "ArrowUp") { e.preventDefault(); setActiveSuggestion((p) => Math.max(p - 1, 0)); return; }
+      if (e.key === "Enter" && activeSuggestion >= 0) { e.preventDefault(); handleSave(filteredSuggestions[activeSuggestion]); return; }
+    }
+    if (e.key === "Enter") { e.preventDefault(); handleSave(); }
+    if (e.key === "Escape") { setInputVal(face.person_name || ""); setEditing(false); setShowSuggestions(false); }
+  };
+
+  const handleInputChange = (e) => {
+    setInputVal(e.target.value);
+    setShowSuggestions(true);
+    setActiveSuggestion(-1);
+  };
+
+  const selectSuggestion = (name) => {
+    setInputVal(name);
+    setShowSuggestions(false);
+    handleSave(name);
   };
 
   if (editing) {
     return (
       <div className="viewer-face-item">
         {face.thumbnail && <img src={face.thumbnail} alt="" className="viewer-face-thumb" />}
-        <div className="viewer-face-edit">
-          <input className="viewer-face-input" type="text" value={inputVal} onChange={(e) => setInputVal(e.target.value)} onKeyDown={handleKeyDown} placeholder="Name..." autoFocus disabled={saving} />
-          <button className="viewer-face-save" onClick={handleSave} disabled={saving}>{saving ? <Spinner size={10} /> : <IdCard size={11} />}</button>
+        <div className="viewer-face-edit" style={{ position: "relative" }}>
+          <input ref={inputRef} className="viewer-face-input" type="text" value={inputVal} onChange={handleInputChange} onKeyDown={handleKeyDown} onFocus={() => setShowSuggestions(true)} onBlur={() => setTimeout(() => setShowSuggestions(false), 200)} placeholder="Name..." autoFocus disabled={saving} />
+          <button className="viewer-face-save" onClick={() => handleSave()} disabled={saving}>{saving ? <Spinner size={10} /> : <IdCard size={11} />}</button>
+          {showSuggestions && filteredSuggestions.length > 0 && (
+            <div className="viewer-face-suggestions">
+              {filteredSuggestions.map((name, i) => (
+                <div key={name} className={`viewer-face-suggestion ${i === activeSuggestion ? "viewer-face-suggestion--active" : ""}`} onMouseDown={() => selectSuggestion(name)}>
+                  {name}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     );
   }
 
   return (
-    <div className="viewer-face-item" onClick={() => { setInputVal(face.person_name || ""); setEditing(true); }}>
+    <div className="viewer-face-item" onClick={() => { setInputVal(face.person_name || ""); setEditing(true); setShowSuggestions(false); }}>
       {face.thumbnail && <img src={face.thumbnail} alt="" className="viewer-face-thumb" />}
       <span className={`viewer-face-name ${face.person_name ? "" : "viewer-face-name--unnamed"}`}>
         {face.person_name || "Name..."}
@@ -141,10 +184,15 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete, onN
   const [exporting, setExporting] = useState(false);
   const [showOriginal, setShowOriginal] = useState(false);
   const [textOverlay, setTextOverlay] = useState({ text: "", x: 50, y: 50, fontSize: 24, color: "#ffffff", enabled: false });
+  const [selectedColor, setSelectedColor] = useState(null);
+  const [colorTolerance, setColorTolerance] = useState(30);
+  const [prominentColors, setProminentColors] = useState([]);
+  const [selectiveColorSrc, setSelectiveColorSrc] = useState(null);
   const [mediaLoading, setMediaLoading] = useState(true);
   const [tabOrder, setTabOrder] = useState(null);
   const [locationName, setLocationName] = useState(null);
   const [shareCopied, setShareCopied] = useState(false);
+  const [allTags, setAllTags] = useState([]);
   const originalBtnRef = useRef(null);
   const videoRef = useRef(null);
   const exportRef = useRef(null);
@@ -183,6 +231,7 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete, onN
 
   useEffect(() => {
     listFilters().then(setCustomFilters).catch(() => {});
+    listTags().then((d) => setAllTags(d.tags || [])).catch(() => {});
     const key = isVideo ? "videoEditTabs" : "imageEditTabs";
     const def = isVideo ? DEFAULT_VIDEO_TABS : DEFAULT_IMAGE_TABS;
     getPref(key, null).then((saved) => {
@@ -191,6 +240,70 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete, onN
   }, [isVideo]);
 
   useEffect(() => { setMediaLoading(true); }, [file.id]);
+
+  const extractProminentColors = useCallback(() => {
+    const img = imgRef.current;
+    if (!img || !img.complete || img.naturalWidth === 0) return;
+    const canvas = document.createElement("canvas");
+    const scale = 100 / Math.max(img.naturalWidth, img.naturalHeight);
+    canvas.width = Math.max(1, Math.round(img.naturalWidth * scale));
+    canvas.height = Math.max(1, Math.round(img.naturalHeight * scale));
+    const ctx = canvas.getContext("2d");
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    const data = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+    const colorMap = {};
+    for (let i = 0; i < data.length; i += 4) {
+      const r = data[i] >> 3, g = data[i + 1] >> 3, b = data[i + 2] >> 3;
+      const key = (r << 10) | (g << 5) | b;
+      if (!colorMap[key]) colorMap[key] = { r: 0, g: 0, b: 0, count: 0 };
+      colorMap[key].r += data[i];
+      colorMap[key].g += data[i + 1];
+      colorMap[key].b += data[i + 2];
+      colorMap[key].count += 1;
+    }
+    const sorted = Object.values(colorMap).sort((a, b) => b.count - a.count).slice(0, 10);
+    setProminentColors(sorted.map(c => ({
+      r: Math.round(c.r / c.count),
+      g: Math.round(c.g / c.count),
+      b: Math.round(c.b / c.count),
+    })));
+  }, []);
+
+  useEffect(() => {
+    if (!mediaLoading && imgRef.current?.complete) extractProminentColors();
+  }, [mediaLoading, extractProminentColors]);
+
+  const renderSelectiveColor = useCallback(() => {
+    const img = imgRef.current;
+    if (!img || !img.complete || !selectedColor) { setSelectiveColorSrc(null); return; }
+    const canvas = document.createElement("canvas");
+    canvas.width = img.naturalWidth;
+    canvas.height = img.naturalHeight;
+    const ctx = canvas.getContext("2d");
+    ctx.drawImage(img, 0, 0);
+    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const d = imageData.data;
+    const tr = selectedColor.r, tg = selectedColor.g, tb = selectedColor.b;
+    const tolSq = colorTolerance * colorTolerance;
+    for (let i = 0; i < d.length; i += 4) {
+      const dr = d[i] - tr, dg = d[i + 1] - tg, db = d[i + 2] - tb;
+      if (dr * dr + dg * dg + db * db > tolSq) {
+        const gray = Math.round(0.2126 * d[i] + 0.7152 * d[i + 1] + 0.0722 * d[i + 2]);
+        d[i] = d[i + 1] = d[i + 2] = gray;
+      }
+    }
+    ctx.putImageData(imageData, 0, 0);
+    setSelectiveColorSrc(canvas.toDataURL("image/jpeg", 0.9));
+  }, [selectedColor, colorTolerance]);
+
+  useEffect(() => {
+    if (selectedColor) {
+      const timer = setTimeout(renderSelectiveColor, 100);
+      return () => clearTimeout(timer);
+    } else {
+      setSelectiveColorSrc(null);
+    }
+  }, [selectedColor, colorTolerance, renderSelectiveColor]);
 
   useEffect(() => {
     if (meta && isVideo && meta.duration) {
@@ -222,6 +335,9 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete, onN
     setCrop(null);
     setCropAspect("free");
     setCropApplied(false);
+    setSelectedColor(null);
+    setColorTolerance(30);
+    setSelectiveColorSrc(null);
     if (isVideo && meta?.duration) {
       setVideoTrim({ start: 0, end: meta.duration });
     }
@@ -303,10 +419,6 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete, onN
   const addOp = useCallback((op) => {
     setOperations((prev) => [...prev, op]);
   }, []);
-
-  const handleZoomIn = () => { setZoom((p) => Math.min(5, +(p * 1.25).toFixed(2))); setPanX(0); setPanY(0); };
-  const handleZoomOut = () => { setZoom((p) => Math.max(0.25, +(p / 1.25).toFixed(2))); setPanX(0); setPanY(0); };
-  const handleZoomReset = () => { setZoom(1); setPanX(0); setPanY(0); };
 
   const handleWheel = useCallback((e) => {
     if (e.ctrlKey || e.metaKey) {
@@ -428,7 +540,11 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete, onN
     if (adjust.blacks !== 0) ops.push({ type: "blacks", value: adjust.blacks });
     if (adjust.whites !== 0) ops.push({ type: "whites", value: adjust.whites });
     if (adjust.grain !== 0) ops.push({ type: "grain", value: adjust.grain });
-    if (adjust.grayscale) ops.push({ type: "grayscale", value: true });
+    if (selectedColor) {
+      ops.push({ type: "selective_color", color: [selectedColor.r, selectedColor.g, selectedColor.b], tolerance: colorTolerance });
+    } else if (adjust.grayscale) {
+      ops.push({ type: "grayscale", value: true });
+    }
     if (adjust.colorize !== 0) ops.push({ type: "colorize", value: adjust.colorize });
     if (activeFilter !== "normal") ops.push({ type: "filter", name: activeFilter });
     if (crop && (crop.x > 0 || crop.y > 0 || crop.w < 1 || crop.h < 1)) {
@@ -564,6 +680,11 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete, onN
       else if (op.type === "grayscale") newAdjust.grayscale = op.value;
       else if (op.type === "colorize") newAdjust.colorize = op.value;
       else if (op.type === "filter") newActiveFilter = op.name;
+      else if (op.type === "selective_color") {
+        newAdjust.grayscale = 0;
+        setSelectedColor({ r: op.color[0], g: op.color[1], b: op.color[2] });
+        setColorTolerance(op.tolerance || 30);
+      }
       else if (op.type === "rotate" || op.type === "flip") newOps.push(op);
     }
     setAdjust(newAdjust);
@@ -839,7 +960,7 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete, onN
     const adjChanged = Object.keys(defaults).some((k) => adjust[k] !== defaults[k]);
     const videoAdj = defaultVideoAdjust();
     const videoAdjChanged = isVideo && (videoAdjust.speed !== videoAdj.speed || videoAdjust.volume !== videoAdj.volume || videoAdjust.audioMute !== videoAdj.audioMute || videoAdjust.reverse !== videoAdj.reverse);
-    return activeFilter !== "normal" || adjChanged || videoAdjChanged || operations.length > 0 || (isVideo && (videoTrim.start > 0 || videoTrim.end < (meta?.duration || 0))) || !!((crop?.x || 0) > 0 || (crop?.y || 0) > 0 || (crop?.w || 1) < 1 || (crop?.h || 1) < 1) || cropApplied;
+    return activeFilter !== "normal" || adjChanged || videoAdjChanged || operations.length > 0 || selectedColor !== null || (isVideo && (videoTrim.start > 0 || videoTrim.end < (meta?.duration || 0))) || !!((crop?.x || 0) > 0 || (crop?.y || 0) > 0 || (crop?.w || 1) < 1 || (crop?.h || 1) < 1) || cropApplied;
   })();
 
   const renderSlider = (key, label, min, max, step, icon) => (
@@ -992,7 +1113,7 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete, onN
               <video ref={videoRef} className="viewer-media" src={fileUrl} controls autoPlay style={{ filter: showOriginal ? "none" : previewFilter }} onCanPlay={() => setMediaLoading(false)} />
             ) : (
               <div className="viewer-media-wrap" style={mediaLoading ? { visibility: "hidden", position: "absolute" } : {}}>
-                <img ref={imgRef} className="viewer-media" src={fileUrl} alt={file.filename} style={previewStyle} onLoad={() => setMediaLoading(false)} />
+                <img ref={imgRef} className="viewer-media" src={selectiveColorSrc || fileUrl} alt={file.filename} style={previewStyle} onLoad={() => setMediaLoading(false)} />
                 {editMode && adjust.vignette > 0 && (
                   <div className="viewer-vignette" style={{ opacity: adjust.vignette / 100 }} />
                 )}
@@ -1018,11 +1139,11 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete, onN
             {!editMode && (
               <div className="viewer-float-actions">
                 <button className="viewer-float-btn" onClick={() => setEditMode(true)} title={isVideo ? "Edit video" : "Edit image"}><Paintbrush size={16} /></button>
-                <div className="viewer-float-zoom">
-                  <button className="viewer-float-btn viewer-float-btn--zoom" onClick={handleZoomOut} title="Zoom out"><ZoomOut size={15} /></button>
-                  <span className="viewer-float-pct">{Math.round(zoom * 100)}%</span>
-                  <button className="viewer-float-btn viewer-float-btn--zoom" onClick={handleZoomIn} title="Zoom in"><ZoomIn size={15} /></button>
-                </div>
+                {file.directory_id != null && (
+                  <button className="viewer-float-btn viewer-float-btn--folder" onClick={(e) => { e.stopPropagation(); navigate("/", { state: { directoryId: file.directory_id } }); }} title="Show in folder">
+                    <FolderOpen size={16} />
+                  </button>
+                )}
                 <a className="viewer-float-btn" href={fileUrl} download title="Download"><Download size={16} /></a>
                 <button className="viewer-float-btn" onClick={handleShare} title="Copy share link"><Share2 size={16} /></button>
                 <button className="viewer-float-btn" onClick={handleDeleteClick} title="Delete"><Trash2 size={16} /></button>
@@ -1393,6 +1514,57 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete, onN
                       </div>
                     )}
 
+                    {editTab === "colors" && (
+                      <div className="viewer-colors">
+                        <div className="viewer-slider-row">
+                          <span className="viewer-slider-icon"><Palette size={13} /></span>
+                          <div className="viewer-slider-body">
+                            <div className="viewer-slider-header">
+                              <span className="viewer-slider-label">Tolerance</span>
+                              <span className="viewer-slider-val">{colorTolerance}</span>
+                            </div>
+                            <input type="range" className="viewer-slider" min={1} max={100} step={1}
+                              value={colorTolerance}
+                              onChange={(e) => setColorTolerance(parseInt(e.target.value))} />
+                          </div>
+                        </div>
+                        <div className="viewer-colors-hint">
+                          {selectedColor
+                            ? "Only the selected color remains; everything else turns grayscale."
+                            : "Pick a color to keep; other areas become grayscale."}
+                        </div>
+                        <div className="viewer-colors-info">
+                          {selectedColor && (
+                            <button className="viewer-colors-clear" onClick={() => setSelectedColor(null)}>
+                              <X size={12} /> Clear selection
+                            </button>
+                          )}
+                        </div>
+                        <div className="viewer-colors-grid">
+                          {prominentColors.length === 0 && (
+                            <div className="viewer-colors-loading">
+                              <Spinner size={16} /> Analyzing colors...
+                            </div>
+                          )}
+                          {prominentColors.map((c, i) => (
+                            <button
+                              key={i}
+                              className={`viewer-colors-swatch ${selectedColor?.r === c.r && selectedColor?.g === c.g && selectedColor?.b === c.b ? "viewer-colors-swatch--selected" : ""}`}
+                              onClick={() => setSelectedColor(selectedColor?.r === c.r && selectedColor?.g === c.g && selectedColor?.b === c.b ? null : c)}
+                              title={`RGB(${c.r}, ${c.g}, ${c.b})`}
+                            >
+                              <span className="viewer-colors-swatch-color"
+                                style={{ background: `rgb(${c.r},${c.g},${c.b})` }} />
+                              <span className="viewer-colors-swatch-label">
+                                #{c.r.toString(16).padStart(2,"0")}{c.g.toString(16).padStart(2,"0")}{c.b.toString(16).padStart(2,"0")}
+                              </span>
+                            </button>
+                          ))}
+                        </div>
+                        <div className="viewer-slider-hint">Changes applied on save</div>
+                      </div>
+                    )}
+
                     {editTab === "info" && (
                       <div className="viewer-info">
                         {editingInfoMd.split("\n---\n").map((section, si) => {
@@ -1587,7 +1759,12 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete, onN
                         </span>
                       ))}
                       <span className="viewer-tag-input-wrap">
-                        <input className="viewer-tag-input" type="text" placeholder="Add tag..." value={tagInput} onChange={(e) => setTagInput(e.target.value)} onKeyDown={handleTagKeyDown} disabled={tagSaving} />
+                        <input className="viewer-tag-input" type="text" placeholder="Add tag..." value={tagInput} onChange={(e) => setTagInput(e.target.value)} onKeyDown={handleTagKeyDown} disabled={tagSaving} list="existing-tags" />
+                        <datalist id="existing-tags">
+                          {allTags.filter((t) => !meta?.tags?.includes(t.tag)).map((t) => (
+                            <option key={t.tag} value={t.tag} />
+                          ))}
+                        </datalist>
                         <button className="viewer-tag-add" onClick={handleAddTag} disabled={tagSaving || !tagInput.trim()}>+</button>
                       </span>
                     </div>

@@ -66,7 +66,20 @@ Creative and stylistic effects:
 
 ---
 
-## Details Tab
+## Colors Tab
+
+Extract the top 10 most prominent colors from your photo and create a selective-color effect:
+
+| Feature | Description |
+|---------|-------------|
+| **Color Swatches** | The 10 dominant colors detected in the image, shown with their hex codes |
+| **Selective Color** | Click a swatch to keep only that color; everything else turns grayscale |
+| **Tolerance** | Controls how similar a pixel must be to the selected color to remain colored (1–100). Higher = more color is preserved |
+| **Clear selection** | Click *Clear* or tap the same swatch again to restore full color |
+
+> **Tip**: Lower tolerance (15–30) works well for isolating a single dominant hue. Higher tolerance (50–80) is useful when you want to keep a range of similar colors visible.
+
+---
 
 Advanced local adjustments:
 
