@@ -4,7 +4,7 @@ import { useTheme } from "../contexts/ThemeContext";
 import {
   House, FileUp, FolderOpen, Heart, Upload, Compass,
   CopyCheck, BarChart3, Settings, MapPin, MapPinned,
-  Scan, Info, Sun, Moon, Menu, X,
+  Scan, Info, Puzzle, Sun, Moon, Menu, X,
 } from "lucide-react";
 import { getPref } from "../services/db";
 import "./Navbar.css";
@@ -21,6 +21,7 @@ const DEFAULT_LINKS = [
   { to: "/faces", label: "Faces", icon: Scan },
   { to: "/duplicates", label: "Duplicates", icon: CopyCheck },
   { to: "/statistics", label: "Statistics", icon: BarChart3 },
+  { to: "/tools", label: "Tools", icon: Puzzle },
   { to: "/settings", label: "Settings", icon: Settings },
   { to: "/about", label: "About", icon: Info },
 ];

@@ -1,0 +1,70 @@
+.tool-viewer {
+  position: fixed;
+  inset: 0;
+  z-index: 500;
+  display: flex;
+  flex-direction: column;
+  background: var(--color-bg, #0f0f1a);
+}
+
+.tool-viewer__header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.6rem 1rem;
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+  z-index: 10;
+  flex-shrink: 0;
+}
+
+.tool-viewer__back {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: none;
+  border-radius: 50%;
+  background: var(--color-surface);
+  color: var(--color-text);
+  cursor: pointer;
+  box-shadow: var(--neu-raised-sm);
+  transition: all 0.15s;
+  flex-shrink: 0;
+}
+
+.tool-viewer__back:hover {
+  box-shadow: var(--neu-flat);
+}
+
+.tool-viewer__back:active {
+  box-shadow: var(--neu-inset-sm);
+}
+
+.tool-viewer__title {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.tool-viewer__body {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  position: relative;
+}
+
+.tool-viewer__body--empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-muted);
+  font-size: 0.95rem;
+}
+
+.tool-viewer__iframe {
+  width: 100%;
+  height: 100%;
+  border: none;
+}

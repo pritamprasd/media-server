@@ -19,6 +19,7 @@ const TABS = [
   { path: "/faces", label: "Faces" },
   { path: "/duplicates", label: "Duplicates" },
   { path: "/statistics", label: "Statistics" },
+  { path: "/tools", label: "Tools" },
   { path: "/about", label: "About" },
   { path: "/settings", label: "Settings" },
 ];
