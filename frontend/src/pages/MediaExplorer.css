@@ -1009,3 +1009,139 @@
 @keyframes upload-spin {
   to { transform: rotate(360deg); }
 }
+
+/* Folder icon customizer */
+.explorer__tile-thumb {
+  position: relative;
+}
+.explorer__tile-customize-hint {
+  position: absolute;
+  bottom: 2px;
+  right: 2px;
+  background: rgba(0,0,0,0.5);
+  color: #fff;
+  border-radius: 50%;
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.15s;
+  pointer-events: none;
+}
+.explorer__tile:hover .explorer__tile-customize-hint {
+  opacity: 1;
+  pointer-events: auto;
+}
+.explorer__tile--list .explorer__tile-customize-hint {
+  width: 14px;
+  height: 14px;
+  bottom: 1px;
+  right: 1px;
+}
+
+.explorer__icon-picker-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  background: rgba(0,0,0,0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.explorer__icon-picker {
+  background: var(--color-surface);
+  border-radius: 12px;
+  padding: 1rem;
+  max-width: 360px;
+  width: 90%;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+}
+.explorer__icon-picker-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.75rem;
+}
+.explorer__icon-picker-title {
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+.explorer__icon-picker-close {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--color-text-muted);
+}
+.explorer__icon-picker-current {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  justify-content: center;
+  margin-bottom: 0.75rem;
+  color: var(--color-text-muted);
+  font-size: 0.75rem;
+}
+.explorer__icon-picker-current-color {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 1px solid rgba(255,255,255,0.2);
+}
+.explorer__icon-picker-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 0.35rem;
+  margin-bottom: 0.75rem;
+}
+.explorer__icon-picker-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.4rem;
+  border: 2px solid transparent;
+  border-radius: 8px;
+  background: var(--color-surface);
+  cursor: pointer;
+  color: var(--color-text);
+  transition: border-color 0.12s;
+}
+.explorer__icon-picker-btn:hover {
+  border-color: var(--color-text-muted);
+}
+.explorer__icon-picker-btn--active {
+  border-color: var(--color-primary);
+}
+.explorer__icon-picker-colors {
+  display: flex;
+  gap: 0.4rem;
+  justify-content: center;
+  margin-bottom: 0.75rem;
+  flex-wrap: wrap;
+}
+.explorer__icon-picker-color {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  cursor: pointer;
+  transition: border-color 0.12s, transform 0.12s;
+}
+.explorer__icon-picker-color:hover {
+  transform: scale(1.15);
+}
+.explorer__icon-picker-color--active {
+  border-color: var(--color-primary);
+  transform: scale(1.15);
+}
+.explorer__icon-picker-reset {
+  width: 100%;
+  padding: 0.4rem;
+  font-size: 0.75rem;
+  border: 1px solid var(--color-text-muted);
+  border-radius: 6px;
+  background: none;
+  cursor: pointer;
+  color: var(--color-text-muted);
+}

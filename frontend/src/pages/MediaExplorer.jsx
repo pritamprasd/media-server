@@ -1,10 +1,10 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import {
   Upload as UploadIcon, FolderPlus, Check, Trash2,
-  Folder, FolderOpen, File, Image, Video, Search, X,
+  Folder, FolderOpen, FolderHeart, FolderTree, File, Image, Video, Search, X,
   Grid3X3, List, ChevronDown, Plus, FileUp, Eye,
   MoreVertical, Scissors, Copy, ClipboardPaste, Pencil, ArrowRight,
-  ArrowLeft, Loader2, Star,
+  ArrowLeft, Loader2, Star, Heart, Home, Camera, Music, Globe, Bookmark,
 } from "lucide-react";
 import {
   explorerBrowse, explorerRename, explorerMove, explorerCopy, explorerDelete,
@@ -14,6 +14,14 @@ import {
 import { getPref, setPref } from "../services/db";
 import FileViewer from "../components/FileViewer";
 import "./MediaExplorer.css";
+
+const FOLDER_ICONS = {
+  Folder, FolderOpen, FolderHeart, FolderTree, Star, Heart, Home, Image, Video, Camera, Music, Globe, Bookmark,
+};
+const FOLDER_COLORS = [
+  "#6b7280", "#ef4444", "#f97316", "#eab308", "#22c55e",
+  "#14b8a6", "#3b82f6", "#8b5cf6", "#ec4899", "#ffffff",
+];
 
 function MediaExplorer() {
   const [files, setFiles] = useState([]);
@@ -44,10 +52,13 @@ function MediaExplorer() {
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [folderStyles, setFolderStyles] = useState({});
+  const [iconPicker, setIconPicker] = useState(null);
   const inputRef = useRef(null);
   const fileInputRef = useRef(null);
   const folderInputRef = useRef(null);
   const newMenuRef = useRef(null);
+  const sentinelRef = useRef(null);
   const nicknameId = "explorer-nickname-input";
 
   const refreshItems = useCallback(async (prefix) => {
@@ -68,6 +79,14 @@ function MediaExplorer() {
     } catch {}
   }, []);
 
+  const saveFolderStyle = useCallback((path, style) => {
+    setFolderStyles((prev) => {
+      const next = { ...prev, [path]: style };
+      setPref("explorer_folder_styles", next);
+      return next;
+    });
+  }, []);
+
   const toggleFavorite = useCallback(async (path, name) => {
     const idx = favoriteFolders.findIndex((f) => f.path === path);
     try {
@@ -85,6 +104,7 @@ function MediaExplorer() {
     refreshItems("");
     loadFavorites();
     getPref("nickname", "").then((v) => setNickname(v));
+    getPref("explorer_folder_styles", {}).then((v) => setFolderStyles(v || {}));
     listNicknames()
       .then((d) => setNicknames(d.nicknames || []))
       .catch(() => {});
@@ -126,6 +146,15 @@ function MediaExplorer() {
     } catch {}
     setLoadingMore(false);
   }, [loadingMore, page, totalPages, currentPrefix]);
+
+  useEffect(() => {
+    if (!sentinelRef.current || page >= totalPages || searchQuery) return;
+    const obs = new IntersectionObserver(([entry]) => {
+      if (entry.isIntersecting) loadMore();
+    }, { rootMargin: "200px" });
+    obs.observe(sentinelRef.current);
+    return () => obs.disconnect();
+  }, [page, totalPages, searchQuery, loadMore]);
 
   const navigateTo = (path) => {
     setCurrentPrefix(path);
@@ -603,6 +632,9 @@ function MediaExplorer() {
           const isRenaming = renamingId === id;
           const isDropTarget = dropTarget === it.path && it.kind === "dir";
           if (it.kind === "dir") {
+            const folderStyle = folderStyles[it.path];
+            const FolderIconComp = FOLDER_ICONS[folderStyle?.icon] || Folder;
+            const folderColor = folderStyle?.color;
             return (
               <div key={id}
                 className={`explorer__tile ${viewMode === "grid" ? "explorer__tile--grid" : "explorer__tile--list"} ${sel ? "explorer__tile--sel" : ""} ${isDropTarget ? "explorer__tile--drop-target" : ""}`}
@@ -613,8 +645,12 @@ function MediaExplorer() {
                 onDragOver={(e) => handleTileDragOver(e, it)}
                 onDragLeave={(e) => handleTileDragLeave(e, it)}
                 onDrop={(e) => handleTileDrop(e, it)}>
-                <div className="explorer__tile-thumb">
-                  <Folder size={viewMode === "grid" ? 48 : 20} />
+                <div className="explorer__tile-thumb" style={folderColor ? { color: folderColor } : undefined}
+                  onClick={(e) => { e.stopPropagation(); setIconPicker(it.path); }}>
+                  <FolderIconComp size={viewMode === "grid" ? 48 : 20} />
+                  <span className="explorer__tile-customize-hint" title="Customize folder icon">
+                    <Pencil size={viewMode === "grid" ? 10 : 8} />
+                  </span>
                 </div>
                 {isRenaming ? (
                   <input className="explorer__rename-input" type="text" value={renameValue}
@@ -686,10 +722,14 @@ function MediaExplorer() {
       </div>
 
       {page < totalPages && !searchQuery && (
-        <div className="explorer__loadmore-wrap">
-          <button className="explorer__load-more" onClick={(e) => { e.stopPropagation(); loadMore(); }} disabled={loadingMore}>
-            {loadingMore ? "Loading..." : `Load more (${page}/${totalPages})`}
-          </button>
+        <div ref={sentinelRef} className="explorer__loadmore-wrap">
+          {loadingMore ? (
+            <button className="explorer__load-more" disabled>Loading...</button>
+          ) : (
+            <button className="explorer__load-more" onClick={(e) => { e.stopPropagation(); loadMore(); }}>
+              Load more ({page}/{totalPages})
+            </button>
+          )}
         </div>
       )}
 
@@ -702,6 +742,11 @@ function MediaExplorer() {
             <button onClick={() => { const it = contextMenu.item; const id = it.id || it.path; toggleSelect(id); setContextMenu(null); }}>
               <Check size={15} /> {selectedIds.has(contextMenu.item.id || contextMenu.item.path) ? "Deselect" : "Select"}
             </button>
+            {contextMenu.item.kind === "dir" && (
+              <button onClick={() => { setIconPicker(contextMenu.item.path); setContextMenu(null); }}>
+                <Pencil size={15} /> Customize folder
+              </button>
+            )}
             <button onClick={handleCut}>
               <Scissors size={15} /> Cut
             </button>
@@ -727,6 +772,50 @@ function MediaExplorer() {
           </div>
         </div>
       )}
+
+      {iconPicker && (() => {
+        const CurrIcon = FOLDER_ICONS[folderStyles[iconPicker]?.icon] || Folder;
+        return (
+        <div className="explorer__icon-picker-overlay" onClick={() => setIconPicker(null)}>
+          <div className="explorer__icon-picker" onClick={(e) => e.stopPropagation()}>
+            <div className="explorer__icon-picker-header">
+              <span className="explorer__icon-picker-title">Customize folder</span>
+              <button className="explorer__icon-picker-close" onClick={() => setIconPicker(null)}><X size={14} /></button>
+            </div>
+            {folderStyles[iconPicker]?.icon && (
+              <div className="explorer__icon-picker-current">
+                <CurrIcon size={24} />
+                {folderStyles[iconPicker]?.color && (
+                  <span className="explorer__icon-picker-current-color" style={{ background: folderStyles[iconPicker].color }} />
+                )}
+              </div>
+            )}
+            <div className="explorer__icon-picker-grid">
+              {Object.entries(FOLDER_ICONS).map(([name, IconComp]) => (
+                <button key={name}
+                  className={`explorer__icon-picker-btn ${folderStyles[iconPicker]?.icon === name ? "explorer__icon-picker-btn--active" : ""}`}
+                  onClick={() => saveFolderStyle(iconPicker, { ...folderStyles[iconPicker], icon: name })}
+                  title={name}>
+                  <IconComp size={20} />
+                </button>
+              ))}
+            </div>
+            <div className="explorer__icon-picker-colors">
+              {FOLDER_COLORS.map((c) => (
+                <button key={c}
+                  className={`explorer__icon-picker-color ${folderStyles[iconPicker]?.color === c ? "explorer__icon-picker-color--active" : ""}`}
+                  style={{ background: c }}
+                  onClick={() => saveFolderStyle(iconPicker, { ...folderStyles[iconPicker], color: folderStyles[iconPicker]?.color === c ? null : c })}
+                  title={c} />
+              ))}
+            </div>
+            <button className="explorer__icon-picker-reset" onClick={() => { saveFolderStyle(iconPicker, {}); }}>
+              Reset to default
+            </button>
+          </div>
+        </div>
+        );
+      })()}
 
       {result && (
         <div className="explorer__result">

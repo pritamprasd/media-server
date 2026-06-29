@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { Eye, EyeOff, Search, UserPlus, UserMinus, IdCard, Scan, Image, SlidersHorizontal, X, ChevronLeft, ChevronRight, Tags, GitMerge, CheckSquare, Square, ChevronDown, Users, List, Grid3X3 } from "lucide-react";
 import Spinner from "../components/Spinner";
 import FileViewer from "../components/FileViewer";
@@ -75,7 +75,8 @@ function Faces() {
   const handleSelectPerson = async (person) => {
     setSelectedPerson(person);
     setFilesPage(1);
-    await loadFiles(person.id, 1);
+    const loadId = person._combined ? person._persons[0].id : person.id;
+    await loadFiles(loadId, 1);
   };
 
   const loadFiles = async (personId, page) => {
@@ -97,7 +98,8 @@ function Faces() {
     const next = filesPage + dir;
     if (next < 1 || next > filesPages) return;
     setFilesPage(next);
-    await loadFiles(selectedPerson.id, next);
+    const loadId = selectedPerson._combined ? selectedPerson._persons[0].id : selectedPerson.id;
+    await loadFiles(loadId, next);
   };
 
   const handleSaveName = async (person) => {
@@ -125,10 +127,13 @@ function Faces() {
     }
   };
 
-  const toggleSelect = (id) => {
+  const toggleSelect = (idOrIds) => {
+    const ids = Array.isArray(idOrIds) ? idOrIds : [idOrIds];
     setSelectedIds((prev) => {
       const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
+      ids.forEach(id => {
+        if (next.has(id)) next.delete(id); else next.add(id);
+      });
       return next;
     });
   };
@@ -154,16 +159,47 @@ function Faces() {
     setNameValue(person.name || "");
   };
 
-  const sortedPersons = [...persons].sort((a, b) => {
-    if (sortBy === "face_count") return (b.face_count || 0) - (a.face_count || 0);
-    if (sortBy === "name") return (a.name || "???").localeCompare(b.name || "???");
-    return (b.id || 0) - (a.id || 0);
-  }).filter((p) => {
-    if (filterMode === "all") return true;
-    if (filterMode === "named") return !!p.name;
-    if (filterMode === "unnamed") return !p.name;
-    return true;
-  });
+  const displayPersons = useMemo(() => {
+    const sorted = [...persons].sort((a, b) => {
+      if (sortBy === "face_count") return (b.face_count || 0) - (a.face_count || 0);
+      if (sortBy === "name") return (a.name || "???").localeCompare(b.name || "???");
+      return (b.id || 0) - (a.id || 0);
+    }).filter((p) => {
+      if (filterMode === "all") return true;
+      if (filterMode === "named") return !!p.name;
+      if (filterMode === "unnamed") return !p.name;
+      return true;
+    });
+    const groups = {};
+    for (const p of sorted) {
+      if (!p.name) {
+        groups[`__single_${p.id}`] = p;
+      } else {
+        const key = p.name.toLowerCase();
+        if (!groups[key]) groups[key] = [];
+        groups[key].push(p);
+      }
+    }
+    const result = [];
+    for (const val of Object.values(groups)) {
+      if (Array.isArray(val)) {
+        const combined = {
+          id: val.map(p => p.id),
+          name: val[0].name,
+          face_count: val.reduce((s, p) => s + (p.face_count || 0), 0),
+          thumbnail: val[0].thumbnail,
+          thumbnails: val.map(p => p.thumbnail).filter(Boolean),
+          meta_info: null,
+          _combined: true,
+          _persons: val,
+        };
+        result.push(combined);
+      } else {
+        result.push(val);
+      }
+    }
+    return result;
+  }, [persons, sortBy, filterMode]);
 
   if (loading) {
     return (
@@ -255,28 +291,44 @@ function Faces() {
         <div className="faces-layout">
           <div className="faces-grid-wrap">
             <div className={`faces-grid ${viewMode === "grid" ? "faces-grid--grid" : "faces-grid--list"}`}>
-              {sortedPersons.map((person) => (
+              {displayPersons.map((person) => {
+                const personId = Array.isArray(person.id) ? person.id.join(",") : person.id;
+                const isCombined = person._combined;
+                const isSelected = isCombined
+                  ? person._persons.some(p => selectedIds.has(p.id))
+                  : selectedIds.has(person.id);
+                return (
                 <div
-                  key={person.id}
-                  className={`faces-card ${viewMode === "grid" ? "faces-card--grid" : "faces-card--list"} ${selectedPerson?.id === person.id ? "faces-card--selected" : ""} ${selectedIds.has(person.id) ? "faces-card--checked" : ""}`}
+                  key={personId}
+                  className={`faces-card ${viewMode === "grid" ? "faces-card--grid" : "faces-card--list"} ${isCombined ? "faces-card--combined" : ""} ${selectedPerson && (Array.isArray(selectedPerson.id) ? selectedPerson.id.join(",") : String(selectedPerson.id)) === personId ? "faces-card--selected" : ""} ${isSelected ? "faces-card--checked" : ""}`}
                   onClick={() => handleSelectPerson(person)}
                 >
-                  <div className="faces-card-check" onClick={(e) => { e.stopPropagation(); toggleSelect(person.id); }}>
-                    {selectedIds.has(person.id) ? <CheckSquare size={14} /> : <Square size={14} />}
+                  <div className="faces-card-check" onClick={(e) => { e.stopPropagation(); toggleSelect(isCombined ? person._persons.map(p => p.id) : person.id); }}>
+                    {isSelected ? <CheckSquare size={14} /> : <Square size={14} />}
                   </div>
                   <div className="faces-card-thumb">
-                    {person.thumbnail ? (
+                    {isCombined ? (
+                      <div className="faces-card-thumbs-grid">
+                        {(person.thumbnails?.length ? person.thumbnails : [null]).slice(0, 4).map((t, i) =>
+                          t ? (
+                            <img key={i} src={t} alt="" className="faces-card-thumb-sm" />
+                          ) : (
+                            <div key={i} className="faces-card-placeholder faces-card-placeholder--sm"><UserPlus size={14} /></div>
+                          )
+                        )}
+                      </div>
+                    ) : person.thumbnail ? (
                       <img src={person.thumbnail} alt="" className="faces-card-img" />
                     ) : (
                       <div className="faces-card-placeholder"><UserPlus size={28} /></div>
                     )}
                     <div className="faces-card-badge" title="Number of images containing this person">{person.face_count}</div>
-                    {person.meta_info?.age && (
+                    {!isCombined && person.meta_info?.age && (
                       <div className="faces-card-age" title="Estimated age">{person.meta_info.age}y</div>
                     )}
                   </div>
                   <div className="faces-card-info">
-                    {editingName === person.id ? (
+                    {!isCombined && editingName === person.id ? (
                       <div className="faces-card-edit" onClick={(e) => e.stopPropagation()}>
                         <input
                           className="faces-card-input"
@@ -295,22 +347,31 @@ function Faces() {
                     ) : (
                       <div className="faces-card-name-row">
                         <span className="faces-card-name">{person.name || "Unnamed"}</span>
-                        <button className="faces-card-name-btn" onClick={(e) => { e.stopPropagation(); startEdit(person); }} title="Name this person">
-                          <IdCard size={12} />
-                        </button>
-                        <button className="faces-card-del-btn" onClick={(e) => { e.stopPropagation(); handleDeletePerson(person); }} title="Remove person group">
-                          <UserMinus size={12} />
-                        </button>
+                        {!isCombined && (
+                          <>
+                            <button className="faces-card-name-btn" onClick={(e) => { e.stopPropagation(); startEdit(person); }} title="Name this person">
+                              <IdCard size={12} />
+                            </button>
+                            <button className="faces-card-del-btn" onClick={(e) => { e.stopPropagation(); handleDeletePerson(person); }} title="Remove person group">
+                              <UserMinus size={12} />
+                            </button>
+                          </>
+                        )}
                       </div>
                     )}
                     <div className="faces-card-meta">
-                      {person.meta_info?.gender === 0 ? <span title="Female">♀</span> : person.meta_info?.gender === 1 ? <span title="Male">♂</span> : ""}
-                      <span title="Database ID">#{person.id}</span>
+                      {!isCombined && person.meta_info?.gender === 0 ? <span title="Female">♀</span> : !isCombined && person.meta_info?.gender === 1 ? <span title="Male">♂</span> : ""}
+                      {isCombined ? (
+                        <span title="Combined persons">{person._persons.length} persons</span>
+                      ) : (
+                        <span title="Database ID">#{person.id}</span>
+                      )}
                       {viewMode === "list" && <span title="Face count">{person.face_count} images</span>}
                     </div>
                   </div>
                 </div>
-              ))}
+              );
+              })}
               {loadingMore && (
                 <div className="faces-grid-loading">
                   <Spinner size={24} center />
@@ -380,7 +441,7 @@ function Faces() {
         <FileViewer
           file={viewerFile}
           onClose={() => setViewerFile(null)}
-          onRefresh={() => { if (selectedPerson) loadFiles(selectedPerson.id, filesPage); }}
+          onRefresh={() => { if (selectedPerson) { const id = selectedPerson._combined ? selectedPerson._persons[0].id : selectedPerson.id; loadFiles(id, filesPage); } }}
         />
       )}
 
