@@ -301,8 +301,13 @@ def detect_faces(self, file_info):
         return {"file_id": file_id, "faces": 0, "error": "Not an image"}
 
     from app.models.detected_face import DetectedFace
+    from app.models.imported_file import ImportedFile
     from app.models.person import Person
     from app.utility.face_utility import detect_faces as run_detection, find_best_person_match, compute_average_encoding
+
+    file_exists = ImportedFile.query.get(file_id)
+    if not file_exists:
+        return {"file_id": file_id, "faces": 0, "error": "File not found"}
 
     existing = DetectedFace.query.filter_by(file_id=file_id).first()
     if existing:

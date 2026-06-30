@@ -1227,12 +1227,26 @@ def create_upload_dir():
     path = data.get("path", "").strip().strip("/")
     if not path:
         return jsonify({"error": "Path is required"}), 400
-    full = os.path.join(upload_dir, path)
+
+    # Figure out which session this path belongs to by looking up the parent
+    parent_path = path.rsplit("/", 1)[0] if "/" in path else ""
+    parent_dir = ImportedDirectory.query.filter(
+        ImportedDirectory.deleted != True,
+        ImportedDirectory.path == parent_path,
+    ).first() if parent_path else None
+
+    if parent_dir:
+        session = db.session.get(ImportSession, parent_dir.session_id)
+        root_path = session.root_path
+    else:
+        session, _ = _get_or_create_upload_session(upload_dir)
+        root_path = upload_dir
+
+    full = os.path.join(root_path, path)
     try:
         os.makedirs(full, exist_ok=True)
     except OSError as e:
         return jsonify({"error": str(e)}), 500
-    session, root_dir = _get_or_create_upload_session(upload_dir)
     _ensure_upload_subdir(session, path)
     db.session.commit()
     return jsonify({"path": path, "message": "Directory created"}), 201
