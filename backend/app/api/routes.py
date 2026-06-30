@@ -1387,6 +1387,14 @@ def soft_delete_upload_dir():
 
     db.session.commit()
 
+    # Remove from filesystem so the Upload tab (which scans FS) stops showing it
+    try:
+        if os.path.isdir(full_path):
+            import shutil
+            shutil.rmtree(full_path)
+    except OSError as e:
+        current_app.logger.warning(f"Failed to remove directory {full_path}: {e}")
+
     return jsonify({"message": f"Deleted path '{path}'", "deleted_dirs": len(dirs) + len(subdirs)}), 200
 
 

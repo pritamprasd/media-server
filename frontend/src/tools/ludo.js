@@ -1,4 +1,4 @@
-export const name = "Ludo Master Tool";
+export const name = "Ludo";
 export const description =
   "A complete, interactive Ludo companion and board game with AI bots, dynamic token clustering, custom rules, and audio synthesis.";
 
