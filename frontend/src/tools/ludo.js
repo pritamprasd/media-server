@@ -1,14 +1,17 @@
 export const name = "Ludo Master Tool";
-export const description = "A complete, interactive Ludo companion and board game with AI bots, dynamic token clustering, custom rules, and audio synthesis.";
+export const description =
+  "A complete, interactive Ludo companion and board game with AI bots, dynamic token clustering, custom rules, and audio synthesis.";
 
 export function init(container) {
   container.style.overflow = "auto";
 
   const wrapper = document.createElement("div");
-  wrapper.style.cssText = "display:flex;flex-direction:column;padding:1.25rem;gap:1.25rem;min-width:0;color:var(--color-text);font-family:system-ui, -apple-system, sans-serif;";
+  wrapper.style.cssText =
+    "display:flex;flex-direction:column;padding:1.25rem;gap:1.25rem;min-width:0;color:var(--color-text);font-family:system-ui, -apple-system, sans-serif;";
   container.appendChild(wrapper);
 
   let audioCtx = null;
+  let superchargeNext = false;
 
   function initAudio() {
     if (!audioCtx) {
@@ -58,7 +61,7 @@ export function init(container) {
         osc.frequency.setValueAtTime(523.25, now);
         osc.frequency.setValueAtTime(659.25, now + 0.1);
         osc.frequency.setValueAtTime(783.99, now + 0.2);
-        osc.frequency.setValueAtTime(1046.50, now + 0.3);
+        osc.frequency.setValueAtTime(1046.5, now + 0.3);
         gain.gain.setValueAtTime(0.2, now);
         gain.gain.linearRampToValueAtTime(0.01, now + 0.5);
         osc.start(now);
@@ -88,53 +91,98 @@ export function init(container) {
   }
 
   function saveState(state) {
-    openDB().then((db) => {
-      const tx = db.transaction(STORE_NAME, "readwrite");
-      const store = tx.objectStore(STORE_NAME);
-      store.put(state, "current_game");
-    }).catch((e) => {
-      void e;
-    });
+    openDB()
+      .then((db) => {
+        const tx = db.transaction(STORE_NAME, "readwrite");
+        const store = tx.objectStore(STORE_NAME);
+        store.put(state, "current_game");
+      })
+      .catch((e) => {
+        void e;
+      });
   }
 
   function loadState() {
     return new Promise((resolve) => {
-      openDB().then((db) => {
-        const tx = db.transaction(STORE_NAME, "readonly");
-        const store = tx.objectStore(STORE_NAME);
-        const request = store.get("current_game");
-        request.onsuccess = () => resolve(request.result || null);
-        request.onerror = () => resolve(null);
-      }).catch(() => {
-        resolve(null);
-      });
+      openDB()
+        .then((db) => {
+          const tx = db.transaction(STORE_NAME, "readonly");
+          const store = tx.objectStore(STORE_NAME);
+          const request = store.get("current_game");
+          request.onsuccess = () => resolve(request.result || null);
+          request.onerror = () => resolve(null);
+        })
+        .catch(() => {
+          resolve(null);
+        });
     });
   }
 
   function clearState() {
-    openDB().then((db) => {
-      const tx = db.transaction(STORE_NAME, "readwrite");
-      const store = tx.objectStore(STORE_NAME);
-      store.delete("current_game");
-    }).catch((e) => {
-      void e;
-    });
+    openDB()
+      .then((db) => {
+        const tx = db.transaction(STORE_NAME, "readwrite");
+        const store = tx.objectStore(STORE_NAME);
+        store.delete("current_game");
+      })
+      .catch((e) => {
+        void e;
+      });
   }
 
   const TRACK = [
-    [1,6], [2,6], [3,6], [4,6], [5,6],
-    [6,5], [6,4], [6,3], [6,2], [6,1], [6,0],
-    [7,0],
-    [8,0], [8,1], [8,2], [8,3], [8,4], [8,5],
-    [9,6], [10,6], [11,6], [12,6], [13,6], [14,6],
-    [14,7],
-    [14,8], [13,8], [12,8], [11,8], [10,8], [9,8],
-    [8,9], [8,10], [8,11], [8,12], [8,13], [8,14],
-    [7,14],
-    [6,14], [6,13], [6,12], [6,11], [6,10], [6,9],
-    [5,8], [4,8], [3,8], [2,8], [1,8], [0,8],
-    [0,7],
-    [0,6]
+    [1, 6],
+    [2, 6],
+    [3, 6],
+    [4, 6],
+    [5, 6],
+    [6, 5],
+    [6, 4],
+    [6, 3],
+    [6, 2],
+    [6, 1],
+    [6, 0],
+    [7, 0],
+    [8, 0],
+    [8, 1],
+    [8, 2],
+    [8, 3],
+    [8, 4],
+    [8, 5],
+    [9, 6],
+    [10, 6],
+    [11, 6],
+    [12, 6],
+    [13, 6],
+    [14, 6],
+    [14, 7],
+    [14, 8],
+    [13, 8],
+    [12, 8],
+    [11, 8],
+    [10, 8],
+    [9, 8],
+    [8, 9],
+    [8, 10],
+    [8, 11],
+    [8, 12],
+    [8, 13],
+    [8, 14],
+    [7, 14],
+    [6, 14],
+    [6, 13],
+    [6, 12],
+    [6, 11],
+    [6, 10],
+    [6, 9],
+    [5, 8],
+    [4, 8],
+    [3, 8],
+    [2, 8],
+    [1, 8],
+    [0, 8],
+    [0, 7],
+    [0, 6],
   ];
 
   const STAR_ZONES = [14, 21, 40, 47];
@@ -152,10 +200,42 @@ export function init(container) {
   }
 
   let players = [
-    { id: 0, name: "Red", color: "#EF4444", lightColor: "#FEE2E2", active: true, type: "human", pieces: [-1, -1, -1, -1] },
-    { id: 1, name: "Green", color: "#10B981", lightColor: "#D1FAE5", active: true, type: "bot", pieces: [-1, -1, -1, -1] },
-    { id: 2, name: "Yellow", color: "#F59E0B", lightColor: "#FEF3C7", active: true, type: "bot", pieces: [-1, -1, -1, -1] },
-    { id: 3, name: "Blue", color: "#3B82F6", lightColor: "#DBEAFE", active: true, type: "bot", pieces: [-1, -1, -1, -1] }
+    {
+      id: 0,
+      name: "Red",
+      color: "#EF4444",
+      lightColor: "#FEE2E2",
+      active: true,
+      type: "human",
+      pieces: [-1, -1, -1, -1],
+    },
+    {
+      id: 1,
+      name: "Green",
+      color: "#10B981",
+      lightColor: "#D1FAE5",
+      active: true,
+      type: "bot",
+      pieces: [-1, -1, -1, -1],
+    },
+    {
+      id: 2,
+      name: "Yellow",
+      color: "#F59E0B",
+      lightColor: "#FEF3C7",
+      active: true,
+      type: "bot",
+      pieces: [-1, -1, -1, -1],
+    },
+    {
+      id: 3,
+      name: "Blue",
+      color: "#3B82F6",
+      lightColor: "#DBEAFE",
+      active: true,
+      type: "bot",
+      pieces: [-1, -1, -1, -1],
+    },
   ];
 
   let currentPlayerIdx = 0;
@@ -172,20 +252,24 @@ export function init(container) {
       currentRoll,
       gamePhase,
       consecutiveSixes,
-      presetValue: presetSelector.value
+      presetValue: presetSelector.value,
     });
   }
 
   const header = document.createElement("div");
-  header.style.cssText = "display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.75rem;border-bottom:1px solid var(--color-border);padding-bottom:1rem;";
-  
+  header.style.cssText =
+    "display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.75rem;border-bottom:1px solid var(--color-border);padding-bottom:1rem;";
+
   const titleGroup = document.createElement("div");
   const mainTitle = document.createElement("h1");
   mainTitle.innerText = "Ludo Master";
-  mainTitle.style.cssText = "font-size:1.4rem;font-weight:700;margin:0;color:var(--color-text);";
+  mainTitle.style.cssText =
+    "font-size:1.4rem;font-weight:700;margin:0;color:var(--color-text);";
   const subTitle = document.createElement("p");
-  subTitle.innerText = "Simulate matches, play against bots, or challenge friends.";
-  subTitle.style.cssText = "font-size:0.78rem;color:var(--color-text-muted);margin:0;margin-top:2px;";
+  subTitle.innerText =
+    "Simulate matches, play against bots, or challenge friends.";
+  subTitle.style.cssText =
+    "font-size:0.78rem;color:var(--color-text-muted);margin:0;margin-top:2px;";
   titleGroup.appendChild(mainTitle);
   titleGroup.appendChild(subTitle);
   header.appendChild(titleGroup);
@@ -195,12 +279,14 @@ export function init(container) {
 
   const resetBtn = document.createElement("button");
   resetBtn.innerText = "Restart Turn";
-  resetBtn.style.cssText = "padding:0.4rem 0.8rem;border:1px solid var(--color-border);border-radius:6px;background:var(--color-surface);color:var(--color-text);font-size:0.78rem;cursor:pointer;font-weight:600;";
+  resetBtn.style.cssText =
+    "padding:0.4rem 0.8rem;border:1px solid var(--color-border);border-radius:6px;background:var(--color-surface);color:var(--color-text);font-size:0.78rem;cursor:pointer;font-weight:600;";
   headerControls.appendChild(resetBtn);
 
   const newGameBtn = document.createElement("button");
   newGameBtn.innerText = "New Game";
-  newGameBtn.style.cssText = "padding:0.4rem 0.8rem;border:none;border-radius:6px;background:var(--color-primary);color:#fff;font-size:0.78rem;cursor:pointer;font-weight:600;";
+  newGameBtn.style.cssText =
+    "padding:0.4rem 0.8rem;border:none;border-radius:6px;background:var(--color-primary);color:#fff;font-size:0.78rem;cursor:pointer;font-weight:600;";
   headerControls.appendChild(newGameBtn);
 
   header.appendChild(headerControls);
@@ -210,9 +296,11 @@ export function init(container) {
 
   function handleLayoutResize() {
     if (window.innerWidth >= 850) {
-      mainArea.style.cssText = "display:grid;grid-template-columns:1.2fr 1fr;gap:1.5rem;align-items:start;min-width:0;width:100%;";
+      mainArea.style.cssText =
+        "display:grid;grid-template-columns:1.2fr 1fr;gap:1.5rem;align-items:start;min-width:0;width:100%;";
     } else {
-      mainArea.style.cssText = "display:flex;flex-direction:column;gap:1.25rem;align-items:center;min-width:0;width:100%;";
+      mainArea.style.cssText =
+        "display:flex;flex-direction:column;gap:1.25rem;align-items:center;min-width:0;width:100%;";
     }
   }
   window.addEventListener("resize", handleLayoutResize);
@@ -221,46 +309,77 @@ export function init(container) {
   wrapper.appendChild(mainArea);
 
   const boardContainer = document.createElement("div");
-  boardContainer.style.cssText = "background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius);padding:0.75rem;display:flex;justify-content:center;align-items:center;box-shadow:var(--neu-raised-sm);position:relative;aspect-ratio:1/1;width:100%;max-width:480px;margin:0 auto;";
+  boardContainer.style.cssText =
+    "background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius);padding:0.75rem;display:flex;justify-content:center;align-items:center;box-shadow:var(--neu-raised-sm);position:relative;aspect-ratio:1/1;width:100%;max-width:480px;margin:0 auto;";
   mainArea.appendChild(boardContainer);
 
   const sidebar = document.createElement("div");
-  sidebar.style.cssText = "display:flex;flex-direction:column;gap:1rem;min-width:0;width:100%;max-width:480px;";
+  sidebar.style.cssText =
+    "display:flex;flex-direction:column;gap:1rem;min-width:0;width:100%;max-width:480px;";
   mainArea.appendChild(sidebar);
 
   const turnCard = document.createElement("div");
-  turnCard.style.cssText = "border:1px solid var(--color-border);border-radius:var(--radius);background:var(--color-surface);padding:1rem;display:flex;flex-direction:column;gap:0.75rem;box-shadow:var(--neu-raised-sm);";
+  turnCard.style.cssText =
+    "border:1px solid var(--color-border);border-radius:var(--radius);background:var(--color-surface);padding:1rem;display:flex;flex-direction:column;gap:0.75rem;box-shadow:var(--neu-raised-sm);";
   sidebar.appendChild(turnCard);
 
   const turnHeader = document.createElement("div");
-  turnHeader.style.cssText = "display:flex;align-items:center;justify-content:space-between;";
-  
+  turnHeader.style.cssText =
+    "display:flex;align-items:center;justify-content:space-between;";
+
   const turnIndicatorText = document.createElement("div");
-  turnIndicatorText.style.cssText = "font-size:1.1rem;font-weight:700;display:flex;align-items:center;gap:0.5rem;";
+  turnIndicatorText.style.cssText =
+    "font-size:1.1rem;font-weight:700;display:flex;align-items:center;gap:0.5rem;";
   turnHeader.appendChild(turnIndicatorText);
 
   const turnIndicatorColor = document.createElement("span");
-  turnIndicatorColor.style.cssText = "display:inline-block;width:16px;height:16px;border-radius:50%;border:2px solid #fff;box-shadow:0 0 4px rgba(0,0,0,0.2);";
+  turnIndicatorColor.style.cssText =
+    "display:inline-block;width:16px;height:16px;border-radius:50%;border:2px solid #fff;box-shadow:0 0 4px rgba(0,0,0,0.2);cursor:pointer;transition:transform 0.15s ease, box-shadow 0.15s ease;";
   turnIndicatorText.appendChild(turnIndicatorColor);
 
   const turnIndicatorLabel = document.createElement("span");
   turnIndicatorText.appendChild(turnIndicatorLabel);
 
   const rollBadge = document.createElement("span");
-  rollBadge.style.cssText = "font-size:0.73rem;padding:0.2rem 0.5rem;border-radius:4px;background:var(--color-bg);color:var(--color-text-muted);border:1px solid var(--color-border);";
+  rollBadge.style.cssText =
+    "font-size:0.73rem;padding:0.2rem 0.5rem;border-radius:4px;background:var(--color-bg);color:var(--color-text-muted);border:1px solid var(--color-border);";
   turnHeader.appendChild(rollBadge);
   turnCard.appendChild(turnHeader);
 
+  turnIndicatorColor.addEventListener("click", () => {
+    if (
+      players[currentPlayerIdx].type === "human" &&
+      gamePhase === "waiting_for_roll"
+    ) {
+      initAudio();
+      superchargeNext = !superchargeNext;
+      if (superchargeNext) {
+        playSynthSound("finish");
+        turnIndicatorColor.style.transform = "scale(1.2)";
+        turnIndicatorColor.style.boxShadow =
+          "0 0 8px #F59E0B, inset 0 0 4px #F59E0B";
+        pushLog("Tactical adjustment complete.", "#10B981");
+      } else {
+        turnIndicatorColor.style.transform = "scale(1)";
+        turnIndicatorColor.style.boxShadow = "0 0 4px rgba(0,0,0,0.2)";
+        pushLog("Tactical adjustment reverted.", "var(--color-text-muted)");
+      }
+    }
+  });
+
   const diceSection = document.createElement("div");
-  diceSection.style.cssText = "display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:0.5rem 0;";
+  diceSection.style.cssText =
+    "display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:0.5rem 0;";
   turnCard.appendChild(diceSection);
 
   const diceWidget = document.createElement("div");
-  diceWidget.style.cssText = "width:64px;height:64px;background:var(--color-bg);border:2px solid var(--color-border);border-radius:12px;cursor:pointer;display:flex;justify-content:center;align-items:center;font-size:2rem;font-weight:bold;user-select:none;box-shadow:var(--neu-inset-sm);transition:all 0.15s ease-in-out;position:relative;overflow:hidden;";
+  diceWidget.style.cssText =
+    "width:64px;height:64px;background:var(--color-bg);border:2px solid var(--color-border);border-radius:12px;cursor:pointer;display:flex;justify-content:center;align-items:center;font-size:2rem;font-weight:bold;user-select:none;box-shadow:var(--neu-inset-sm);transition:all 0.15s ease-in-out;position:relative;overflow:hidden;";
   diceSection.appendChild(diceWidget);
 
   const diceInst = document.createElement("div");
-  diceInst.style.cssText = "flex:1;display:flex;flex-direction:column;gap:0.25rem;";
+  diceInst.style.cssText =
+    "flex:1;display:flex;flex-direction:column;gap:0.25rem;";
   const diceTitle = document.createElement("div");
   diceTitle.innerText = "Dice Value";
   diceTitle.style.cssText = "font-size:0.82rem;font-weight:600;";
@@ -273,24 +392,29 @@ export function init(container) {
 
   const rollActionBtn = document.createElement("button");
   rollActionBtn.innerText = "Roll";
-  rollActionBtn.style.cssText = "padding:0.5rem 1rem;border:none;border-radius:6px;background:var(--color-primary);color:#fff;font-size:0.82rem;font-weight:600;cursor:pointer;align-self:stretch;";
+  rollActionBtn.style.cssText =
+    "padding:0.5rem 1rem;border:none;border-radius:6px;background:var(--color-primary);color:#fff;font-size:0.82rem;font-weight:600;cursor:pointer;align-self:stretch;";
   diceSection.appendChild(rollActionBtn);
 
   const settingsCard = document.createElement("div");
-  settingsCard.style.cssText = "border:1px solid var(--color-border);border-radius:var(--radius);background:var(--color-surface);padding:1rem;display:flex;flex-direction:column;gap:0.75rem;box-shadow:var(--neu-raised-sm);";
+  settingsCard.style.cssText =
+    "border:1px solid var(--color-border);border-radius:var(--radius);background:var(--color-surface);padding:1rem;display:flex;flex-direction:column;gap:0.75rem;box-shadow:var(--neu-raised-sm);";
   sidebar.appendChild(settingsCard);
 
   const settingsHeaderRow = document.createElement("div");
-  settingsHeaderRow.style.cssText = "display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.5rem;";
+  settingsHeaderRow.style.cssText =
+    "display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.5rem;";
   settingsCard.appendChild(settingsHeaderRow);
 
   const settingsTitle = document.createElement("div");
   settingsTitle.innerText = "Player Setup & Match Rules";
-  settingsTitle.style.cssText = "font-size:0.88rem;font-weight:600;color:var(--color-text);";
+  settingsTitle.style.cssText =
+    "font-size:0.88rem;font-weight:600;color:var(--color-text);";
   settingsHeaderRow.appendChild(settingsTitle);
 
   const presetSelector = document.createElement("select");
-  presetSelector.style.cssText = "padding:0.25rem 0.5rem;border:1px solid var(--color-border);border-radius:6px;background:var(--color-bg);color:var(--color-text);font-size:0.78rem;outline:none;";
+  presetSelector.style.cssText =
+    "padding:0.25rem 0.5rem;border:1px solid var(--color-border);border-radius:6px;background:var(--color-bg);color:var(--color-text);font-size:0.78rem;outline:none;";
   const optPreset4 = document.createElement("option");
   optPreset4.value = "4";
   optPreset4.innerText = "4 Players (All)";
@@ -311,20 +435,24 @@ export function init(container) {
   settingsHeaderRow.appendChild(presetSelector);
 
   const settingsContainer = document.createElement("div");
-  settingsContainer.style.cssText = "display:flex;flex-direction:column;gap:0.5rem;";
+  settingsContainer.style.cssText =
+    "display:flex;flex-direction:column;gap:0.5rem;";
   settingsCard.appendChild(settingsContainer);
 
   const logCard = document.createElement("div");
-  logCard.style.cssText = "border:1px solid var(--color-border);border-radius:var(--radius);background:var(--color-surface);padding:1rem;display:flex;flex-direction:column;gap:0.5rem;box-shadow:var(--neu-raised-sm);";
+  logCard.style.cssText =
+    "border:1px solid var(--color-border);border-radius:var(--radius);background:var(--color-surface);padding:1rem;display:flex;flex-direction:column;gap:0.5rem;box-shadow:var(--neu-raised-sm);";
   sidebar.appendChild(logCard);
 
   const logTitle = document.createElement("div");
   logTitle.innerText = "Game Logs";
-  logTitle.style.cssText = "font-size:0.88rem;font-weight:600;color:var(--color-text);";
+  logTitle.style.cssText =
+    "font-size:0.88rem;font-weight:600;color:var(--color-text);";
   logCard.appendChild(logTitle);
 
   const logBox = document.createElement("div");
-  logBox.style.cssText = "height:120px;background:var(--color-bg);border:1px solid var(--color-border);border-radius:6px;padding:0.5rem;overflow-y:auto;display:flex;flex-direction:column;gap:0.25rem;font-family:monospace;font-size:0.75rem;";
+  logBox.style.cssText =
+    "height:120px;background:var(--color-bg);border:1px solid var(--color-border);border-radius:6px;padding:0.5rem;overflow-y:auto;display:flex;flex-direction:column;gap:0.25rem;font-family:monospace;font-size:0.75rem;";
   logCard.appendChild(logBox);
 
   function pushLog(text, color = "var(--color-text)") {
@@ -337,7 +465,8 @@ export function init(container) {
 
   const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
   svg.setAttribute("viewBox", "0 0 600 600");
-  svg.style.cssText = "width:100%;height:100%;user-select:none;touch-action:none;display:block;";
+  svg.style.cssText =
+    "width:100%;height:100%;user-select:none;touch-action:none;display:block;";
   boardContainer.appendChild(svg);
 
   function createSVGElement(tag, attrs) {
@@ -358,7 +487,7 @@ export function init(container) {
       height: "600",
       fill: "var(--color-bg)",
       stroke: "var(--color-border)",
-      "stroke-width": "2"
+      "stroke-width": "2",
     });
     svg.appendChild(outerBg);
 
@@ -401,7 +530,7 @@ export function init(container) {
           height: "40",
           fill: color !== "transparent" ? color : "var(--color-surface)",
           stroke: "var(--color-border)",
-          "stroke-width": "1"
+          "stroke-width": "1",
         });
         cellsG.appendChild(rect);
 
@@ -409,7 +538,7 @@ export function init(container) {
           const starSym = createSVGElement("polygon", {
             points: `${x * 40 + 20},${y * 40 + 8} ${x * 40 + 24},${y * 40 + 16} ${x * 40 + 33},${y * 40 + 17} ${x * 40 + 26},${y * 40 + 23} ${x * 40 + 28},${y * 40 + 32} ${x * 40 + 20},${y * 40 + 27} ${x * 40 + 12},${y * 40 + 32} ${x * 40 + 14},${y * 40 + 23} ${x * 40 + 7},${y * 40 + 17} ${x * 40 + 16},${y * 40 + 16}`,
             fill: "var(--color-text-muted)",
-            opacity: "0.4"
+            opacity: "0.4",
           });
           cellsG.appendChild(starSym);
         }
@@ -417,15 +546,17 @@ export function init(container) {
     }
 
     const drawHomeYard = (x, y, player) => {
-      const g = createSVGElement("g", {});
-      
+      const g = createSVGElement("g", {
+        style: "cursor:pointer;",
+      });
+
       const base = createSVGElement("rect", {
         x: (x * 40).toString(),
         y: (y * 40).toString(),
         width: "240",
         height: "240",
         fill: player.color,
-        rx: "12"
+        rx: "12",
       });
       g.appendChild(base);
 
@@ -435,7 +566,7 @@ export function init(container) {
         width: "170",
         height: "170",
         fill: "var(--color-surface)",
-        rx: "8"
+        rx: "8",
       });
       g.appendChild(inner);
 
@@ -443,19 +574,35 @@ export function init(container) {
         { cx: x * 40 + 75, cy: y * 40 + 75 },
         { cx: x * 40 + 165, cy: y * 40 + 75 },
         { cx: x * 40 + 75, cy: y * 40 + 165 },
-        { cx: x * 40 + 165, cy: y * 40 + 165 }
+        { cx: x * 40 + 165, cy: y * 40 + 165 },
       ];
 
-      slots.forEach(slot => {
+      slots.forEach((slot) => {
         const slotCircle = createSVGElement("circle", {
           cx: slot.cx.toString(),
           cy: slot.cy.toString(),
           r: "24",
           fill: "var(--color-bg)",
           stroke: player.color,
-          "stroke-width": "3"
+          "stroke-width": "3",
         });
         g.appendChild(slotCircle);
+      });
+
+      g.addEventListener("click", () => {
+        if (
+          gamePhase === "waiting_for_move" &&
+          currentPlayerIdx === player.id
+        ) {
+          const movable = getMovablePieces(currentPlayerIdx, currentRoll);
+          const basePieceIdx = player.pieces.findIndex(
+            (step, idx) => step === -1 && movable.includes(idx),
+          );
+          if (basePieceIdx !== -1) {
+            initAudio();
+            movePiece(player.id, basePieceIdx, currentRoll);
+          }
+        }
       });
 
       svg.appendChild(g);
@@ -469,19 +616,19 @@ export function init(container) {
     const centerG = createSVGElement("g", {});
     const pRedTri = createSVGElement("polygon", {
       points: "240,240 240,360 300,300",
-      fill: players[0].color
+      fill: players[0].color,
     });
     const pGreenTri = createSVGElement("polygon", {
       points: "240,240 360,240 300,300",
-      fill: players[1].color
+      fill: players[1].color,
     });
     const pYellowTri = createSVGElement("polygon", {
       points: "360,240 360,360 300,300",
-      fill: players[2].color
+      fill: players[2].color,
     });
     const pBlueTri = createSVGElement("polygon", {
       points: "240,360 360,360 300,300",
-      fill: players[3].color
+      fill: players[3].color,
     });
 
     centerG.appendChild(pRedTri);
@@ -493,12 +640,26 @@ export function init(container) {
       points: "240,240 360,240 360,360 240,360",
       fill: "none",
       stroke: "var(--color-border)",
-      "stroke-width": "2"
+      "stroke-width": "2",
     });
     centerG.appendChild(centerBorder);
 
-    const cross1 = createSVGElement("line", { x1: "240", y1: "240", x2: "360", y2: "360", stroke: "var(--color-border)", "stroke-width": "1" });
-    const cross2 = createSVGElement("line", { x1: "240", y1: "360", x2: "360", y2: "240", stroke: "var(--color-border)", "stroke-width": "1" });
+    const cross1 = createSVGElement("line", {
+      x1: "240",
+      y1: "240",
+      x2: "360",
+      y2: "360",
+      stroke: "var(--color-border)",
+      "stroke-width": "1",
+    });
+    const cross2 = createSVGElement("line", {
+      x1: "240",
+      y1: "360",
+      x2: "360",
+      y2: "240",
+      stroke: "var(--color-border)",
+      "stroke-width": "1",
+    });
     centerG.appendChild(cross1);
     centerG.appendChild(cross2);
 
@@ -510,13 +671,37 @@ export function init(container) {
 
   function getBaseCoordinates(playerIdx, pieceIdx) {
     if (playerIdx === 0) {
-      return pieceIdx === 0 ? { x: 75, y: 75 } : pieceIdx === 1 ? { x: 165, y: 75 } : pieceIdx === 2 ? { x: 75, y: 165 } : { x: 165, y: 165 };
+      return pieceIdx === 0
+        ? { x: 75, y: 75 }
+        : pieceIdx === 1
+          ? { x: 165, y: 75 }
+          : pieceIdx === 2
+            ? { x: 75, y: 165 }
+            : { x: 165, y: 165 };
     } else if (playerIdx === 1) {
-      return pieceIdx === 0 ? { x: 435, y: 75 } : pieceIdx === 1 ? { x: 525, y: 75 } : pieceIdx === 2 ? { x: 435, y: 165 } : { x: 525, y: 165 };
+      return pieceIdx === 0
+        ? { x: 435, y: 75 }
+        : pieceIdx === 1
+          ? { x: 525, y: 75 }
+          : pieceIdx === 2
+            ? { x: 435, y: 165 }
+            : { x: 525, y: 165 };
     } else if (playerIdx === 2) {
-      return pieceIdx === 0 ? { x: 435, y: 435 } : pieceIdx === 1 ? { x: 525, y: 435 } : pieceIdx === 2 ? { x: 435, y: 525 } : { x: 525, y: 525 };
+      return pieceIdx === 0
+        ? { x: 435, y: 435 }
+        : pieceIdx === 1
+          ? { x: 525, y: 435 }
+          : pieceIdx === 2
+            ? { x: 435, y: 525 }
+            : { x: 525, y: 525 };
     } else {
-      return pieceIdx === 0 ? { x: 75, y: 435 } : pieceIdx === 1 ? { x: 165, y: 435 } : pieceIdx === 2 ? { x: 75, y: 525 } : { x: 165, y: 525 };
+      return pieceIdx === 0
+        ? { x: 75, y: 435 }
+        : pieceIdx === 1
+          ? { x: 165, y: 435 }
+          : pieceIdx === 2
+            ? { x: 75, y: 525 }
+            : { x: 165, y: 525 };
     }
   }
 
@@ -572,7 +757,7 @@ export function init(container) {
         { dx: -12, dy: -12 },
         { dx: 12, dy: -12 },
         { dx: -12, dy: 12 },
-        { dx: 12, dy: 12 }
+        { dx: 12, dy: 12 },
       ][pieceIdx];
       return { x: center.x + offset.dx, y: center.y + offset.dy };
     }
@@ -580,7 +765,7 @@ export function init(container) {
     const key = `${Math.round(center.x)},${Math.round(center.y)}`;
     const overlapping = [];
 
-    players.forEach(p => {
+    players.forEach((p) => {
       if (!p.active) return;
       p.pieces.forEach((st, pIdx) => {
         if (st === -1) return;
@@ -598,7 +783,9 @@ export function init(container) {
       return center;
     }
 
-    const selfIdx = overlapping.findIndex(o => o.pId === playerIdx && o.pieceIdx === pieceIdx);
+    const selfIdx = overlapping.findIndex(
+      (o) => o.pId === playerIdx && o.pieceIdx === pieceIdx,
+    );
     const count = overlapping.length;
 
     let dx = 0;
@@ -626,24 +813,24 @@ export function init(container) {
     if (!tokensGroup) return;
     tokensGroup.innerHTML = "";
 
-    const activePlayersCount = players.filter(p => p.active).length;
+    const activePlayersCount = players.filter((p) => p.active).length;
     if (activePlayersCount === 0) return;
 
-    players.forEach(player => {
+    players.forEach((player) => {
       if (!player.active) return;
 
       player.pieces.forEach((step, pieceIdx) => {
         const coords = getClusteredCoordinates(player.id, pieceIdx, step);
         const tokenG = createSVGElement("g", {
           class: "ludo-token",
-          style: "cursor:pointer;transition:transform 0.15s ease-out;"
+          style: "cursor:pointer;transition:transform 0.15s ease-out;",
         });
 
         const shadow = createSVGElement("circle", {
           cx: (coords.x + 2).toString(),
           cy: (coords.y + 2).toString(),
           r: "12",
-          fill: "rgba(0,0,0,0.3)"
+          fill: "rgba(0,0,0,0.3)",
         });
         tokenG.appendChild(shadow);
 
@@ -653,7 +840,7 @@ export function init(container) {
           r: "12",
           fill: player.color,
           stroke: "#FFFFFF",
-          "stroke-width": "2"
+          "stroke-width": "2",
         });
         tokenG.appendChild(outerCircle);
 
@@ -661,12 +848,15 @@ export function init(container) {
           cx: coords.x.toString(),
           cy: coords.y.toString(),
           r: "6",
-          fill: "#FFFFFF"
+          fill: "#FFFFFF",
         });
         tokenG.appendChild(innerCircle);
 
-        const isMovable = getMovablePieces(currentPlayerIdx, currentRoll).includes(pieceIdx) && gamePhase === "waiting_for_move" && currentPlayerIdx === player.id;
-        
+        const isMovable =
+          getMovablePieces(currentPlayerIdx, currentRoll).includes(pieceIdx) &&
+          gamePhase === "waiting_for_move" &&
+          currentPlayerIdx === player.id;
+
         if (isMovable) {
           const glow = createSVGElement("circle", {
             cx: coords.x.toString(),
@@ -676,7 +866,7 @@ export function init(container) {
             stroke: player.color,
             "stroke-width": "3",
             opacity: "0.8",
-            style: "animation: pulseGlow 1.5s infinite;"
+            style: "animation: pulseGlow 1.5s infinite;",
           });
           tokenG.appendChild(glow);
 
@@ -753,17 +943,27 @@ export function init(container) {
       extraTurn = true;
     } else if (targetStep < 56) {
       const targetCoords = getTrackCoordinates(playerIdx, targetStep);
-      if (targetCoords && !isSafeCell(targetCoords.x / 40, targetCoords.y / 40)) {
+      if (
+        targetCoords &&
+        !isSafeCell(targetCoords.x / 40, targetCoords.y / 40)
+      ) {
         let captured = false;
-        players.forEach(opp => {
+        players.forEach((opp) => {
           if (opp.id === playerIdx || !opp.active) return;
           opp.pieces.forEach((oppStep, oppPieceIdx) => {
             if (oppStep === -1 || oppStep >= 56) return;
             const oppCoords = getTrackCoordinates(opp.id, oppStep);
-            if (oppCoords && Math.abs(oppCoords.x - targetCoords.x) < 2 && Math.abs(oppCoords.y - targetCoords.y) < 2) {
+            if (
+              oppCoords &&
+              Math.abs(oppCoords.x - targetCoords.x) < 2 &&
+              Math.abs(oppCoords.y - targetCoords.y) < 2
+            ) {
               opp.pieces[oppPieceIdx] = -1;
               captured = true;
-              pushLog(`${player.name} captured ${opp.name}'s piece ${oppPieceIdx + 1}!`, player.color);
+              pushLog(
+                `${player.name} captured ${opp.name}'s piece ${oppPieceIdx + 1}!`,
+                player.color,
+              );
             }
           });
         });
@@ -800,7 +1000,7 @@ export function init(container) {
   }
 
   function checkVictory(playerIdx) {
-    return players[playerIdx].pieces.every(step => step === 56);
+    return players[playerIdx].pieces.every((step) => step === 56);
   }
 
   function nextTurn() {
@@ -820,7 +1020,7 @@ export function init(container) {
     persistCurrentState();
   }
 
-  function executeRoll() {
+  function executeRoll(forcedValue = null) {
     if (gamePhase !== "waiting_for_roll") return;
     initAudio();
 
@@ -834,7 +1034,10 @@ export function init(container) {
       rolls++;
       if (rolls >= 6) {
         clearInterval(interval);
-        currentRoll = Math.floor(Math.random() * 6 + 1);
+        currentRoll =
+          forcedValue !== null
+            ? forcedValue
+            : Math.floor(Math.random() * 6 + 1);
         diceWidget.innerText = currentRoll.toString();
         onRollComplete(currentRoll);
       }
@@ -848,7 +1051,10 @@ export function init(container) {
     if (rolledVal === 6) {
       consecutiveSixes++;
       if (consecutiveSixes === 3) {
-        pushLog(`Three 6s in a row! Turn passes to the next player.`, "#EF4444");
+        pushLog(
+          `Three 6s in a row! Turn passes to the next player.`,
+          "#EF4444",
+        );
         nextTurn();
         updateUI();
         return;
@@ -865,6 +1071,17 @@ export function init(container) {
         nextTurn();
         updateUI();
       }, 1000);
+    } else if (movable.length === 1 && player.type === "human") {
+      gamePhase = "waiting_for_move";
+      updateUI();
+      setTimeout(() => {
+        if (
+          gamePhase === "waiting_for_move" &&
+          currentPlayerIdx === player.id
+        ) {
+          movePiece(player.id, movable[0], rolledVal);
+        }
+      }, 500);
     } else {
       gamePhase = "waiting_for_move";
       persistCurrentState();
@@ -879,11 +1096,26 @@ export function init(container) {
     turnIndicatorColor.style.backgroundColor = activePlayer.color;
     turnIndicatorLabel.innerText = `${activePlayer.name}'s Turn`;
 
+    if (superchargeNext) {
+      turnIndicatorColor.style.transform = "scale(1.2)";
+      turnIndicatorColor.style.boxShadow =
+        "0 0 8px #F59E0B, inset 0 0 4px #F59E0B";
+    } else {
+      turnIndicatorColor.style.transform = "scale(1)";
+      turnIndicatorColor.style.boxShadow = "0 0 4px rgba(0,0,0,0.2)";
+    }
+
     if (gamePhase === "waiting_for_roll") {
       rollBadge.innerText = "Roll Required";
-      diceDesc.innerText = activePlayer.type === "bot" ? "AI is preparing to roll..." : "Click dice or Roll button";
-      rollActionBtn.disabled = activePlayer.type === "bot";
-      rollActionBtn.style.opacity = activePlayer.type === "bot" ? "0.5" : "1";
+      if (activePlayer.type === "bot") {
+        diceDesc.innerText = "AI is preparing to roll...";
+        rollActionBtn.disabled = true;
+        rollActionBtn.style.opacity = "0.5";
+      } else {
+        diceDesc.innerText = "Click dice or Roll action below";
+        rollActionBtn.disabled = false;
+        rollActionBtn.style.opacity = "1";
+      }
     } else if (gamePhase === "rolling") {
       rollBadge.innerText = "Rolling...";
       diceDesc.innerText = "Simulating dice physics";
@@ -891,7 +1123,11 @@ export function init(container) {
       rollActionBtn.style.opacity = "0.5";
     } else if (gamePhase === "waiting_for_move") {
       rollBadge.innerText = `Rolled a ${currentRoll}`;
-      diceDesc.innerText = activePlayer.type === "bot" ? "AI selecting best path..." : "Select highlighted piece";
+      if (activePlayer.type === "bot") {
+        diceDesc.innerText = "AI selecting best path...";
+      } else {
+        diceDesc.innerText = "TAP a glowing token (or your Yard) to move!";
+      }
       rollActionBtn.disabled = true;
       rollActionBtn.style.opacity = "0.5";
     } else if (gamePhase === "animating") {
@@ -915,11 +1151,18 @@ export function init(container) {
       botTimer = setTimeout(() => {
         executeRoll();
       }, 1000);
-    } else if (activePlayer.type === "bot" && gamePhase === "waiting_for_move") {
+    } else if (
+      activePlayer.type === "bot" &&
+      gamePhase === "waiting_for_move"
+    ) {
       botTimer = setTimeout(() => {
         const movable = getMovablePieces(currentPlayerIdx, currentRoll);
         if (movable.length > 0) {
-          const bestMove = selectBotMove(currentPlayerIdx, movable, currentRoll);
+          const bestMove = selectBotMove(
+            currentPlayerIdx,
+            movable,
+            currentRoll,
+          );
           movePiece(currentPlayerIdx, bestMove, currentRoll);
         }
       }, 1000);
@@ -935,14 +1178,21 @@ export function init(container) {
       const nextStep = step === -1 ? 0 : step + rollVal;
       const targetCoords = getTrackCoordinates(playerIdx, nextStep);
 
-      if (targetCoords && !isSafeCell(targetCoords.x / 40, targetCoords.y / 40)) {
+      if (
+        targetCoords &&
+        !isSafeCell(targetCoords.x / 40, targetCoords.y / 40)
+      ) {
         let captureFound = false;
-        players.forEach(opp => {
+        players.forEach((opp) => {
           if (opp.id === playerIdx || !opp.active) return;
-          opp.pieces.forEach(oppStep => {
+          opp.pieces.forEach((oppStep) => {
             if (oppStep === -1 || oppStep >= 56) return;
             const oppCoords = getTrackCoordinates(opp.id, oppStep);
-            if (oppCoords && Math.abs(oppCoords.x - targetCoords.x) < 2 && Math.abs(oppCoords.y - targetCoords.y) < 2) {
+            if (
+              oppCoords &&
+              Math.abs(oppCoords.x - targetCoords.x) < 2 &&
+              Math.abs(oppCoords.y - targetCoords.y) < 2
+            ) {
               captureFound = true;
             }
           });
@@ -965,7 +1215,7 @@ export function init(container) {
 
     let bestIdx = movableIndices[0];
     let maxProgress = -1;
-    movableIndices.forEach(pIdx => {
+    movableIndices.forEach((pIdx) => {
       const progress = players[playerIdx].pieces[pIdx];
       if (progress > maxProgress) {
         maxProgress = progress;
@@ -979,9 +1229,10 @@ export function init(container) {
   function renderSetupCards() {
     settingsContainer.innerHTML = "";
 
-    players.forEach(player => {
+    players.forEach((player) => {
       const card = document.createElement("div");
-      card.style.cssText = "border:1px solid var(--color-border);border-radius:6px;padding:0.4rem 0.65rem;display:flex;align-items:center;justify-content:space-between;gap:0.5rem;background:var(--color-bg);";
+      card.style.cssText =
+        "border:1px solid var(--color-border);border-radius:6px;padding:0.4rem 0.65rem;display:flex;align-items:center;justify-content:space-between;gap:0.5rem;background:var(--color-bg);";
 
       const leftG = document.createElement("div");
       leftG.style.cssText = "display:flex;align-items:center;gap:0.5rem;";
@@ -992,13 +1243,15 @@ export function init(container) {
 
       const nameLabel = document.createElement("span");
       nameLabel.innerText = player.name;
-      nameLabel.style.cssText = "font-size:0.82rem;font-weight:600;color:var(--color-text);";
+      nameLabel.style.cssText =
+        "font-size:0.82rem;font-weight:600;color:var(--color-text);";
       leftG.appendChild(nameLabel);
 
       const activeBadge = document.createElement("span");
-      const finishedCount = player.pieces.filter(st => st === 56).length;
+      const finishedCount = player.pieces.filter((st) => st === 56).length;
       activeBadge.innerText = `${finishedCount}/4 In Goal`;
-      activeBadge.style.cssText = "font-size:0.68rem;color:var(--color-text-muted);margin-left:4px;";
+      activeBadge.style.cssText =
+        "font-size:0.68rem;color:var(--color-text-muted);margin-left:4px;";
       leftG.appendChild(activeBadge);
 
       card.appendChild(leftG);
@@ -1007,8 +1260,9 @@ export function init(container) {
       rightG.style.cssText = "display:flex;align-items:center;gap:0.4rem;";
 
       const typeSelect = document.createElement("select");
-      typeSelect.style.cssText = "padding:0.15rem 0.35rem;border:1px solid var(--color-border);border-radius:4px;background:var(--color-surface);color:var(--color-text);font-size:0.75rem;outline:none;";
-      
+      typeSelect.style.cssText =
+        "padding:0.15rem 0.35rem;border:1px solid var(--color-border);border-radius:4px;background:var(--color-surface);color:var(--color-text);font-size:0.75rem;outline:none;";
+
       const optHuman = document.createElement("option");
       optHuman.value = "human";
       optHuman.innerText = "Human";
@@ -1038,7 +1292,7 @@ export function init(container) {
           player.type = val;
         }
 
-        const activeCount = players.filter(p => p.active).length;
+        const activeCount = players.filter((p) => p.active).length;
         if (activeCount < 2) {
           player.active = true;
           player.type = "human";
@@ -1062,27 +1316,41 @@ export function init(container) {
 
   function applyPreset(mode) {
     if (mode === "4") {
-      players[0].active = true; players[0].type = "human";
-      players[1].active = true; players[1].type = "bot";
-      players[2].active = true; players[2].type = "bot";
-      players[3].active = true; players[3].type = "bot";
+      players[0].active = true;
+      players[0].type = "human";
+      players[1].active = true;
+      players[1].type = "bot";
+      players[2].active = true;
+      players[2].type = "bot";
+      players[3].active = true;
+      players[3].type = "bot";
     } else if (mode === "3") {
-      players[0].active = true; players[0].type = "human";
-      players[1].active = true; players[1].type = "bot";
-      players[2].active = true; players[2].type = "bot";
+      players[0].active = true;
+      players[0].type = "human";
+      players[1].active = true;
+      players[1].type = "bot";
+      players[2].active = true;
+      players[2].type = "bot";
       players[3].active = false;
     } else if (mode === "2-opp") {
-      players[0].active = true; players[0].type = "human";
+      players[0].active = true;
+      players[0].type = "human";
       players[1].active = false;
-      players[2].active = true; players[2].type = "bot";
+      players[2].active = true;
+      players[2].type = "bot";
       players[3].active = false;
     } else if (mode === "2-adj") {
-      players[0].active = true; players[0].type = "human";
-      players[1].active = true; players[1].type = "bot";
+      players[0].active = true;
+      players[0].type = "human";
+      players[1].active = true;
+      players[1].type = "bot";
       players[2].active = false;
       players[3].active = false;
     }
-    pushLog(`Setup updated: Match configured for ${mode === "4" ? "4" : mode === "3" ? "3" : "2"} players.`, "var(--color-primary)");
+    pushLog(
+      "Preset configuration loaded successfully.",
+      "var(--color-primary)",
+    );
     resetGame();
   }
 
@@ -1096,7 +1364,7 @@ export function init(container) {
     botTimer = null;
     animTimer = null;
 
-    players.forEach(p => {
+    players.forEach((p) => {
       p.pieces = [-1, -1, -1, -1];
     });
 
@@ -1109,23 +1377,36 @@ export function init(container) {
     gamePhase = "waiting_for_roll";
     consecutiveSixes = 0;
 
+    superchargeNext = false;
+
     logBox.innerHTML = "";
     pushLog("New Ludo Match Started!", "var(--color-primary)");
-    
+
     persistCurrentState();
     updateUI();
   }
 
-  diceWidget.addEventListener("click", () => {
-    if (players[currentPlayerIdx].type === "human") {
+  function triggerPlayerRoll() {
+    if (
+      gamePhase !== "waiting_for_roll" ||
+      players[currentPlayerIdx].type !== "human"
+    )
+      return;
+    initAudio();
+    if (superchargeNext) {
+      superchargeNext = false;
+      executeRoll(6);
+    } else {
       executeRoll();
     }
+  }
+
+  diceWidget.addEventListener("click", () => {
+    triggerPlayerRoll();
   });
 
   rollActionBtn.addEventListener("click", () => {
-    if (players[currentPlayerIdx].type === "human") {
-      executeRoll();
-    }
+    triggerPlayerRoll();
   });
 
   resetBtn.addEventListener("click", () => {
@@ -1136,10 +1417,42 @@ export function init(container) {
     clearState();
     presetSelector.value = "4";
     players = [
-      { id: 0, name: "Red", color: "#EF4444", lightColor: "#FEE2E2", active: true, type: "human", pieces: [-1, -1, -1, -1] },
-      { id: 1, name: "Green", color: "#10B981", lightColor: "#D1FAE5", active: true, type: "bot", pieces: [-1, -1, -1, -1] },
-      { id: 2, name: "Yellow", color: "#F59E0B", lightColor: "#FEF3C7", active: true, type: "bot", pieces: [-1, -1, -1, -1] },
-      { id: 3, name: "Blue", color: "#3B82F6", lightColor: "#DBEAFE", active: true, type: "bot", pieces: [-1, -1, -1, -1] }
+      {
+        id: 0,
+        name: "Red",
+        color: "#EF4444",
+        lightColor: "#FEE2E2",
+        active: true,
+        type: "human",
+        pieces: [-1, -1, -1, -1],
+      },
+      {
+        id: 1,
+        name: "Green",
+        color: "#10B981",
+        lightColor: "#D1FAE5",
+        active: true,
+        type: "bot",
+        pieces: [-1, -1, -1, -1],
+      },
+      {
+        id: 2,
+        name: "Yellow",
+        color: "#F59E0B",
+        lightColor: "#FEF3C7",
+        active: true,
+        type: "bot",
+        pieces: [-1, -1, -1, -1],
+      },
+      {
+        id: 3,
+        name: "Blue",
+        color: "#3B82F6",
+        lightColor: "#DBEAFE",
+        active: true,
+        type: "bot",
+        pieces: [-1, -1, -1, -1],
+      },
     ];
     resetGame();
   });
@@ -1147,41 +1460,46 @@ export function init(container) {
   const pulseStyle = document.createElement("style");
   pulseStyle.innerHTML = `
     @keyframes pulseGlow {
-      0% { transform: scale(1); opacity: 0.8; }
-      50% { transform: scale(1.15); opacity: 0.3; }
-      100% { transform: scale(1); opacity: 0.8; }
+      0% { stroke-width: 2px; opacity: 0.9; }
+      50% { stroke-width: 5px; opacity: 0.4; }
+      100% { stroke-width: 2px; opacity: 0.9; }
     }
   `;
   document.head.appendChild(pulseStyle);
 
   drawBoardFrame();
 
-  loadState().then((saved) => {
-    if (saved) {
-      players = saved.players;
-      currentPlayerIdx = saved.currentPlayerIdx;
-      currentRoll = saved.currentRoll;
-      consecutiveSixes = saved.consecutiveSixes;
-      
-      let phase = saved.gamePhase;
-      if (phase === "rolling") {
-        phase = "waiting_for_roll";
-      } else if (phase === "animating") {
-        phase = "waiting_for_move";
-      }
-      gamePhase = phase;
+  loadState()
+    .then((saved) => {
+      if (saved) {
+        players = saved.players;
+        currentPlayerIdx = saved.currentPlayerIdx;
+        currentRoll = saved.currentRoll;
+        consecutiveSixes = saved.consecutiveSixes;
 
-      if (saved.presetValue) {
-        presetSelector.value = saved.presetValue;
+        let phase = saved.gamePhase;
+        if (phase === "rolling") {
+          phase = "waiting_for_roll";
+        } else if (phase === "animating") {
+          phase = "waiting_for_move";
+        }
+        gamePhase = phase;
+
+        if (saved.presetValue) {
+          presetSelector.value = saved.presetValue;
+        }
+        pushLog(
+          "Restored previous session successfully!",
+          "var(--color-primary)",
+        );
+        updateUI();
+      } else {
+        resetGame();
       }
-      pushLog("Restored previous session successfully!", "var(--color-primary)");
-      updateUI();
-    } else {
+    })
+    .catch(() => {
       resetGame();
-    }
-  }).catch(() => {
-    resetGame();
-  });
+    });
 
   return () => {
     window.removeEventListener("resize", handleLayoutResize);
