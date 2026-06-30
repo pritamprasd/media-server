@@ -471,6 +471,8 @@ def get_file_thumbnail(file_id):
 
 @api_bp.route("/files/<int:file_id>/regenerate-ai", methods=["POST"])
 def regenerate_ai_metadata(file_id):
+    if request.headers.get("X-Airplane-Mode") == "1":
+        return jsonify({"error": "Airplane mode is enabled, external calls blocked"}), 503
     file_record = db.session.get(ImportedFile, file_id)
     if not file_record:
         return jsonify({"error": "File not found"}), 404
@@ -2226,6 +2228,8 @@ def _get_redis():
 
 @api_bp.route("/geocode/reverse", methods=["GET"])
 def reverse_geocode():
+    if request.headers.get("X-Airplane-Mode") == "1":
+        return jsonify({"error": "Airplane mode is enabled, external calls blocked"}), 503
     lat = request.args.get("lat")
     lng = request.args.get("lng")
     if not lat or not lng:

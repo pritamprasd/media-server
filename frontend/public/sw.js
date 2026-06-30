@@ -182,6 +182,18 @@ self.addEventListener("fetch", (e) => {
     return;
   }
 
+  // Cache-first for 3D Globe tiles and base texture
+  if ((url.hostname === "basemaps.cartocdn.com" || url.hostname === "server.arcgisonline.com" || url.hostname === "eoimages.gsfc.nasa.gov") && request.method === "GET") {
+    e.respondWith(cacheFirst(request, CACHES.tiles));
+    return;
+  }
+
+  // Network-first for 3D Globe external APIs
+  if ((url.hostname === "nominatim.openstreetmap.org" || url.hostname === "api.open-meteo.com") && request.method === "GET") {
+    e.respondWith(networkFirst(request, CACHES.api));
+    return;
+  }
+
   if (!isSameOrigin(url)) return;
 
   const { pathname } = url;

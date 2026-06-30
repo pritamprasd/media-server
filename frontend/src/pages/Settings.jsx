@@ -2,9 +2,10 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Settings as SettingsIcon, ArrowRight, Palette, Save, Trash2,
-  ArrowUp, ArrowDown, RotateCcw, Check,
+  ArrowUp, ArrowDown, RotateCcw, Check, Wifi, WifiOff,
 } from "lucide-react";
 import { getPref, setPref, clearAllPrefs } from "../services/db";
+import { setAirplaneMode } from "../services/api";
 import "./Settings.css";
 
 const TABS = [
@@ -54,6 +55,7 @@ function Settings() {
   const [imageTabs, setImageTabs] = useState(DEFAULT_IMAGE_TABS);
   const [videoTabs, setVideoTabs] = useState(DEFAULT_VIDEO_TABS);
   const [navTabs, setNavTabs] = useState(TABS.map((t) => t.path));
+  const [airplaneModeState, setAirplaneModeState] = useState(false);
   const [mapZoomLevel, setMapZoomLevel] = useState(18);
   const [facesPerPage, setFacesPerPage] = useState(15);
   const [facesPerPageSaved, setFacesPerPageSaved] = useState(false);
@@ -71,6 +73,10 @@ function Settings() {
     });
     getPref("mapZoomLevel", 18).then(setMapZoomLevel);
     getPref("facesPerPage", 15).then(setFacesPerPage);
+    getPref("airplaneMode", false).then((v) => {
+      setAirplaneModeState(v);
+      setAirplaneMode(v);
+    });
   }, []);
 
   const handleMoveTab = (type, idx, dir) => {
@@ -209,6 +215,26 @@ function Settings() {
             />
           </label>
         </div>
+      </div>
+
+      <div className="settings__card">
+        <h3 className="settings__label">Airplane Mode</h3>
+        <p className="settings__desc">
+          When enabled, the app skips all external API calls (AI metadata generation, reverse geocoding).
+          Local operations (import, browsing, face detection, thumbnail generation) continue to work.
+        </p>
+        <button
+          className={`settings__airplane-btn ${airplaneModeState ? "settings__airplane-btn--on" : ""}`}
+          onClick={() => {
+            const next = !airplaneModeState;
+            setAirplaneModeState(next);
+            setPref("airplaneMode", next);
+            setAirplaneMode(next);
+          }}
+        >
+          {airplaneModeState ? <WifiOff size={16} /> : <Wifi size={16} />}
+          {airplaneModeState ? "Airplane Mode ON" : "Airplane Mode OFF"}
+        </button>
       </div>
 
       <div className="settings__card">

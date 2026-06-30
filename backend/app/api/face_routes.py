@@ -1,3 +1,4 @@
+import json
 import os
 import random
 from datetime import datetime, timedelta
@@ -332,46 +333,91 @@ def person_timeline(person_id):
     date_from_str = request.args.get("date_from")
     date_to_str = request.args.get("date_to")
 
-    person_ids_param = request.args.get("person_ids")
-    if person_ids_param:
-        ids = [int(pid.strip()) for pid in person_ids_param.split(",") if pid.strip().isdigit()]
-        if not ids:
-            ids = [person_id]
+    person_groups_param = request.args.get("person_groups")
+    if person_groups_param:
+        try:
+            person_groups = json.loads(person_groups_param)
+        except (ValueError, TypeError):
+            person_groups = None
     else:
-        ids = [person_id]
+        person_groups = None
 
-    file_subq = db.session.query(
-        DetectedFace.file_id
-    ).filter(
-        DetectedFace.person_id.in_(ids)
-    ).group_by(
-        DetectedFace.file_id
-    ).having(
-        db.func.count(db.func.distinct(DetectedFace.person_id)) == len(ids)
-    ).subquery()
+    ids = [person_id]
 
-    rows = db.session.query(
-        ImportedFile.id,
-        ImportedFile.filename,
-        ImportedFile.mime_type,
-        ImportedFile.created_at,
-        FileMetadata.date_taken,
-        FileMetadata.thumbnail,
-    ).join(
-        file_subq, ImportedFile.id == file_subq.c.file_id
-    ).outerjoin(
-        FileMetadata, ImportedFile.id == FileMetadata.file_id
-    ).filter(
-        ImportedFile.deleted != True,
-        ImportedFile.mime_type.like("image/%"),
-    ).all()
+    if person_groups:
+
+        query = db.session.query(
+            ImportedFile.id,
+            ImportedFile.filename,
+            ImportedFile.mime_type,
+            ImportedFile.created_at,
+            FileMetadata.date_taken,
+            FileMetadata.thumbnail,
+        ).outerjoin(
+            FileMetadata, ImportedFile.id == FileMetadata.file_id
+        ).filter(
+            ImportedFile.deleted != True,
+            ImportedFile.mime_type.like("image/%"),
+        )
+        for group in person_groups:
+            if not group:
+                continue
+            query = query.filter(
+                db.session.query(DetectedFace.id).filter(
+                    DetectedFace.file_id == ImportedFile.id,
+                    DetectedFace.person_id.in_(group),
+                ).exists()
+            )
+        rows = query.all()
+    else:
+        person_ids_param = request.args.get("person_ids")
+        if person_ids_param:
+            ids = [int(pid.strip()) for pid in person_ids_param.split(",") if pid.strip().isdigit()]
+            if not ids:
+                ids = [person_id]
+        else:
+            ids = [person_id]
+
+        file_subq = db.session.query(
+            DetectedFace.file_id
+        ).filter(
+            DetectedFace.person_id.in_(ids)
+        ).group_by(
+            DetectedFace.file_id
+        ).having(
+            db.func.count(db.func.distinct(DetectedFace.person_id)) == len(ids)
+        ).subquery()
+
+        rows = db.session.query(
+            ImportedFile.id,
+            ImportedFile.filename,
+            ImportedFile.mime_type,
+            ImportedFile.created_at,
+            FileMetadata.date_taken,
+            FileMetadata.thumbnail,
+        ).join(
+            file_subq, ImportedFile.id == file_subq.c.file_id
+        ).outerjoin(
+            FileMetadata, ImportedFile.id == FileMetadata.file_id
+        ).filter(
+            ImportedFile.deleted != True,
+            ImportedFile.mime_type.like("image/%"),
+        ).all()
 
     if not rows:
+        resp_ids = ids if not person_groups else [pid for g in person_groups for pid in g]
         return jsonify({
             "timeline": [],
-            "person_id": person_id,
-            "person_name": person.name,
+            "person_ids": resp_ids,
+            "person_groups": person_groups,
+            "person_names": [p.name for p in Person.query.filter(Person.id.in_(resp_ids)).all()],
             "timeframe": timeframe,
+            "date_from": date_from_str,
+            "date_to": date_to_str,
+            "range_start": None,
+            "range_end": None,
+            "actual_range_start": None,
+            "actual_range_end": None,
         })
 
     dated = []
@@ -387,11 +433,19 @@ def person_timeline(person_id):
             })
 
     if not dated:
+        resp_ids = ids if not person_groups else [pid for g in person_groups for pid in g]
         return jsonify({
             "timeline": [],
-            "person_id": person_id,
-            "person_name": person.name,
+            "person_ids": resp_ids,
+            "person_groups": person_groups,
+            "person_names": [p.name for p in Person.query.filter(Person.id.in_(resp_ids)).all()],
             "timeframe": timeframe,
+            "date_from": date_from_str,
+            "date_to": date_to_str,
+            "range_start": None,
+            "range_end": None,
+            "actual_range_start": None,
+            "actual_range_end": None,
         })
 
     dated.sort(key=lambda x: x["date"])
@@ -520,9 +574,11 @@ def person_timeline(person_id):
         })
         total_count += 1
 
+    resp_ids = ids if not person_groups else [pid for g in person_groups for pid in g]
     return jsonify({
-        "person_ids": ids,
-        "person_names": [p.name for p in Person.query.filter(Person.id.in_(ids)).all()],
+        "person_ids": resp_ids,
+        "person_groups": person_groups,
+        "person_names": [p.name for p in Person.query.filter(Person.id.in_(resp_ids)).all()],
         "timeframe": timeframe,
         "date_from": date_from_str,
         "date_to": date_to_str,

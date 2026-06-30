@@ -6,6 +6,18 @@ const client = axios.create({
   headers: { "Content-Type": "application/json" },
 });
 
+let airplaneMode = false;
+
+export function setAirplaneMode(v) { airplaneMode = v; }
+export function getAirplaneMode() { return airplaneMode; }
+
+client.interceptors.request.use((config) => {
+  if (airplaneMode) {
+    config.headers["X-Airplane-Mode"] = "1";
+  }
+  return config;
+});
+
 export async function getStatus() {
   const { data } = await client.get("/status");
   return data;
@@ -204,6 +216,7 @@ export async function updateFileMetadata(fileId, payload) {
 }
 
 export async function regenerateAiMetadata(fileId) {
+  if (airplaneMode) return { skipped: true, reason: "airplane_mode" };
   const { data } = await client.post(`/files/${fileId}/regenerate-ai`);
   return data;
 }
@@ -291,11 +304,13 @@ export async function listFileFaces(fileId) {
   return data;
 }
 
-export async function getPersonTimeline(personId, timeframe = "year", dateFrom, dateTo, personIds) {
+export async function getPersonTimeline(personId, timeframe = "year", dateFrom, dateTo, personIds, personGroups) {
   const params = { timeframe };
   if (dateFrom) params.date_from = dateFrom;
   if (dateTo) params.date_to = dateTo;
-  if (personIds && personIds.length > 0) {
+  if (personGroups && personGroups.length > 0) {
+    params.person_groups = JSON.stringify(personGroups);
+  } else if (personIds && personIds.length > 0) {
     params.person_ids = personIds.join(",");
   }
   const { data } = await client.get(`/persons/${personId}/timeline`, { params });
@@ -323,6 +338,7 @@ export async function exportVideo(fileId, operations, opts = {}) {
 }
 
 export async function reverseGeocode(lat, lng) {
+  if (airplaneMode) return { skipped: true, reason: "airplane_mode" };
   const { data } = await client.get("/geocode/reverse", { params: { lat, lng } });
   return data;
 }

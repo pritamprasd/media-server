@@ -15,6 +15,7 @@ const TIMEFRAMES = [
 ];
 
 function toDateInputValue(date) {
+  if (typeof date === "string") return date.slice(0, 10);
   return date.toISOString().slice(0, 10);
 }
 
@@ -44,9 +45,30 @@ function formatBucketLabel(start, timeframe) {
   }
 }
 
+function groupPersons(persons) {
+  const groups = {};
+  for (const p of persons) {
+    const key = (p.name || "").toLowerCase() || `__unnamed_${p.id}`;
+    if (!groups[key]) {
+      groups[key] = { groupKey: key, name: p.name || "Unnamed", ids: [], persons: [], totalFaces: 0 };
+    }
+    groups[key].ids.push(p._combined ? p._persons[0].id : p.id);
+    groups[key].persons.push(p);
+    groups[key].totalFaces += p.face_count || 0;
+  }
+  return Object.values(groups).sort((a, b) => {
+    const aNamed = a.name !== "Unnamed";
+    const bNamed = b.name !== "Unnamed";
+    if (aNamed && !bNamed) return -1;
+    if (!aNamed && bNamed) return 1;
+    if (!aNamed && !bNamed) return b.totalFaces - a.totalFaces;
+    return a.name.localeCompare(b.name);
+  });
+}
+
 function Timeline() {
   const [persons, setPersons] = useState([]);
-  const [selectedPersons, setSelectedPersons] = useState([]);
+  const [selectedGroups, setSelectedGroups] = useState([]);
   const [timeline, setTimeline] = useState([]);
   const [loading, setLoading] = useState(false);
   const [loadingPersons, setLoadingPersons] = useState(true);
@@ -80,12 +102,12 @@ function Timeline() {
       .finally(() => setLoadingPersons(false));
   }, []);
 
-  const selectedIds = selectedPersons.map((p) =>
-    p._combined ? p._persons[0].id : p.id
-  );
+  const groupedPersons = groupPersons(persons);
+
+  const personGroups = selectedGroups.map((g) => g.ids);
 
   useEffect(() => {
-    if (selectedPersons.length === 0) {
+    if (selectedGroups.length === 0) {
       setTimeline([]);
       setRangeInfo(null);
       setActualRange(null);
@@ -95,86 +117,64 @@ function Timeline() {
       return;
     }
 
+    const groups = personGroups;
+
+    const applyTimeline = (data) => {
+      setTimeline(data.timeline || []);
+      setRangeInfo({ start: data.range_start, end: data.range_end });
+      setActualRange({ start: data.actual_range_start, end: data.actual_range_end });
+      if (data.actual_range_start) {
+        setDateFrom(toDateInputValue(data.actual_range_start));
+      }
+      if (data.actual_range_end) {
+        setDateTo(toDateInputValue(data.actual_range_end));
+      }
+      requestAnimationFrame(() => {
+        if (timelineRef.current) {
+          timelineRef.current.scrollTop = 0;
+        }
+      });
+    };
+
     if (!datesAutoSet.current) {
       datesAutoSet.current = true;
       setDateFrom("");
       setDateTo("");
       setLoading(true);
-      const ids = selectedPersons.map((p) =>
-        p._combined ? p._persons[0].id : p.id
-      );
-      getPersonTimeline(ids[0], timeframe, null, null, ids)
-        .then((data) => {
-          setTimeline(data.timeline || []);
-          setRangeInfo({ start: data.range_start, end: data.range_end });
-          setActualRange({ start: data.actual_range_start, end: data.actual_range_end });
-          if (data.actual_range_start) {
-            setDateFrom(toDateInputValue(new Date(data.actual_range_start)));
-          }
-          if (data.actual_range_end) {
-            setDateTo(toDateInputValue(new Date(data.actual_range_end)));
-          }
-        })
+      getPersonTimeline(groups[0][0], timeframe, null, null, null, groups)
+        .then(applyTimeline)
         .catch(console.error)
         .finally(() => setLoading(false));
       return;
     }
 
     setLoading(true);
-    const ids = selectedPersons.map((p) =>
-      p._combined ? p._persons[0].id : p.id
-    );
-    getPersonTimeline(ids[0], timeframe, dateFrom, dateTo, ids)
-      .then((data) => {
-        setTimeline(data.timeline || []);
-        setRangeInfo({ start: data.range_start, end: data.range_end });
-        setActualRange({ start: data.actual_range_start, end: data.actual_range_end });
-        requestAnimationFrame(() => {
-          if (timelineRef.current) {
-            timelineRef.current.scrollTop = 0;
-          }
-        });
-      })
+    getPersonTimeline(groups[0][0], timeframe, dateFrom, dateTo, null, groups)
+      .then(applyTimeline)
       .catch(console.error)
       .finally(() => setLoading(false));
-  }, [selectedPersons, timeframe, dateFrom, dateTo]);
+  }, [selectedGroups, timeframe, dateFrom, dateTo]);
 
-  const filteredPersons = persons.filter((p) => {
+  const filteredGroups = groupedPersons.filter((g) => {
     if (!personSearch) return true;
-    const name = (p.name || "").toLowerCase();
-    return name.includes(personSearch.toLowerCase());
+    return g.name.toLowerCase().includes(personSearch.toLowerCase());
   });
 
-  const alreadySelected = (p) => {
-    const pid = p._combined ? p._persons[0].id : p.id;
-    return selectedIds.includes(pid);
-  };
+  const isGroupSelected = (g) => selectedGroups.some((sg) => sg.groupKey === g.groupKey);
 
-  const handleTogglePerson = (person) => {
-    const pid = person._combined ? person._persons[0].id : person.id;
-    if (alreadySelected(person)) {
-      setSelectedPersons((prev) =>
-        prev.filter((sp) => {
-          const spid = sp._combined ? sp._persons[0].id : sp.id;
-          return spid !== pid;
-        })
-      );
+  const handleToggleGroup = (group) => {
+    if (isGroupSelected(group)) {
+      setSelectedGroups((prev) => prev.filter((sg) => sg.groupKey !== group.groupKey));
     } else {
-      if (selectedPersons.length >= MAX_PERSONS) return;
-      setSelectedPersons((prev) => [...prev, person]);
+      if (selectedGroups.length >= MAX_PERSONS) return;
+      setSelectedGroups((prev) => [...prev, group]);
     }
     setPersonSearch("");
     setDropdownOpen(false);
   };
 
-  const handleRemovePerson = (person) => {
-    const pid = person._combined ? person._persons[0].id : person.id;
-    setSelectedPersons((prev) =>
-      prev.filter((sp) => {
-        const spid = sp._combined ? sp._persons[0].id : sp.id;
-        return spid !== pid;
-      })
-    );
+  const handleRemoveGroup = (groupKey) => {
+    setSelectedGroups((prev) => prev.filter((g) => g.groupKey !== groupKey));
   };
 
   const formatDate = (iso) => {
@@ -200,17 +200,17 @@ function Timeline() {
               onClick={() => setDropdownOpen((p) => !p)}
             >
               <Search size={13} className="timeline-combobox-icon" />
-              {selectedPersons.length > 0 ? (
+              {selectedGroups.length > 0 ? (
                 <div className="timeline-person-chips">
-                  {selectedPersons.map((p) => (
-                    <span key={p.id} className="timeline-person-chip">
-                      {p.name || `Unnamed #${p.id}`}
+                  {selectedGroups.map((g) => (
+                    <span key={g.groupKey} className="timeline-person-chip">
+                      {g.name}{g.persons.length > 1 ? ` (${g.persons.length})` : ""}
                       <X
                         size={10}
                         className="timeline-person-chip-x"
                         onClick={(e) => {
                           e.stopPropagation();
-                          handleRemovePerson(p);
+                          handleRemoveGroup(g.groupKey);
                         }}
                       />
                     </span>
@@ -224,7 +224,7 @@ function Timeline() {
                 className="timeline-combobox-clear"
                 onClick={(e) => {
                   e.stopPropagation();
-                  setSelectedPersons([]);
+                  setSelectedGroups([]);
                   setTimeline([]);
                   setRangeInfo(null);
                   setActualRange(null);
@@ -244,38 +244,34 @@ function Timeline() {
                     autoFocus
                   />
                 </div>
-                {selectedPersons.length >= MAX_PERSONS && (
+                {selectedGroups.length >= MAX_PERSONS && (
                   <div className="timeline-combobox-hint">Max {MAX_PERSONS} persons selected</div>
                 )}
                 <div className="timeline-combobox-list">
                   {loadingPersons ? (
                     <div className="timeline-combobox-loading"><Spinner size={16} center /></div>
-                  ) : filteredPersons.length === 0 ? (
+                  ) : filteredGroups.length === 0 ? (
                     <div className="timeline-combobox-empty">No persons found</div>
                   ) : (
-                    filteredPersons.map((p) => {
-                      const isSelected = alreadySelected(p);
-                      const disabled = !isSelected && selectedPersons.length >= MAX_PERSONS;
+                    filteredGroups.map((g) => {
+                      const sel = isGroupSelected(g);
+                      const disabled = !sel && selectedGroups.length >= MAX_PERSONS;
                       return (
                         <div
-                          key={p.id}
-                          className={`timeline-combobox-item ${isSelected ? "timeline-combobox-item--selected" : ""} ${disabled ? "timeline-combobox-item--disabled" : ""}`}
-                          onClick={() => {
-                            if (!disabled) handleTogglePerson(p);
-                          }}
+                          key={g.groupKey}
+                          className={`timeline-combobox-item ${sel ? "timeline-combobox-item--selected" : ""} ${disabled ? "timeline-combobox-item--disabled" : ""}`}
+                          onClick={() => { if (!disabled) handleToggleGroup(g); }}
                         >
                           <div className="timeline-combobox-item-thumb">
-                            {p.thumbnail ? (
-                              <img src={p.thumbnail} alt="" />
+                            {g.persons[0].thumbnail ? (
+                              <img src={g.persons[0].thumbnail} alt="" />
                             ) : (
                               <User size={14} />
                             )}
                           </div>
-                          <span>{p.name || "Unnamed"}</span>
-                          <span className="timeline-combobox-item-count">{p.face_count}</span>
-                          {isSelected && (
-                            <span className="timeline-combobox-check">✓</span>
-                          )}
+                          <span>{g.name}{g.persons.length > 1 ? ` (${g.persons.length})` : ""}</span>
+                          <span className="timeline-combobox-item-count">{g.totalFaces}</span>
+                          {sel && <span className="timeline-combobox-check">✓</span>}
                         </div>
                       );
                     })
@@ -332,7 +328,7 @@ function Timeline() {
         </div>
       )}
 
-      {selectedPersons.length > 0 && actualRange && (
+      {selectedGroups.length > 0 && actualRange && (
         <div className="timeline-range">
           <span className="timeline-range-label">
             {formatDate(rangeInfo?.start)} – {formatDate(rangeInfo?.end)}
@@ -351,7 +347,7 @@ function Timeline() {
           <div className="timeline-loading">
             <Spinner size={32} center />
           </div>
-        ) : selectedPersons.length === 0 ? (
+        ) : selectedGroups.length === 0 ? (
           <div className="timeline-empty">
             <Clock size={48} />
             <p>Select one or more persons to view their timeline</p>
