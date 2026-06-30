@@ -235,11 +235,46 @@ export function init(container) {
   setInterval(syncToServer, 3600000);
 
   let availableCameras = [];
+  let selectedCameraId = null;
+
+  const camSelect = document.createElement('select');
+  camSelect.style.cssText = 'padding:0.4rem 0.5rem;border:1px solid var(--color-border);border-radius:6px;font-size:0.75rem;background:var(--color-surface);color:var(--color-text);max-width:200px;display:none;cursor:pointer;';
+  camSelect.addEventListener('change', () => {
+    selectedCameraId = camSelect.value || null;
+  });
+
+  headerBtns.appendChild(camSelect);
+
+  const camNameEl = document.createElement('span');
+  camNameEl.style.cssText = 'font-size:0.72rem;color:var(--color-text-muted);display:none;';
+  wrapper.insertBefore(camNameEl, status);
 
   Html5Qrcode.getCameras().then(cameras => {
     availableCameras = cameras || [];
     if (availableCameras.length === 0) {
       status.textContent = 'No camera detected — use "Upload Image" to scan from a photo.';
+      return;
+    }
+    camSelect.style.display = 'inline-block';
+    camSelect.innerHTML = '';
+    const defaultOpt = document.createElement('option');
+    defaultOpt.value = '';
+    defaultOpt.textContent = 'Auto (best)';
+    camSelect.appendChild(defaultOpt);
+    let envIdx = -1;
+    availableCameras.forEach((cam, i) => {
+      const opt = document.createElement('option');
+      opt.value = cam.id;
+      const label = cam.label || `Camera ${i + 1}`;
+      opt.textContent = label;
+      camSelect.appendChild(opt);
+      if (label.toLowerCase().includes('back') || label.toLowerCase().includes('environment') || label.toLowerCase().includes('rear')) {
+        envIdx = i;
+      }
+    });
+    if (envIdx >= 0) {
+      camSelect.selectedIndex = envIdx + 1;
+      selectedCameraId = availableCameras[envIdx].id;
     }
   }).catch(() => {});
 
@@ -277,7 +312,16 @@ export function init(container) {
 
     html5QrCode = new Html5Qrcode('barcode-scanner-inner');
 
-    tryStart({ facingMode: 'environment' });
+    if (selectedCameraId) {
+      const cam = availableCameras.find(c => c.id === selectedCameraId);
+      camNameEl.textContent = '📷 ' + (cam ? cam.label || cam.id : selectedCameraId);
+      camNameEl.style.display = 'inline';
+      tryStart(selectedCameraId);
+    } else {
+      camNameEl.textContent = '📷 Auto';
+      camNameEl.style.display = 'inline';
+      tryStart({ facingMode: 'environment' });
+    }
   }
 
   function tryStart(camIdOrConfig) {
@@ -286,28 +330,8 @@ export function init(container) {
         status.textContent = 'Point camera at a barcode or QR code...';
       })
       .catch(() => {
-        if (typeof camIdOrConfig !== 'string' && availableCameras.length > 0) {
-          tryNextCamera(0);
-        } else {
-          onCameraError();
-        }
+        onCameraError();
       });
-  }
-
-  function tryNextCamera(index) {
-    if (index >= availableCameras.length) {
-      onCameraError();
-      return;
-    }
-    html5QrCode.stop().catch(() => {}).then(() => {
-      html5QrCode.start(availableCameras[index].id, camConfig, onScanSuccess, onScanFailure)
-        .then(() => {
-          status.textContent = 'Point camera at a barcode or QR code...';
-        })
-        .catch(() => {
-          tryNextCamera(index + 1);
-        });
-    });
   }
 
   function onCameraError() {
