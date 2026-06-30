@@ -2855,4 +2855,3 @@ def _root_dir_id(upload_session, upload_dir):
         session_id=upload_session.id, path=""
     ).first()
     return root.id if root else None
-https://homeserver.local:3443/
