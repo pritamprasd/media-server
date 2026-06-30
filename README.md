@@ -415,7 +415,6 @@ Generate a tool that [DESCRIBE YOUR IDEA HERE]. Follow all the conventions above
 - Set `container.innerHTML = ""` in `destroy`
 - If using Three.js, dispose all resources in cleanup
 - File name will become the URL slug — use kebab-case
-```
 
 ---
 
