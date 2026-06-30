@@ -174,11 +174,20 @@ export function init(container) {
   clearCartBtn.textContent = 'Clear Cart';
   clearCartBtn.style.cssText = 'padding:0.25rem 0.6rem;border:1px solid var(--color-border);border-radius:6px;font-size:0.72rem;cursor:pointer;background:none;color:var(--color-text-muted);';
 
+  const syncCartBtn = document.createElement('button');
+  syncCartBtn.textContent = 'Sync';
+  syncCartBtn.style.cssText = 'padding:0.25rem 0.6rem;border:1px solid var(--color-primary);border-radius:6px;font-size:0.72rem;cursor:pointer;background:var(--color-primary);color:#fff;';
+
+  const syncStatus = document.createElement('span');
+  syncStatus.style.cssText = 'font-size:0.68rem;color:var(--color-text-muted);display:none;';
+
   const cartCount = document.createElement('span');
   cartCount.textContent = '0 items';
   cartCount.style.cssText = 'font-size:0.72rem;color:var(--color-text-muted);';
 
+  cartActions.appendChild(syncStatus);
   cartActions.appendChild(cartCount);
+  cartActions.appendChild(syncCartBtn);
   cartActions.appendChild(clearCartBtn);
   cartHeader.appendChild(cartTitle);
   cartHeader.appendChild(cartActions);
@@ -196,6 +205,34 @@ export function init(container) {
 
   loadHistory();
   loadCart();
+
+  async function syncToServer() {
+    const history = await getPref(HISTORY_KEY, []);
+    const cartData = await getPref(CART_KEY, { items: [], flatDiscount: 0 });
+    try {
+      syncStatus.textContent = 'Syncing...';
+      syncStatus.style.display = 'inline';
+      const res = await fetch('/api/tools/barcode-scanner/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cart: cartData, history }),
+        signal: AbortSignal.timeout(10000),
+      });
+      if (res.ok) {
+        syncStatus.textContent = '✓ Synced';
+        setTimeout(() => { syncStatus.style.display = 'none'; }, 3000);
+      } else {
+        syncStatus.textContent = '✕ Sync failed';
+        setTimeout(() => { syncStatus.style.display = 'none'; }, 5000);
+      }
+    } catch {
+      syncStatus.textContent = '✕ Sync error';
+      setTimeout(() => { syncStatus.style.display = 'none'; }, 5000);
+    }
+  }
+
+  syncCartBtn.addEventListener('click', syncToServer);
+  setInterval(syncToServer, 3600000);
 
   let availableCameras = [];
 
@@ -587,15 +624,6 @@ export function init(container) {
     });
     resultDetails.appendChild(addCartBtn);
 
-    marketplaceContainer = document.createElement('div');
-    marketplaceContainer.style.cssText =
-      'display:none;flex-direction:column;gap:0.4rem;padding-top:0.4rem;border-top:1px solid var(--color-border);';
-    const marketplaceLabel = document.createElement('div');
-    marketplaceLabel.textContent = 'Marketplace Listings';
-    marketplaceLabel.style.cssText = 'font-size:0.7rem;font-weight:600;color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.3px;margin-bottom:0.15rem;';
-    marketplaceContainer.appendChild(marketplaceLabel);
-    resultDetails.appendChild(marketplaceContainer);
-
     status.textContent = `Product found via ${source}. Tap card for details.`;
     addToHistory({
       type: 'barcode', format, value,
@@ -630,12 +658,6 @@ export function init(container) {
       showNoProductResult(code, format);
     }
 
-    lookupBackendMarketplace(normalized).then(marketplace => {
-      if (marketplace && (marketplace.amazon || marketplace.flipkart || marketplace.google_shopping || marketplace.buycott || marketplace.saisupermarket)) {
-        addMarketplaceResults(marketplace);
-      }
-    });
-
     addExternalSearchLinks(code, format);
   }
 
@@ -652,14 +674,6 @@ export function init(container) {
       type: 'barcode', format, value: code,
       product: null, productName: `${format.toUpperCase()}: ${code}`,
     });
-    marketplaceContainer = document.createElement('div');
-    marketplaceContainer.style.cssText =
-      'display:none;flex-direction:column;gap:0.4rem;padding-top:0.4rem;border-top:1px solid var(--color-border);';
-    const marketplaceLabel = document.createElement('div');
-    marketplaceLabel.textContent = 'Marketplace Listings';
-    marketplaceLabel.style.cssText = 'font-size:0.7rem;font-weight:600;color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.3px;margin-bottom:0.15rem;';
-    marketplaceContainer.appendChild(marketplaceLabel);
-    resultDetails.appendChild(marketplaceContainer);
   }
 
   async function lookupOpenFoodFacts(code, region) {
@@ -826,89 +840,6 @@ export function init(container) {
       } catch { /* try next proxy */ }
     }
     return null;
-  }
-
-  async function lookupBackendMarketplace(code) {
-    try {
-      const res = await fetch(`/api/tools/barcode-scanner/lookup?barcode=${encodeURIComponent(code)}`, {
-        signal: AbortSignal.timeout(12000),
-      });
-      if (!res.ok) return null;
-      return await res.json();
-    } catch { return null; }
-  }
-
-  let marketplaceContainer = null;
-
-  function addMarketplaceResults(marketplace) {
-    if (!marketplaceContainer) return;
-    marketplaceContainer.innerHTML = '';
-    marketplaceContainer.style.display = 'flex';
-
-    const sources = [
-      { key: 'amazon', label: 'Amazon', icon: '🛒' },
-      { key: 'flipkart', label: 'Flipkart', icon: '🛍️' },
-      { key: 'google_shopping', label: 'Google Shopping', icon: '🔍' },
-      { key: 'buycott', label: 'Buycott', icon: '📋' },
-      { key: 'saisupermarket', label: 'SaiSuperMarket', icon: '🛒' },
-      { key: 'barcodelookup', label: 'BarcodeLookup', icon: '🔎' },
-    ];
-
-    let hasAny = false;
-    for (const src of sources) {
-      const data = marketplace[src.key];
-      if (!data || !data.title) continue;
-      hasAny = true;
-
-      const item = document.createElement('div');
-      item.style.cssText =
-        'display:flex;align-items:center;gap:0.6rem;padding:0.5rem 0.65rem;border-radius:6px;border:1px solid var(--color-border);background:var(--color-bg);text-decoration:none;transition:background 0.15s;cursor:pointer;';
-      item.onmouseenter = () => { item.style.background = 'var(--color-surface)'; };
-      item.onmouseleave = () => { item.style.background = 'var(--color-bg)'; };
-
-      if (data.image) {
-        const img = document.createElement('img');
-        img.src = data.image;
-        img.alt = '';
-        img.style.cssText = 'width:40px;height:40px;border-radius:4px;object-fit:cover;flex-shrink:0;background:var(--color-bg);';
-        item.appendChild(img);
-      }
-
-      const info = document.createElement('div');
-      info.style.cssText = 'flex:1;min-width:0;display:flex;flex-direction:column;gap:1px;';
-
-      const title = document.createElement('div');
-      title.textContent = data.title;
-      title.style.cssText = 'font-size:0.78rem;font-weight:600;color:var(--color-text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;';
-
-      const meta = document.createElement('div');
-      const parts = [src.label];
-      if (data.price) parts.push(data.price);
-      if (data.rating) parts.push(data.rating);
-      meta.textContent = parts.join(' · ');
-      meta.style.cssText = 'font-size:0.7rem;color:var(--color-text-muted);';
-
-      info.appendChild(title);
-      info.appendChild(meta);
-      item.appendChild(info);
-
-      if (data.url) {
-        const openBtn = document.createElement('a');
-        openBtn.href = data.url;
-        openBtn.target = '_blank';
-        openBtn.rel = 'noopener';
-        openBtn.textContent = 'Open';
-        openBtn.style.cssText =
-          'padding:0.25rem 0.55rem;border-radius:5px;border:none;font-size:0.7rem;font-weight:600;cursor:pointer;background:var(--color-primary);color:#fff;text-decoration:none;white-space:nowrap;flex-shrink:0;';
-        item.appendChild(openBtn);
-      }
-
-      marketplaceContainer.appendChild(item);
-    }
-
-    if (!hasAny) {
-      marketplaceContainer.style.display = 'none';
-    }
   }
 
   function addExternalSearchLinks(code, format) {
