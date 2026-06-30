@@ -16,6 +16,7 @@ import Settings from "./pages/Settings";
 import MapPage from "./pages/Map";
 import Locations from "./pages/Locations";
 import Faces from "./pages/Faces";
+import Timeline from "./pages/Timeline";
 import ShareView from "./pages/ShareView";
 import About from "./pages/About";
 import Tools from "./pages/Tools";
@@ -88,6 +89,7 @@ function App() {
           <Route path="/map" element={<MapPage />} />
           <Route path="/locations" element={<Locations />} />
           <Route path="/faces" element={<Faces />} />
+          <Route path="/timeline" element={<Timeline />} />
           <Route path="/about" element={<About />} />
           <Route path="/tools/*" element={<Tools />} />
           <Route path="/view/:fileId" element={<ShareView />} />

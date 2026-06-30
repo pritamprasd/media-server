@@ -155,6 +155,28 @@ def get_file_metadata(file_id):
     return jsonify(meta.to_dict()), 200
 
 
+@api_bp.route("/files/<int:file_id>/metadata", methods=["PATCH"])
+def update_file_metadata(file_id):
+    file_record = db.session.get(ImportedFile, file_id)
+    if not file_record:
+        return jsonify({"error": "File not found"}), 404
+    meta = FileMetadata.query.filter_by(file_id=file_id).first()
+    if not meta:
+        return jsonify({"error": "Metadata not yet available"}), 404
+    data = request.get_json(silent=True) or {}
+    if "date_taken" in data:
+        val = data["date_taken"]
+        if val is None:
+            meta.date_taken = None
+        else:
+            try:
+                meta.date_taken = datetime.fromisoformat(val)
+            except (ValueError, TypeError):
+                return jsonify({"error": "Invalid date_taken format"}), 400
+    db.session.commit()
+    return jsonify(meta.to_dict()), 200
+
+
 @api_bp.route("/files/<int:file_id>/tags", methods=["PATCH"])
 def update_file_tags(file_id):
     file_record = db.session.get(ImportedFile, file_id)

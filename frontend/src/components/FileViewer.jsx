@@ -9,7 +9,7 @@ import {
   ChevronLeft, ChevronRight, Scissors, Palette, Droplets, Eye,
   Grid3X3, Sigma, ChevronDown, FileImage, Drama, Volume2,
   Gauge, Rewind, VolumeX, Type, Info, ExternalLink, Share2, Copy,
-  Wifi, Database,
+  Wifi, Database, Pencil,
 } from "lucide-react";
 import {
   toggleFavorite as toggleFavApi, getFile, getFileMetadata, editFile, deleteFile, updateTags,
@@ -21,6 +21,7 @@ import {
   reverseGeocode,
   listPersons,
   listTags,
+  updateFileMetadata,
 } from "../services/api";
 import Spinner from "./Spinner";
 import { getPref, setPref } from "../services/db";
@@ -147,6 +148,9 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete, onN
   const [deleting, setDeleting] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [exifExpanded, setExifExpanded] = useState(window.innerWidth > 768);
+  const [editingDateTaken, setEditingDateTaken] = useState(false);
+  const [dateTakenInput, setDateTakenInput] = useState("");
+  const [dateSaving, setDateSaving] = useState(false);
   const [tagInput, setTagInput] = useState("");
   const [tagSaving, setTagSaving] = useState(false);
   const [zoom, setZoom] = useState(1);
@@ -665,6 +669,21 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete, onN
   };
 
   const handleTagKeyDown = (e) => { if (e.key === "Enter") { e.preventDefault(); handleAddTag(); } };
+
+  const handleSaveDateTaken = async () => {
+    if (!dateTakenInput) return;
+    setDateSaving(true);
+    try {
+      const dt = new Date(dateTakenInput);
+      const result = await updateFileMetadata(file.id, { date_taken: dt.toISOString() });
+      setMeta((prev) => ({ ...prev, date_taken: result.date_taken }));
+      setEditingDateTaken(false);
+    } catch (e) {
+      console.error("Failed to update date_taken:", e);
+    } finally {
+      setDateSaving(false);
+    }
+  };
 
   const handleRegenerate = async (type) => {
     setRegenerating((p) => ({ ...p, [type]: true }));
@@ -1776,12 +1795,52 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete, onN
                       <span className="viewer-meta-value">{meta.duration.toFixed(1)}s</span>
                     </div>
                   )}
-                  {meta.date_taken && (
-                    <div className="viewer-meta-row">
-                      <span className="viewer-meta-label"><Camera size={12} /> Date Taken</span>
-                      <span className="viewer-meta-value">{new Date(meta.date_taken).toLocaleString()}</span>
-                    </div>
-                  )}
+                  <div className="viewer-meta-row">
+                    <span className="viewer-meta-label"><Camera size={12} /> Date Taken</span>
+                    {editingDateTaken ? (
+                      <span className="viewer-meta-value viewer-date-edit">
+                        <input
+                          type="datetime-local"
+                          className="viewer-date-input"
+                          value={dateTakenInput}
+                          onChange={(e) => setDateTakenInput(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              handleSaveDateTaken();
+                            } else if (e.key === "Escape") {
+                              setEditingDateTaken(false);
+                            }
+                          }}
+                          autoFocus
+                          disabled={dateSaving}
+                        />
+                        <button className="viewer-date-save" onClick={handleSaveDateTaken} disabled={dateSaving} title="Save">
+                          {dateSaving ? <Spinner size={11} /> : <Save size={11} />}
+                        </button>
+                        <button className="viewer-date-cancel" onClick={() => setEditingDateTaken(false)} title="Cancel">
+                          <X size={11} />
+                        </button>
+                      </span>
+                    ) : (
+                      <span className="viewer-meta-value">
+                        {meta.date_taken ? new Date(meta.date_taken).toLocaleString() : "—"}
+                        <button
+                          className="viewer-meta-edit-btn"
+                          onClick={() => {
+                            const d = meta.date_taken ? new Date(meta.date_taken) : new Date();
+                            const pad = (n) => String(n).padStart(2, "0");
+                            setDateTakenInput(
+                              `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+                            );
+                            setEditingDateTaken(true);
+                          }}
+                          title="Edit date taken"
+                        >
+                          <Pencil size={10} />
+                        </button>
+                      </span>
+                    )}
+                  </div>
                   {meta.latitude != null && meta.longitude != null && (
                     <div className="viewer-meta-row">
                       <span className="viewer-meta-label"><MapPin size={12} /> Location</span>

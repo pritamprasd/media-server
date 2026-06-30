@@ -198,6 +198,11 @@ export async function deleteLocation(id) {
   return data;
 }
 
+export async function updateFileMetadata(fileId, payload) {
+  const { data } = await client.patch(`/files/${fileId}/metadata`, payload);
+  return data;
+}
+
 export async function regenerateAiMetadata(fileId) {
   const { data } = await client.post(`/files/${fileId}/regenerate-ai`);
   return data;
@@ -283,6 +288,17 @@ export async function getFaceStats() {
 
 export async function listFileFaces(fileId) {
   const { data } = await client.get(`/files/${fileId}/faces`);
+  return data;
+}
+
+export async function getPersonTimeline(personId, timeframe = "year", dateFrom, dateTo, personIds) {
+  const params = { timeframe };
+  if (dateFrom) params.date_from = dateFrom;
+  if (dateTo) params.date_to = dateTo;
+  if (personIds && personIds.length > 0) {
+    params.person_ids = personIds.join(",");
+  }
+  const { data } = await client.get(`/persons/${personId}/timeline`, { params });
   return data;
 }
 

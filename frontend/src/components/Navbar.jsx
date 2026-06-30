@@ -4,7 +4,7 @@ import { useTheme } from "../contexts/ThemeContext";
 import {
   House, FileUp, FolderOpen, Heart, Upload, Compass,
   CopyCheck, BarChart3, Settings, MapPin, MapPinned,
-  Scan, Info, Puzzle, Sun, Moon, Menu, X, GripVertical,
+  Scan, Info, Puzzle, Clock, Sun, Moon, Menu, X, GripVertical,
 } from "lucide-react";
 import { getPref, setPref } from "../services/db";
 import "./Navbar.css";
@@ -19,6 +19,7 @@ const DEFAULT_LINKS = [
   { to: "/map", label: "Map", icon: MapPin },
   { to: "/locations", label: "Locations", icon: MapPinned },
   { to: "/faces", label: "Faces", icon: Scan },
+  { to: "/timeline", label: "Timeline", icon: Clock },
   { to: "/duplicates", label: "Duplicates", icon: CopyCheck },
   { to: "/statistics", label: "Statistics", icon: BarChart3 },
   { to: "/tools", label: "Tools", icon: Puzzle },

@@ -1,4 +1,6 @@
 import os
+import random
+from datetime import datetime, timedelta
 
 from flask import jsonify, request
 
@@ -7,6 +9,7 @@ from app.api import api_bp
 from app.models.imported_file import ImportedFile
 from app.models.person import Person
 from app.models.detected_face import DetectedFace
+from app.models.file_metadata import FileMetadata
 from app.tasks import detect_faces
 
 
@@ -317,6 +320,218 @@ def list_file_faces(file_id):
             d["person_name"] = None
         result.append(d)
     return jsonify(result), 200
+
+
+@api_bp.route("/persons/<int:person_id>/timeline", methods=["GET"])
+def person_timeline(person_id):
+    person = db.session.get(Person, person_id)
+    if not person:
+        return jsonify({"error": "Person not found"}), 404
+
+    timeframe = request.args.get("timeframe", "year")
+    date_from_str = request.args.get("date_from")
+    date_to_str = request.args.get("date_to")
+
+    person_ids_param = request.args.get("person_ids")
+    if person_ids_param:
+        ids = [int(pid.strip()) for pid in person_ids_param.split(",") if pid.strip().isdigit()]
+        if not ids:
+            ids = [person_id]
+    else:
+        ids = [person_id]
+
+    file_subq = db.session.query(
+        DetectedFace.file_id
+    ).filter(
+        DetectedFace.person_id.in_(ids)
+    ).group_by(
+        DetectedFace.file_id
+    ).having(
+        db.func.count(db.func.distinct(DetectedFace.person_id)) == len(ids)
+    ).subquery()
+
+    rows = db.session.query(
+        ImportedFile.id,
+        ImportedFile.filename,
+        ImportedFile.mime_type,
+        ImportedFile.created_at,
+        FileMetadata.date_taken,
+        FileMetadata.thumbnail,
+    ).join(
+        file_subq, ImportedFile.id == file_subq.c.file_id
+    ).outerjoin(
+        FileMetadata, ImportedFile.id == FileMetadata.file_id
+    ).filter(
+        ImportedFile.deleted != True,
+        ImportedFile.mime_type.like("image/%"),
+    ).all()
+
+    if not rows:
+        return jsonify({
+            "timeline": [],
+            "person_id": person_id,
+            "person_name": person.name,
+            "timeframe": timeframe,
+        })
+
+    dated = []
+    for r in rows:
+        dt = r.date_taken or r.created_at
+        if dt is not None:
+            dated.append({
+                "id": r.id,
+                "filename": r.filename,
+                "mime_type": r.mime_type,
+                "thumbnail": r.thumbnail,
+                "date": dt,
+            })
+
+    if not dated:
+        return jsonify({
+            "timeline": [],
+            "person_id": person_id,
+            "person_name": person.name,
+            "timeframe": timeframe,
+        })
+
+    dated.sort(key=lambda x: x["date"])
+    actual_min = dated[0]["date"]
+    actual_max = dated[-1]["date"]
+
+    date_from = None
+    date_to = None
+    if date_from_str:
+        try:
+            date_from = datetime.fromisoformat(date_from_str)
+        except (ValueError, TypeError):
+            pass
+    if date_to_str:
+        try:
+            date_to = datetime.fromisoformat(date_to_str)
+        except (ValueError, TypeError):
+            pass
+
+    if date_from or date_to:
+        filtered = []
+        for f in dated:
+            if date_from and f["date"] < date_from:
+                continue
+            if date_to and f["date"] > date_to:
+                continue
+            filtered.append(f)
+        dated = filtered
+        if not dated:
+            return jsonify({
+                "timeline": [],
+                "person_id": person_id,
+                "person_name": person.name,
+                "timeframe": timeframe,
+            })
+
+    min_date = dated[0]["date"]
+    max_date = dated[-1]["date"]
+
+    # Calendar-aligned bucket helpers
+    def _make_year_key(dt):
+        return dt.year
+
+    def _make_year_start(key):
+        return datetime(key, 1, 1)
+
+    def _make_year_end(key):
+        return datetime(key + 1, 1, 1)
+
+    def _make_month_key(dt):
+        return dt.year * 12 + dt.month - 1
+
+    def _make_month_start(key):
+        y = key // 12
+        m = key % 12 + 1
+        return datetime(y, m, 1)
+
+    def _make_month_end(key):
+        y = key // 12
+        m = key % 12 + 1
+        if m == 12:
+            return datetime(y + 1, 1, 1)
+        return datetime(y, m + 1, 1)
+
+    def _make_week_key(dt):
+        iso = dt.isocalendar()
+        monday = dt - timedelta(days=iso[2] - 1)
+        return monday.toordinal()
+
+    def _make_week_start(key):
+        return datetime.fromordinal(key)
+
+    def _make_week_end(key):
+        return datetime.fromordinal(key + 7)
+
+    def _make_day_key(dt):
+        return dt.toordinal()
+
+    def _make_day_start(key):
+        return datetime.fromordinal(key)
+
+    def _make_day_end(key):
+        return datetime.fromordinal(key + 1)
+
+    helpers = {
+        "year": (_make_year_key, _make_year_start, _make_year_end),
+        "month": (_make_month_key, _make_month_start, _make_month_end),
+        "week": (_make_week_key, _make_week_start, _make_week_end),
+        "day": (_make_day_key, _make_day_start, _make_day_end),
+    }
+
+    bucket_key, bucket_start, bucket_end = helpers.get(
+        timeframe, helpers["year"]
+    )
+
+    keys = [bucket_key(f["date"]) for f in dated]
+    min_key = min(keys)
+    max_key = max(keys)
+    num_buckets = max_key - min_key + 1
+
+    buckets = [[] for _ in range(num_buckets)]
+    for f in dated:
+        k = bucket_key(f["date"])
+        idx = k - min_key
+        buckets[idx].append(f)
+
+    result_timeline = []
+    total_count = 0
+    for i, bucket in enumerate(buckets):
+        if not bucket:
+            continue
+        chosen = random.choice(bucket)
+        k = min_key + i
+        result_timeline.append({
+            "index": i,
+            "start": bucket_start(k).isoformat(),
+            "end": bucket_end(k).isoformat(),
+            "file": {
+                "id": chosen["id"],
+                "filename": chosen["filename"],
+                "mime_type": chosen["mime_type"],
+                "thumbnail": chosen["thumbnail"],
+                "date_taken": chosen["date"].isoformat(),
+            },
+            "count": len(bucket),
+        })
+        total_count += 1
+
+    return jsonify({
+        "person_ids": ids,
+        "person_names": [p.name for p in Person.query.filter(Person.id.in_(ids)).all()],
+        "timeframe": timeframe,
+        "date_from": date_from_str,
+        "date_to": date_to_str,
+        "range_start": min_date.isoformat(),
+        "range_end": max_date.isoformat(),
+        "actual_range_start": actual_min.isoformat(),
+        "actual_range_end": actual_max.isoformat(),
+        "timeline": result_timeline,
+    })
 
 
 @api_bp.route("/faces/stats", methods=["GET"])

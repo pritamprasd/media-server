@@ -596,6 +596,82 @@
   text-align: left;
 }
 
+.viewer-meta-edit-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border: none;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  flex-shrink: 0;
+  opacity: 0;
+  transition: all 0.15s;
+}
+
+.viewer-meta-row:hover .viewer-meta-edit-btn {
+  opacity: 1;
+}
+
+.viewer-meta-edit-btn:hover {
+  background: var(--neu-flat);
+  color: var(--color-primary);
+}
+
+.viewer-date-edit {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.viewer-date-input {
+  padding: 0.2rem 0.35rem;
+  border: 1px solid var(--color-primary);
+  border-radius: 4px;
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-size: 0.75rem;
+  font-family: inherit;
+  outline: none;
+  max-width: 200px;
+}
+
+.viewer-date-save,
+.viewer-date-cancel {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border: none;
+  border-radius: 3px;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: all 0.15s;
+}
+
+.viewer-date-save {
+  background: var(--color-primary);
+  color: #fff;
+}
+
+.viewer-date-save:hover { opacity: 0.9; }
+
+.viewer-date-save:disabled { opacity: 0.5; cursor: default; }
+
+.viewer-date-cancel {
+  background: transparent;
+  color: var(--color-text-muted);
+}
+
+.viewer-date-cancel:hover {
+  background: var(--neu-flat);
+  color: var(--color-text);
+}
+
 .viewer-path-copy {
   display: inline-flex;
   align-items: center;
