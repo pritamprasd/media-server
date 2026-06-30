@@ -2853,7 +2853,7 @@ def barcode_scanner_lookup():
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
     }
     timeout = 8
-    result = {"amazon": None, "flipkart": None, "google_shopping": None, "barcodelookup": None}
+    result = {"amazon": None, "flipkart": None, "google_shopping": None, "barcodelookup": None, "buycott": None, "saisupermarket": None}
 
     # 1. BarcodeLookup.com
     try:
@@ -2870,11 +2870,15 @@ def barcode_scanner_lookup():
             image = img_el.get("src") if img_el else None
             if image and image.startswith("//"):
                 image = "https:" + image
+            rating_el_bl = soup.select_one(".product-rating, .rating, .average-rating, [class*='rating'], .star-rating")
+            price_el_bl = soup.select_one(".product-price, .price, span.price, .product-offer-price")
             if title_el:
                 result["barcodelookup"] = {
                     "title": title_el.get_text(strip=True),
                     "brand": brand_el.get_text(strip=True) if brand_el else "",
                     "description": desc_el.get_text(strip=True) if desc_el else "",
+                    "price": price_el_bl.get_text(strip=True) if price_el_bl else "",
+                    "rating": rating_el_bl.get_text(strip=True) if rating_el_bl else "",
                     "image": image or "",
                 }
     except Exception:
@@ -2898,9 +2902,11 @@ def barcode_scanner_lookup():
                 title = title_el.get_text(strip=True) if title_el else None
                 if title:
                     price = price_el.get_text(strip=True) if price_el else ""
+                    rating_el = card.select_one(".a-icon-alt")
                     result["amazon"] = {
                         "title": title,
                         "price": price,
+                        "rating": rating_el.get_text(strip=True) if rating_el else "",
                         "image": img_el.get("src") if img_el else "",
                         "url": "https://www.amazon.in" + link_el.get("href") if link_el and link_el.get("href") else "",
                     }
@@ -2931,9 +2937,11 @@ def barcode_scanner_lookup():
                     href = link_el.get("href") if link_el else ""
                     if href and not href.startswith("http"):
                         href = "https://www.flipkart.com" + href
+                    rating_el_flip = card.select_one("._3LWZlK, ._1xHGtK ._3LWZlK, ._5THWM1, [class*='rating'], .gUuXy- span")
                     result["flipkart"] = {
                         "title": title,
                         "price": price_el.get_text(strip=True) if price_el else "",
+                        "rating": rating_el_flip.get_text(strip=True) if rating_el_flip else "",
                         "image": img_el.get("src") if img_el else "",
                         "url": href,
                     }
@@ -2960,12 +2968,91 @@ def barcode_scanner_lookup():
                     href = link_el.get("href") if link_el else ""
                     if href and href.startswith("/"):
                         href = "https://www.google.com" + href
+                    rating_el_gs = card.select_one(".Rsc7Yb, .aVNGD, [aria-label*='star'], .star-rating")
                     result["google_shopping"] = {
                         "title": title,
                         "price": price_el.get_text(strip=True) if price_el else "",
+                        "rating": rating_el_gs.get_text(strip=True) if rating_el_gs else "",
                         "image": img_el.get("src") if img_el and img_el.get("src") and not img_el.get("src", "").startswith("data:") else "",
                         "url": href,
                     }
+    except Exception:
+        pass
+
+    try:
+        buycott_url = f"https://www.buycott.com/upc/{barcode}"
+        resp = http_requests.get(buycott_url, headers=headers, timeout=15)
+        if resp.ok:
+            soup = BeautifulSoup(resp.text, "lxml")
+            rows = soup.select("table tr, .product-details tr, .item-info tr, .result-row")
+            title_el = soup.select_one("h1, .product-title, .product-name, .item-name, .product-title, span.product-name")
+            if not title_el and rows:
+                first_title = rows[0].select_one("td, a")
+                if first_title:
+                    title_el = first_title
+            title = title_el.get_text(strip=True) if title_el else ""
+            if title:
+                price_el = soup.select_one(".price, .product-price, .item-price, span.price")
+                rating_el_bc = soup.select_one(".rating, .product-rating, .star-rating, [class*='rating'], .average")
+                result["buycott"] = {
+                    "title": title,
+                    "price": price_el.get_text(strip=True) if price_el else "",
+                    "rating": rating_el_bc.get_text(strip=True) if rating_el_bc else "",
+                    "image": "",
+                    "url": buycott_url,
+                }
+    except Exception:
+        pass
+
+    try:
+        sai_url = f"https://www.saisupermarket.in/search?q={urllib.parse.quote(barcode)}"
+        resp = http_requests.get(sai_url, headers=headers, timeout=15)
+        if resp.ok:
+            soup = BeautifulSoup(resp.text, "lxml")
+            card = soup.select_one(".product-item, [class*='product'], .item, .product-card")
+            title_el = None
+            if card:
+                title_el = card.select_one(
+                    ".product-title, .name, .title, h3, h4, a[href*='/product/'], a[href*='/p/']"
+                )
+            if not title_el:
+                title_el = soup.select_one(
+                    "a[href*='/product/'] img[alt], a[href*='/p/'] img[alt], "
+                    ".search-result-item a, .product-item a"
+                )
+            if not title_el and card:
+                all_links = card.select("a")
+                if all_links:
+                    title_candidate = all_links[0].get("title") or all_links[0].text.strip()
+                    if title_candidate:
+                        title_el = all_links[0]
+            title = ""
+            if title_el:
+                title = (
+                    title_el.get("title")
+                    or title_el.get_text(strip=True)
+                    or ""
+                )
+            if not title:
+                fallback = soup.select_one("h1, h2, .page-title")
+                if fallback:
+                    title = fallback.get_text(strip=True)
+            if title:
+                price_el_sai = (
+                    soup.select_one(
+                        ".price, .product-price, .sale-price, .offer-price, "
+                        ".discounted-price, [class*='price']"
+                    )
+                    if card
+                    else None
+                )
+                result["saisupermarket"] = {
+                    "title": title,
+                    "price": price_el_sai.get_text(strip=True) if price_el_sai else "",
+                    "rating": "",
+                    "image": "",
+                    "url": sai_url,
+                }
     except Exception:
         pass
 

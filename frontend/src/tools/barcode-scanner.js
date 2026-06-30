@@ -154,7 +154,48 @@ export function init(container) {
 
   wrapper.appendChild(historySection);
 
+  const CART_KEY = 'barcode_scanner_cart';
+  let cart = [];
+
+  const cartSection = document.createElement('div');
+  cartSection.style.cssText = 'display:none;flex-direction:column;gap:0.5rem;';
+
+  const cartHeader = document.createElement('div');
+  cartHeader.style.cssText = 'display:flex;align-items:center;justify-content:space-between;';
+
+  const cartTitle = document.createElement('div');
+  cartTitle.textContent = 'Cart';
+  cartTitle.style.cssText = 'font-size:0.9rem;font-weight:600;color:var(--color-text);';
+
+  const cartActions = document.createElement('div');
+  cartActions.style.cssText = 'display:flex;gap:0.4rem;';
+
+  const clearCartBtn = document.createElement('button');
+  clearCartBtn.textContent = 'Clear Cart';
+  clearCartBtn.style.cssText = 'padding:0.25rem 0.6rem;border:1px solid var(--color-border);border-radius:6px;font-size:0.72rem;cursor:pointer;background:none;color:var(--color-text-muted);';
+
+  const cartCount = document.createElement('span');
+  cartCount.textContent = '0 items';
+  cartCount.style.cssText = 'font-size:0.72rem;color:var(--color-text-muted);';
+
+  cartActions.appendChild(cartCount);
+  cartActions.appendChild(clearCartBtn);
+  cartHeader.appendChild(cartTitle);
+  cartHeader.appendChild(cartActions);
+
+  const cartList = document.createElement('div');
+  cartList.style.cssText = 'display:flex;flex-direction:column;gap:0.35rem;';
+
+  const cartSummary = document.createElement('div');
+  cartSummary.style.cssText = 'display:none;flex-direction:column;gap:0.35rem;padding:0.5rem 0.65rem;border-radius:6px;border:1px solid var(--color-border);background:var(--color-bg);font-size:0.78rem;';
+
+  cartSection.appendChild(cartHeader);
+  cartSection.appendChild(cartList);
+  cartSection.appendChild(cartSummary);
+  wrapper.appendChild(cartSection);
+
   loadHistory();
+  loadCart();
 
   let availableCameras = [];
 
@@ -375,20 +416,34 @@ export function init(container) {
     resultTitle.textContent = name;
     resultSub.textContent = [brand, format.toUpperCase(), source].filter(Boolean).join(' · ');
 
+    const barcodeRow = document.createElement('div');
+    barcodeRow.style.cssText = 'display:flex;align-items:center;gap:0.35rem;padding:0 0.85rem 0.35rem;';
+    const barcodeLabel = document.createElement('span');
+    barcodeLabel.textContent = value;
+    barcodeLabel.style.cssText = 'font-size:0.72rem;color:var(--color-text-muted);font-family:monospace;';
+    const copyBarcode = makeCopyBtn(value, 'Copy barcode');
+    barcodeRow.appendChild(barcodeLabel);
+    barcodeRow.appendChild(copyBarcode);
+    resultCard.insertBefore(barcodeRow, resultDetails);
+
     resultDetails.style.display = 'none';
     expandIcon.style.transform = 'rotate(0deg)';
     resultDetails.innerHTML = '';
 
     const detailFields = [];
 
+    if (product.price) {
+      detailFields.push({ label: 'Price', value: product.price });
+    }
+    if (product.rating) {
+      detailFields.push({ label: 'Rating', value: product.rating });
+    }
+
     if (product.description_html || product.description) {
       detailFields.push({ label: 'Description', value: product.description_html || product.description });
     }
     if (product.categories) {
       detailFields.push({ label: 'Categories', value: product.categories });
-    }
-    if (product.ingredients_text) {
-      detailFields.push({ label: 'Ingredients', value: product.ingredients_text });
     }
     if (product.quantity) {
       detailFields.push({ label: 'Quantity', value: product.quantity });
@@ -420,14 +475,19 @@ export function init(container) {
     } else {
       for (const field of detailFields) {
         const row = document.createElement('div');
-        row.style.cssText = 'display:flex;flex-direction:column;gap:2px;';
+        row.style.cssText = 'display:flex;flex-direction:column;gap:2px;position:relative;';
+        const labelRow = document.createElement('div');
+        labelRow.style.cssText = 'display:flex;align-items:center;gap:0.35rem;';
         const label = document.createElement('div');
         label.textContent = field.label;
         label.style.cssText = 'font-size:0.72rem;font-weight:600;color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.3px;';
+        const copyField = makeCopyBtn(field.value, 'Copy ' + field.label);
+        labelRow.appendChild(label);
+        labelRow.appendChild(copyField);
         const value_el = document.createElement('div');
         value_el.textContent = field.value;
-        value_el.style.cssText = 'font-size:0.82rem;color:var(--color-text);line-height:1.4;';
-        row.appendChild(label);
+        value_el.style.cssText = 'font-size:0.82rem;color:var(--color-text);line-height:1.4;word-break:break-word;';
+        row.appendChild(labelRow);
         row.appendChild(value_el);
         resultDetails.appendChild(row);
       }
@@ -454,6 +514,79 @@ export function init(container) {
       resultDetails.appendChild(nutritionImg);
     }
 
+    if (product.ingredients_text) {
+      const ingredients = product.ingredients_text.split(',').map(s => {
+        const trimmed = s.trim();
+        const pctMatch = trimmed.match(/^(.+?)\s*\((\d+[\d.,]*\s*%)\)$/);
+        if (pctMatch) return { name: pctMatch[1].trim(), pct: pctMatch[2].trim() };
+        const pctAlt = trimmed.match(/^(.+?)\s+(\d+[\d.,]*%)$/);
+        if (pctAlt) return { name: pctAlt[1].trim(), pct: pctAlt[2].trim() };
+        return { name: trimmed, pct: '' };
+      }).filter(i => i.name);
+
+      const tableSection = document.createElement('div');
+      tableSection.style.cssText = 'padding-top:0.4rem;border-top:1px solid var(--color-border);';
+
+      const tableLabel = document.createElement('div');
+      tableLabel.textContent = 'Ingredients';
+      tableLabel.style.cssText = 'font-size:0.7rem;font-weight:600;color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.3px;margin-bottom:0.25rem;';
+
+      const table = document.createElement('table');
+      table.style.cssText = 'width:100%;border-collapse:collapse;font-size:0.78rem;';
+
+      const thead = document.createElement('thead');
+      const hRow = document.createElement('tr');
+      ['#', 'Ingredient', '%'].forEach((h, i) => {
+        const th = document.createElement('th');
+        th.textContent = h;
+        th.style.cssText = `text-align:${i === 0 ? 'center' : i === 2 ? 'right' : 'left'};padding:0.3rem 0.4rem;border-bottom:1px solid var(--color-border);color:var(--color-text-muted);font-weight:600;font-size:0.7rem;text-transform:uppercase;letter-spacing:0.3px;white-space:nowrap;`;
+        hRow.appendChild(th);
+      });
+      thead.appendChild(hRow);
+      table.appendChild(thead);
+
+      const tbody = document.createElement('tbody');
+      ingredients.forEach((ing, idx) => {
+        const r = document.createElement('tr');
+        r.style.cssText = 'transition:background 0.1s;';
+        r.onmouseenter = () => { r.style.background = 'var(--color-bg)'; };
+        r.onmouseleave = () => { r.style.background = ''; };
+        const cells = [
+          { text: String(idx + 1), align: 'center' },
+          { text: ing.name, align: 'left' },
+          { text: ing.pct, align: 'right' },
+        ];
+        cells.forEach(c => {
+          const td = document.createElement('td');
+          td.textContent = c.text;
+          td.style.cssText = `text-align:${c.align};padding:0.25rem 0.4rem;border-bottom:1px solid var(--color-border);color:var(--color-text);vertical-align:middle;white-space:${c.align === 'left' ? 'normal' : 'nowrap'};`;
+          if (c.align === 'left') td.style.wordBreak = 'break-word';
+          r.appendChild(td);
+        });
+        tbody.appendChild(r);
+      });
+      table.appendChild(tbody);
+      tableSection.appendChild(tableLabel);
+      tableSection.appendChild(table);
+      resultDetails.appendChild(tableSection);
+    }
+
+    const addCartBtn = document.createElement('button');
+    addCartBtn.textContent = 'Add to Cart';
+    addCartBtn.style.cssText =
+      'padding:0.45rem 0.9rem;border:none;border-radius:6px;font-size:0.78rem;font-weight:600;cursor:pointer;background:var(--color-primary);color:#fff;align-self:flex-start;margin-top:0.25rem;transition:opacity 0.15s;';
+    addCartBtn.addEventListener('click', () => {
+      addCartItem({
+        barcode: value,
+        productName: name,
+        brand,
+        priceText: product.price || '',
+        imageUrl: imageUrl || '',
+        source,
+      });
+    });
+    resultDetails.appendChild(addCartBtn);
+
     marketplaceContainer = document.createElement('div');
     marketplaceContainer.style.cssText =
       'display:none;flex-direction:column;gap:0.4rem;padding-top:0.4rem;border-top:1px solid var(--color-border);';
@@ -479,6 +612,8 @@ export function init(container) {
       lookupOpenFoodFacts(normalized, 'in'),
       lookupDatakick(normalized),
       lookupBarcodeLookup(normalized),
+      lookupBuycott(normalized),
+      lookupSaiSupermarket(normalized),
     ]);
 
     let found = false;
@@ -496,7 +631,7 @@ export function init(container) {
     }
 
     lookupBackendMarketplace(normalized).then(marketplace => {
-      if (marketplace && (marketplace.amazon || marketplace.flipkart || marketplace.google_shopping)) {
+      if (marketplace && (marketplace.amazon || marketplace.flipkart || marketplace.google_shopping || marketplace.buycott || marketplace.saisupermarket)) {
         addMarketplaceResults(marketplace);
       }
     });
@@ -568,6 +703,43 @@ export function init(container) {
     } catch { return null; }
   }
 
+  async function lookupBuycott(code) {
+    const url = `https://www.buycott.com/upc/${encodeURIComponent(code)}`;
+    const proxies = [
+      u => `https://corsproxy.io/?url=${encodeURIComponent(u)}`,
+      u => `https://api.cors.syrins.tech/?url=${encodeURIComponent(u)}`,
+    ];
+    for (const proxy of proxies) {
+      try {
+        const res = await fetch(proxy(url), { signal: AbortSignal.timeout(6000) });
+        if (!res.ok) continue;
+        const html = await res.text();
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(html, 'text/html');
+        const titleEl = doc.querySelector('h1, .product-title, .product-name, .item-name');
+        const brandEl = doc.querySelector('.brand, .product-brand, .brand-name, .manufacturer');
+        const descEl = doc.querySelector('.description, .product-description, p.description, [class*="desc"]');
+        const imgEl = doc.querySelector('img[src*="product"], img[src*="upc"], .product-image img, .main-image img');
+        const priceEl = doc.querySelector('.price, .product-price, .item-price, span.price, [class*="price"]');
+        const ratingEl = doc.querySelector('.rating, .product-rating, .star-rating, [class*="rating"], .average');
+        if (titleEl) {
+          return {
+            product: {
+              product_name: titleEl.textContent.trim(),
+              brands: brandEl ? brandEl.textContent.trim() : '',
+              description: descEl ? descEl.textContent.trim() : '',
+              image_url: imgEl ? (imgEl.getAttribute('src') || '').replace(/^\/\//, 'https://') : '',
+              price: priceEl ? priceEl.textContent.trim().substring(0, 100) : '',
+              rating: ratingEl ? ratingEl.textContent.trim().substring(0, 50) : '',
+            },
+            source: 'Buycott',
+          };
+        }
+      } catch { /* try next proxy */ }
+    }
+    return null;
+  }
+
   async function lookupBarcodeLookup(code) {
     const proxies = [
       u => `https://corsproxy.io/?url=${encodeURIComponent(u)}`,
@@ -585,6 +757,8 @@ export function init(container) {
         const brandEl = doc.querySelector('.brand, .product-brand, .brand-name');
         const descEl = doc.querySelector('.product-description, .description, p.description');
         const imgEl = doc.querySelector('.product-image img, .main-image img, img.product-img');
+        const priceEl = doc.querySelector('.product-price, .price, span.price, .product-offer-price');
+        const ratingEl = doc.querySelector('.product-rating, .rating, .average-rating, [class*="rating"], .star-rating');
         if (titleEl) {
           return {
             product: {
@@ -592,8 +766,61 @@ export function init(container) {
               brands: brandEl ? brandEl.textContent.trim() : '',
               description: descEl ? descEl.textContent.trim() : '',
               image_url: imgEl ? (imgEl.getAttribute('src') || '').replace(/^\/\//, 'https://') : '',
+              price: priceEl ? priceEl.textContent.trim() : '',
+              rating: ratingEl ? ratingEl.textContent.trim() : '',
             },
             source: 'BarcodeLookup',
+          };
+        }
+      } catch { /* try next proxy */ }
+    }
+    return null;
+  }
+
+  async function lookupSaiSupermarket(code) {
+    const proxies = [
+      u => `https://corsproxy.io/?url=${encodeURIComponent(u)}`,
+      u => `https://api.cors.syrins.tech/?url=${encodeURIComponent(u)}`,
+    ];
+    for (const proxy of proxies) {
+      try {
+        const url = proxy(`https://www.saisupermarket.in/search?q=${encodeURIComponent(code)}`);
+        const res = await fetch(url, { signal: AbortSignal.timeout(6000) });
+        if (!res.ok) continue;
+        const html = await res.text();
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(html, 'text/html');
+        const card = doc.querySelector('.product-item, [class*="product"], .item, .product-card, .search-result-item');
+        if (!card) {
+          const link = doc.querySelector(`a[href*="/product/"], a[href*="/p/"], a[href*="/item/"]`);
+          if (!link) continue;
+          const title2 = link.getAttribute('title') || link.textContent.trim();
+          if (title2) {
+            return {
+              product: {
+                product_name: title2,
+                price: '',
+                rating: '',
+              },
+              source: 'SaiSuperMarket',
+            };
+          }
+          continue;
+        }
+        const titleEl = card.querySelector('.product-title, .name, .title, h3, h4, a[href*="/product/"], a[href*="/p/"]');
+        const priceEl = card.querySelector('.price, .product-price, .sale-price, .offer-price, .discounted-price');
+        const ratingEl = card.querySelector('.rating, .star-rating, .stars, .product-rating');
+        const imgEl = card.querySelector('img[src*="product"], img[src*="upload"], .product-image img');
+        const title = titleEl ? (titleEl.textContent || titleEl.getAttribute('title') || '').trim() : '';
+        if (title) {
+          return {
+            product: {
+              product_name: title,
+              price: priceEl ? priceEl.textContent.trim().substring(0, 100) : '',
+              rating: ratingEl ? ratingEl.textContent.trim().substring(0, 50) : '',
+              image_url: imgEl ? (imgEl.getAttribute('src') || '').replace(/^\/\//, 'https://') : '',
+            },
+            source: 'SaiSuperMarket',
           };
         }
       } catch { /* try next proxy */ }
@@ -622,6 +849,9 @@ export function init(container) {
       { key: 'amazon', label: 'Amazon', icon: '🛒' },
       { key: 'flipkart', label: 'Flipkart', icon: '🛍️' },
       { key: 'google_shopping', label: 'Google Shopping', icon: '🔍' },
+      { key: 'buycott', label: 'Buycott', icon: '📋' },
+      { key: 'saisupermarket', label: 'SaiSuperMarket', icon: '🛒' },
+      { key: 'barcodelookup', label: 'BarcodeLookup', icon: '🔎' },
     ];
 
     let hasAny = false;
@@ -654,6 +884,7 @@ export function init(container) {
       const meta = document.createElement('div');
       const parts = [src.label];
       if (data.price) parts.push(data.price);
+      if (data.rating) parts.push(data.rating);
       meta.textContent = parts.join(' · ');
       meta.style.cssText = 'font-size:0.7rem;color:var(--color-text-muted);';
 
@@ -689,6 +920,8 @@ export function init(container) {
       { label: 'Amazon', url: searchUrl('https://www.amazon.in/s?k={code}') },
       { label: 'Flipkart', url: searchUrl('https://www.flipkart.com/search?q={code}') },
       { label: 'Google Shopping', url: searchUrl('https://www.google.com/search?q={code}&tbm=shop') },
+      { label: 'Buycott', url: searchUrl('https://www.buycott.com/upc/{code}') },
+      { label: 'SaiSuperMarket', url: searchUrl('https://www.saisupermarket.in/search?q={code}') },
     ];
 
     const row = document.createElement('div');
@@ -708,6 +941,36 @@ export function init(container) {
     }
 
     resultDetails.appendChild(row);
+  }
+
+  function copyToClipboard(text) {
+    navigator.clipboard.writeText(text).catch(() => {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.cssText = 'position:fixed;opacity:0;';
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+    });
+  }
+
+  function makeCopyBtn(text, tooltip) {
+    const btn = document.createElement('button');
+    btn.textContent = '📋';
+    btn.title = tooltip || 'Copy';
+    btn.style.cssText =
+      'padding:2px 5px;border:none;border-radius:4px;font-size:0.72rem;cursor:pointer;background:none;opacity:0.5;transition:opacity 0.15s;flex-shrink:0;';
+    btn.onmouseenter = () => { btn.style.opacity = '1'; };
+    btn.onmouseleave = () => { btn.style.opacity = '0.5'; };
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      copyToClipboard(text);
+      const orig = btn.textContent;
+      btn.textContent = '✓';
+      setTimeout(() => { btn.textContent = orig; }, 1200);
+    });
+    return btn;
   }
 
   async function addToHistory(entry) {
@@ -780,6 +1043,251 @@ export function init(container) {
         ts: Date.now(),
       }));
     } catch { void 0; }
+  }
+
+  function parsePrice(text) {
+    if (!text) return 0;
+    const cleaned = text.replace(/[^0-9.,]/g, '').replace(/,/g, '');
+    const val = parseFloat(cleaned);
+    return isNaN(val) ? 0 : val;
+  }
+
+  function formatPrice(amt) {
+    return '₹' + amt.toFixed(2);
+  }
+
+  function addCartItem({ barcode, productName, brand, priceText, imageUrl, source }) {
+    const existing = cart.find(i => i.barcode === barcode);
+    if (existing) {
+      existing.qty += 1;
+    } else {
+      cart.push({
+        barcode,
+        productName,
+        brand,
+        price: parsePrice(priceText),
+        qty: 1,
+        discount: 0,
+        imageUrl,
+        source,
+        addedAt: Date.now(),
+      });
+    }
+    saveCart();
+    renderCart();
+  }
+
+  async function saveCart() {
+    await setPref(CART_KEY, { items: cart, flatDiscount });
+    updateCartCount();
+  }
+
+  async function loadCart() {
+    const data = await getPref(CART_KEY, { items: [], flatDiscount: 0 });
+    cart = data.items || [];
+    flatDiscount = data.flatDiscount || 0;
+    if (cart.length > 0) {
+      renderCart();
+    }
+  }
+
+  function updateCartCount() {
+    const total = cart.reduce((s, i) => s + i.qty, 0);
+    cartCount.textContent = total + ' item' + (total !== 1 ? 's' : '');
+    cartSection.style.display = total > 0 ? 'flex' : 'none';
+  }
+
+  function renderCart() {
+    cartList.innerHTML = '';
+    updateCartCount();
+
+    let subtotal = 0;
+    let totalItemDiscount = 0;
+
+    cart.forEach((item, idx) => {
+      const itemTotal = item.price * item.qty;
+      const itemDiscAmt = item.discount * item.qty;
+      const lineTotal = itemTotal - itemDiscAmt;
+      subtotal += itemTotal;
+      totalItemDiscount += itemDiscAmt;
+
+      const row = document.createElement('div');
+      row.style.cssText = 'display:flex;align-items:center;gap:0.5rem;padding:0.4rem 0.5rem;border-radius:6px;border:1px solid var(--color-border);background:var(--color-bg);font-size:0.75rem;';
+
+      const thumb = document.createElement('img');
+      thumb.style.cssText = 'width:32px;height:32px;border-radius:4px;object-fit:cover;flex-shrink:0;background:var(--color-surface);';
+      if (item.imageUrl) {
+        thumb.src = item.imageUrl;
+        thumb.onerror = () => { thumb.style.display = 'none'; };
+      } else {
+        thumb.style.display = 'none';
+      }
+
+      const info = document.createElement('div');
+      info.style.cssText = 'flex:1;min-width:0;display:flex;flex-direction:column;gap:1px;';
+
+      const nameEl = document.createElement('div');
+      nameEl.textContent = item.productName;
+      nameEl.style.cssText = 'font-weight:600;color:var(--color-text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:0.75rem;';
+
+      const metaEl = document.createElement('div');
+      const parts = [];
+      if (item.brand) parts.push(item.brand);
+      parts.push(formatPrice(item.price) + ' ea');
+      metaEl.textContent = parts.join(' · ');
+      metaEl.style.cssText = 'font-size:0.68rem;color:var(--color-text-muted);';
+
+      info.appendChild(nameEl);
+      info.appendChild(metaEl);
+
+      const qtyControls = document.createElement('div');
+      qtyControls.style.cssText = 'display:flex;align-items:center;gap:0.2rem;flex-shrink:0;';
+
+      const decBtn = document.createElement('button');
+      decBtn.textContent = '−';
+      decBtn.style.cssText = 'width:22px;height:22px;border:1px solid var(--color-border);border-radius:4px;background:none;cursor:pointer;font-size:0.8rem;display:flex;align-items:center;justify-content:center;color:var(--color-text);padding:0;';
+      decBtn.addEventListener('click', () => {
+        if (item.qty > 1) { item.qty -= 1; saveCart(); renderCart(); }
+        else { removeCartItem(idx); }
+      });
+
+      const qtyEl = document.createElement('span');
+      qtyEl.textContent = item.qty;
+      qtyEl.style.cssText = 'min-width:18px;text-align:center;font-weight:600;color:var(--color-text);font-size:0.78rem;';
+
+      const incBtn = document.createElement('button');
+      incBtn.textContent = '+';
+      incBtn.style.cssText = 'width:22px;height:22px;border:1px solid var(--color-border);border-radius:4px;background:none;cursor:pointer;font-size:0.8rem;display:flex;align-items:center;justify-content:center;color:var(--color-text);padding:0;';
+      incBtn.addEventListener('click', () => { item.qty += 1; saveCart(); renderCart(); });
+
+      qtyControls.appendChild(decBtn);
+      qtyControls.appendChild(qtyEl);
+      qtyControls.appendChild(incBtn);
+
+      const discInput = document.createElement('input');
+      discInput.type = 'number';
+      discInput.min = '0';
+      discInput.step = '0.01';
+      discInput.placeholder = 'Disc';
+      discInput.value = item.discount || '';
+      discInput.style.cssText = 'width:52px;padding:0.2rem 0.3rem;border:1px solid var(--color-border);border-radius:4px;font-size:0.68rem;background:var(--color-surface);color:var(--color-text);text-align:right;';
+      discInput.addEventListener('change', () => {
+        const v = parseFloat(discInput.value);
+        item.discount = isNaN(v) || v < 0 ? 0 : v;
+        saveCart();
+        renderCart();
+      });
+
+      const lineTotalEl = document.createElement('span');
+      lineTotalEl.textContent = formatPrice(lineTotal);
+      lineTotalEl.style.cssText = 'font-weight:600;color:var(--color-text);min-width:50px;text-align:right;font-size:0.75rem;flex-shrink:0;';
+
+      const removeBtn = document.createElement('button');
+      removeBtn.textContent = '✕';
+      removeBtn.style.cssText = 'width:20px;height:20px;border:none;border-radius:4px;background:none;cursor:pointer;font-size:0.7rem;color:var(--color-text-muted);display:flex;align-items:center;justify-content:center;padding:0;flex-shrink:0;';
+      removeBtn.addEventListener('click', () => removeCartItem(idx));
+
+      row.appendChild(thumb);
+      row.appendChild(info);
+      row.appendChild(qtyControls);
+      row.appendChild(discInput);
+      row.appendChild(lineTotalEl);
+      row.appendChild(removeBtn);
+      cartList.appendChild(row);
+    });
+
+    renderCartSummary(subtotal, totalItemDiscount);
+
+    if (clearCartBtn._listener) {
+      clearCartBtn.removeEventListener('click', clearCartBtn._listener);
+    }
+    const handler = () => { cart = []; flatDiscount = 0; if (flatDiscountInput) flatDiscountInput.value = ''; saveCart(); renderCart(); };
+    clearCartBtn._listener = handler;
+    clearCartBtn.addEventListener('click', handler);
+  }
+
+  let flatDiscount = 0;
+  let flatDiscountInput = null;
+
+  function renderCartSummary(subtotal, totalItemDiscount) {
+    cartSummary.style.display = 'flex';
+    cartSummary.innerHTML = '';
+
+    const lines = [
+      { label: 'Subtotal', value: formatPrice(subtotal) },
+      { label: 'Item Discounts', value: '-' + formatPrice(totalItemDiscount) },
+    ];
+
+    lines.forEach(l => {
+      const row = document.createElement('div');
+      row.style.cssText = 'display:flex;justify-content:space-between;';
+      const lbl = document.createElement('span');
+      lbl.textContent = l.label;
+      lbl.style.cssText = 'color:var(--color-text-muted);';
+      const val = document.createElement('span');
+      val.textContent = l.value;
+      val.style.cssText = 'color:var(--color-text);font-weight:500;';
+      row.appendChild(lbl);
+      row.appendChild(val);
+      cartSummary.appendChild(row);
+    });
+
+    const flatRow = document.createElement('div');
+    flatRow.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding-top:0.2rem;border-top:1px solid var(--color-border);';
+    const flatLbl = document.createElement('span');
+    flatLbl.textContent = 'Flat Discount';
+    flatLbl.style.cssText = 'color:var(--color-text-muted);';
+    if (!flatDiscountInput) {
+      flatDiscountInput = document.createElement('input');
+      flatDiscountInput.type = 'number';
+      flatDiscountInput.min = '0';
+      flatDiscountInput.step = '0.01';
+      flatDiscountInput.placeholder = '₹0';
+      flatDiscountInput.style.cssText = 'width:72px;padding:0.2rem 0.3rem;border:1px solid var(--color-border);border-radius:4px;font-size:0.68rem;background:var(--color-surface);color:var(--color-text);text-align:right;';
+      flatDiscountInput.addEventListener('change', () => {
+        const v = parseFloat(flatDiscountInput.value);
+        flatDiscount = isNaN(v) || v < 0 ? 0 : v;
+        saveCart();
+        renderCartTotal(subtotal, totalItemDiscount);
+      });
+    }
+    flatDiscountInput.value = flatDiscount > 0 ? String(flatDiscount) : '';
+    flatRow.appendChild(flatLbl);
+    flatRow.appendChild(flatDiscountInput);
+    cartSummary.appendChild(flatRow);
+
+    renderCartTotal(subtotal, totalItemDiscount);
+  }
+
+  function renderCartTotal(subtotal, totalItemDiscount) {
+    const existing = cartSummary.querySelector('.grand-total-row');
+    if (existing) existing.remove();
+
+    const afterDisc = subtotal - totalItemDiscount - flatDiscount;
+    const grand = afterDisc > 0 ? afterDisc : 0;
+
+    const grandRow = document.createElement('div');
+    grandRow.className = 'grand-total-row';
+    grandRow.style.cssText = 'display:flex;justify-content:space-between;padding-top:0.3rem;border-top:2px solid var(--color-primary);margin-top:0.1rem;';
+    const grandLbl = document.createElement('span');
+    grandLbl.textContent = 'Grand Total';
+    grandLbl.style.cssText = 'font-weight:700;color:var(--color-text);';
+    const grandVal = document.createElement('span');
+    grandVal.textContent = formatPrice(grand);
+    grandVal.style.cssText = 'font-weight:700;color:var(--color-primary);';
+    grandRow.appendChild(grandLbl);
+    grandRow.appendChild(grandVal);
+    cartSummary.appendChild(grandRow);
+  }
+
+  function removeCartItem(idx) {
+    cart.splice(idx, 1);
+    saveCart();
+    renderCart();
+    if (cart.length === 0) {
+      flatDiscount = 0;
+      if (flatDiscountInput) flatDiscountInput.value = '';
+    }
   }
 
   return () => {
