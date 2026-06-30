@@ -18,7 +18,7 @@ export function init(container) {
   let scanning = false;
   const formatsToSupport = Object.values(Html5QrcodeSupportedFormats)
     .filter(v => typeof v === 'number');
-  const camConfig = { fps: 10, qrbox: { width: 280, height: 180 }, formatsToSupport };
+  const camConfig = { fps: 20, qrbox: { width: 250, height: 250 }, formatsToSupport };
 
   const wrapper = document.createElement('div');
   wrapper.style.cssText =
@@ -63,7 +63,7 @@ export function init(container) {
 
   const videoContainer = document.createElement('div');
   videoContainer.style.cssText =
-    'display:none;position:relative;border-radius:8px;overflow:hidden;background:#000;aspect-ratio:4/3;max-height:300px;';
+    'display:none;position:relative;border-radius:8px;overflow:hidden;background:#000;min-height:240px;max-height:360px;';
 
   const video = document.createElement('video');
   video.style.cssText = 'width:100%;height:100%;object-fit:contain;';
@@ -382,7 +382,11 @@ export function init(container) {
     onDetected(decodedText, formatName);
   }
 
-  function onScanFailure() {}
+  function onScanFailure() {
+    if (scanning && status.textContent === 'Point camera at a barcode or QR code...') {
+      status.textContent = 'Scanning... hold steady.';
+    }
+  }
 
   function stopCamera() {
     if (html5QrCode) {
