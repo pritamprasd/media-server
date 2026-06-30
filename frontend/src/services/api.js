@@ -252,7 +252,7 @@ export async function listPersonFaces(personId, page = 1, perPage = 12) {
   return data;
 }
 
-export async function listPersonFiles(personId, page = 1, perPage = 32) {
+export async function listPersonFiles(personId, page = 1, perPage = 15) {
   const { data } = await client.get(`/persons/${personId}/files`, {
     params: { page, per_page: perPage },
   });

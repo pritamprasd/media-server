@@ -4,7 +4,7 @@ import {
   Settings as SettingsIcon, ArrowRight, Palette, Save, Trash2,
   ArrowUp, ArrowDown, RotateCcw, Check,
 } from "lucide-react";
-import { getPref, setPref } from "../services/db";
+import { getPref, setPref, clearAllPrefs } from "../services/db";
 import "./Settings.css";
 
 const TABS = [
@@ -24,7 +24,7 @@ const TABS = [
   { path: "/settings", label: "Settings" },
 ];
 
-const DEFAULT_IMAGE_TABS = ["filters", "adjust", "light", "effects", "details", "info", "crop"];
+const DEFAULT_IMAGE_TABS = ["filters", "adjust", "light", "effects", "details", "colors", "info", "crop"];
 const DEFAULT_VIDEO_TABS = ["trim", "adjust", "filters", "text", "effects", "crop"];
 const TAB_LABELS = { trim: "Trim", adjust: "Adjust", filters: "Filters", text: "Text", effects: "Effects", crop: "Crop", light: "Light", details: "Details", info: "Info", colors: "Colors" };
 
@@ -55,6 +55,8 @@ function Settings() {
   const [videoTabs, setVideoTabs] = useState(DEFAULT_VIDEO_TABS);
   const [navTabs, setNavTabs] = useState(TABS.map((t) => t.path));
   const [mapZoomLevel, setMapZoomLevel] = useState(18);
+  const [facesPerPage, setFacesPerPage] = useState(15);
+  const [facesPerPageSaved, setFacesPerPageSaved] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -68,6 +70,7 @@ function Settings() {
       if (order && Array.isArray(order) && order.length > 0) setNavTabs(order);
     });
     getPref("mapZoomLevel", 18).then(setMapZoomLevel);
+    getPref("facesPerPage", 15).then(setFacesPerPage);
   }, []);
 
   const handleMoveTab = (type, idx, dir) => {
@@ -121,6 +124,12 @@ function Settings() {
     setTimeout(() => setMapZoomSaved(false), 2000);
   };
 
+  const handleFacesPerPageSave = () => {
+    setPref("facesPerPage", facesPerPage);
+    setFacesPerPageSaved(true);
+    setTimeout(() => setFacesPerPageSaved(false), 2000);
+  };
+
   const handleTabChange = (e) => {
     const val = e.target.value;
     setDefaultTab(val);
@@ -149,6 +158,7 @@ function Settings() {
     }
     setCacheStatus("clearing");
     try {
+      await clearAllPrefs();
       const reg = await navigator.serviceWorker.ready;
       if (reg.active) {
         reg.active.postMessage({ type: "CLEAR_CACHES" });
@@ -262,6 +272,26 @@ function Settings() {
           <span className="settings__map-zoom-value">{mapZoomLevel}</span>
           <button className="settings__btn" onClick={handleMapZoomSave}>
             {mapZoomSaved ? <Check size={14} /> : <Save size={14} />} {mapZoomSaved ? "Saved!" : "Save"}
+          </button>
+        </div>
+      </div>
+
+      <div className="settings__card">
+        <h3 className="settings__label">Faces Per Page</h3>
+        <p className="settings__desc">
+          Number of media thumbnails to load per page in the face dialog (3–50).
+        </p>
+        <div className="settings__nickname-row">
+          <input
+            className="settings__input"
+            type="number"
+            min={3}
+            max={50}
+            value={facesPerPage}
+            onChange={(e) => setFacesPerPage(Number(e.target.value))}
+          />
+          <button className="settings__btn" onClick={handleFacesPerPageSave}>
+            {facesPerPageSaved ? <Check size={14} /> : <Save size={14} />} {facesPerPageSaved ? "Saved!" : "Save"}
           </button>
         </div>
       </div>

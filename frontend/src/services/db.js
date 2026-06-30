@@ -35,3 +35,11 @@ export async function setPref(key, value) {
     tx.objectStore("prefs").put(value, key);
   } catch {}
 }
+
+export async function clearAllPrefs() {
+  try {
+    const db = await dbPromise;
+    const tx = db.transaction("prefs", "readwrite");
+    tx.objectStore("prefs").clear();
+  } catch {}
+}

@@ -3,9 +3,22 @@ import { Eye, EyeOff, Search, UserPlus, UserMinus, IdCard, Scan, Image, SlidersH
 import Spinner from "../components/Spinner";
 import FileViewer from "../components/FileViewer";
 import { listPersons, updatePerson, deletePerson, scanAllFaces, listPersonFiles, getFaceStats, mergePersons } from "../services/api";
+import { getPref } from "../services/db";
 import "./Faces.css";
 
+function useMediaQuery(query) {
+  const [matches, setMatches] = useState(() => window.matchMedia(query).matches);
+  useEffect(() => {
+    const mq = window.matchMedia(query);
+    const handler = (e) => setMatches(e.matches);
+    mq.addEventListener("change", handler);
+    return () => mq.removeEventListener("change", handler);
+  }, [query]);
+  return matches;
+}
+
 function Faces() {
+  const isMobile = useMediaQuery("(max-width: 768px)");
   const [persons, setPersons] = useState([]);
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -23,6 +36,7 @@ function Faces() {
   const [editingName, setEditingName] = useState(null);
   const [nameValue, setNameValue] = useState("");
   const [viewerFile, setViewerFile] = useState(null);
+  const [facesPerPage, setFacesPerPage] = useState(15);
   const [sortBy, setSortBy] = useState("face_count");
   const [searchName, setSearchName] = useState("");
   const [filterMode, setFilterMode] = useState("all");
@@ -31,7 +45,6 @@ function Faces() {
   const [mergeName, setMergeName] = useState("");
   const [scanResult, setScanResult] = useState(null);
   const [viewMode, setViewMode] = useState("grid");
-
   const loadPersons = useCallback(async (page = 1, append = false) => {
     if (!append) setLoading(true);
     else setLoadingMore(true);
@@ -53,11 +66,15 @@ function Faces() {
   useEffect(() => { setPersonPage(1); loadPersons(1); }, [loadPersons]);
 
   useEffect(() => {
-    if (selectedPerson && window.innerWidth <= 768) {
+    getPref("facesPerPage", 15).then(setFacesPerPage);
+  }, []);
+
+  useEffect(() => {
+    if (selectedPerson && isMobile) {
       const wrap = document.querySelector(".faces-grid-wrap");
       if (wrap) wrap.scrollTop = wrap.scrollHeight;
     }
-  }, [selectedPerson]);
+  }, [selectedPerson, isMobile]);
 
   const handleScan = async () => {
     setScanning(true);
@@ -82,7 +99,7 @@ function Faces() {
   const loadFiles = async (personId, page) => {
     setFilesLoading(true);
     try {
-      const data = await listPersonFiles(personId, page);
+      const data = await listPersonFiles(personId, page, facesPerPage);
       setPersonFiles(data.files || []);
       setFilesTotal(data.total || 0);
       setFilesPages(data.pages || 0);
@@ -387,7 +404,7 @@ function Faces() {
             </div>
           </div>
 
-          {selectedPerson && (
+          {selectedPerson && !isMobile && (
             <div className="faces-sidebar">
               <div className="faces-sidebar-header">
                 <div className="faces-sidebar-title-row">
@@ -432,6 +449,54 @@ function Faces() {
                   </button>
                 </div>
               )}
+            </div>
+          )}
+
+          {selectedPerson && isMobile && (
+            <div className="faces-mobile-dialog" onClick={() => setSelectedPerson(null)}>
+              <div className="faces-mobile-dialog-content" onClick={(e) => e.stopPropagation()}>
+                <div className="faces-mobile-dialog-header">
+                  <div className="faces-mobile-dialog-header-info">
+                    <div className="faces-mobile-dialog-title">{selectedPerson.name || "Unnamed"}</div>
+                    <div className="faces-mobile-dialog-subtitle">{filesTotal} images</div>
+                  </div>
+                  <button className="faces-mobile-dialog-close" onClick={() => setSelectedPerson(null)} aria-label="Close">
+                    <X size={20} />
+                  </button>
+                </div>
+                <div className="faces-mobile-dialog-grid">
+                  {personFiles.length === 0 && !filesLoading && (
+                    <div className="faces-mobile-dialog-empty">No images</div>
+                  )}
+                  {personFiles.map((f) => (
+                    <div
+                      key={f.id}
+                      className="faces-mobile-dialog-item"
+                      onClick={() => { setViewerFile({ id: f.id, filename: f.filename, mime_type: f.mime_type }); setSelectedPerson(null); }}
+                    >
+                      {f.thumbnail ? (
+                        <img src={f.thumbnail} alt="" className="faces-mobile-dialog-thumb" loading="lazy" />
+                      ) : (
+                        <div className="faces-mobile-dialog-placeholder"><Image size={20} /></div>
+                      )}
+                    </div>
+                  ))}
+                  {filesLoading && (
+                    <div className="faces-mobile-dialog-loading"><Spinner size={20} center /></div>
+                  )}
+                </div>
+                {filesPages > 1 && (
+                  <div className="faces-mobile-dialog-pages">
+                    <button className="faces-page-btn" disabled={filesPage <= 1} onClick={() => handleFilesPage(-1)}>
+                      <ChevronLeft size={14} />
+                    </button>
+                    <span className="faces-page-info">{filesPage} / {filesPages}</span>
+                    <button className="faces-page-btn" disabled={filesPage >= filesPages} onClick={() => handleFilesPage(1)}>
+                      <ChevronRight size={14} />
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </div>

@@ -9,6 +9,7 @@ import {
   ChevronLeft, ChevronRight, Scissors, Palette, Droplets, Eye,
   Grid3X3, Sigma, ChevronDown, FileImage, Drama, Volume2,
   Gauge, Rewind, VolumeX, Type, Info, ExternalLink, Share2, Copy,
+  Wifi, Database,
 } from "lucide-react";
 import {
   toggleFavorite as toggleFavApi, getFile, getFileMetadata, editFile, deleteFile, updateTags,
@@ -176,6 +177,7 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete, onN
   const cropDragRef = useRef(null);
   const cropAspectRef = useRef("free");
   const [fileFaces, setFileFaces] = useState([]);
+  const [cacheStatus, setCacheStatus] = useState(null);
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [exportFormat, setExportFormat] = useState("jpeg");
   const [exportQuality, setExportQuality] = useState(95);
@@ -216,6 +218,16 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete, onN
   const isVideo = file.mime_type && file.mime_type.startsWith("video/");
   const fileUrl = `/api/files/${file.id}/serve`;
   const downloadUrl = `/api/files/${file.id}/download`;
+
+  const checkCacheStatus = useCallback(() => {
+    setTimeout(() => {
+      const entries = performance.getEntriesByName(fileUrl);
+      if (entries.length > 0) {
+        const entry = entries[entries.length - 1];
+        setCacheStatus(entry.transferSize === 0 ? "cache" : "live");
+      }
+    }, 200);
+  }, [fileUrl]);
 
   const ASPECT_RATIOS = [
     { label: "Free", value: "free" },
@@ -1133,6 +1145,11 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete, onN
                 <button className={`viewer-fav ${isFav ? "viewer-fav--active" : ""}`} onClick={handleToggleFav} title={isFav ? "Remove from favorites" : "Add to favorites"}>
                   <Heart size={15} fill={isFav ? "currentColor" : "none"} />
                 </button>
+                {cacheStatus && (
+                  <span className={`viewer-cache-badge viewer-cache-badge--${cacheStatus}`} title={cacheStatus === "cache" ? "Served from cache" : "Served live from server"}>
+                    {cacheStatus === "cache" ? <Database size={12} /> : <Wifi size={12} />}
+                  </span>
+                )}
                 <button className="viewer-close" onClick={onClose}><X size={18} /></button>
               </>
             )}
@@ -1145,10 +1162,10 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete, onN
               <div className="viewer-media-loading"><Spinner size={36} center /></div>
             )}
             {isVideo ? (
-              <video ref={videoRef} className="viewer-media" src={fileUrl} controls autoPlay style={{ filter: showOriginal ? "none" : previewFilter }} onCanPlay={() => setMediaLoading(false)} />
+              <video ref={videoRef} className="viewer-media" src={fileUrl} controls autoPlay style={{ filter: showOriginal ? "none" : previewFilter }} onCanPlay={() => { setMediaLoading(false); checkCacheStatus(); }} />
             ) : (
               <div className="viewer-media-wrap" style={mediaLoading ? { visibility: "hidden", position: "absolute" } : {}}>
-                <img ref={imgRef} className="viewer-media" src={selectiveColorSrc || fileUrl} alt={file.filename} style={previewStyle} onLoad={() => setMediaLoading(false)} />
+                <img ref={imgRef} className="viewer-media" src={selectiveColorSrc || fileUrl} alt={file.filename} style={previewStyle} onLoad={() => { setMediaLoading(false); if (!selectiveColorSrc) checkCacheStatus(); }} />
                 {editMode && adjust.vignette > 0 && (
                   <div className="viewer-vignette" style={{ opacity: adjust.vignette / 100 }} />
                 )}
