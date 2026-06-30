@@ -1,3 +1,5 @@
+SHELL := /bin/bash
+
 BACKEND_DIR := backend
 FRONTEND_DIR := frontend
 VENV := $(BACKEND_DIR)/.venv
@@ -176,6 +178,26 @@ build:
 .PHONY: preview
 preview:
 	$(NPM) --prefix $(FRONTEND_DIR) run preview
+
+# ──────────────────────────────────────────────
+# Docker
+# ──────────────────────────────────────────────
+
+.PHONY: restart
+restart:
+	@if ! command -v whiptail &>/dev/null; then \
+		printf '\033[1;31m✘ whiptail not found. Install '\''newt'\'' package.\033[0m\n'; \
+		exit 1; \
+	fi; \
+	services=$$(docker compose config --services 2>/dev/null); \
+	items=(); \
+	for s in $$services; do items+=("$$s" ""); done; \
+	svc=$$(whiptail --title " Docker Services " --menu "  Select a service to rebuild and restart:" 20 60 10 "$${items[@]}" 3>&1 1>&2 2>&3); \
+	if [ -n "$$svc" ]; then \
+		scripts/docker-restart "$$svc"; \
+	else \
+		printf '\033[2mCancelled.\033[0m\n'; \
+	fi
 
 # ──────────────────────────────────────────────
 # Utility

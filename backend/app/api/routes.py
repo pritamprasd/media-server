@@ -5,6 +5,7 @@ import random
 import math
 import json
 import time
+import urllib.parse
 import urllib.request
 from datetime import datetime
 
@@ -29,6 +30,8 @@ from app.models.location import SavedLocation
 from app.models.filter_preset import FilterPreset
 from app.models.detected_face import DetectedFace
 from app.tasks import extract_file_metadata, generate_ai_metadata, generate_thumbnail, process_import_folder, detect_faces
+import requests as http_requests
+from bs4 import BeautifulSoup
 from app.utility.file_system import traverse_directory
 from app.utility.hash_utility import hamming_distance
 from app.utility.mime_utility import guess_mime
@@ -2818,6 +2821,155 @@ def explorer_remove_favorite():
         db.session.delete(fav)
         db.session.commit()
     return jsonify({"message": "Favorite removed"}), 200
+
+
+# ──────────────────────────────────────────────
+# Barcode scanner tool stats
+# ──────────────────────────────────────────────
+
+@api_bp.route("/tools/barcode-scanner/stats", methods=["POST"])
+def barcode_scanner_stats():
+    data = request.get_json(silent=True) or {}
+    value = data.get("value", "")
+    fmt = data.get("format", "")
+    current_app.logger.info(
+        "BarcodeScanner scan: value=%s format=%s", value, fmt
+    )
+    return jsonify({"message": "ok"}), 200
+
+
+@api_bp.route("/tools/barcode-scanner/lookup", methods=["GET"])
+def barcode_scanner_lookup():
+    barcode = request.args.get("barcode", "").strip()
+    if not barcode:
+        return jsonify({"error": "barcode parameter is required"}), 400
+
+    headers = {
+        "User-Agent": (
+            "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
+            "(KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36"
+        ),
+        "Accept-Language": "en-US,en;q=0.9",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    }
+    timeout = 8
+    result = {"amazon": None, "flipkart": None, "google_shopping": None, "barcodelookup": None}
+
+    # 1. BarcodeLookup.com
+    try:
+        resp = http_requests.get(
+            f"https://www.barcodelookup.com/{barcode}",
+            headers=headers, timeout=timeout,
+        )
+        if resp.ok:
+            soup = BeautifulSoup(resp.text, "lxml")
+            title_el = soup.select_one(".product-title, h1, .product-name, .item-name")
+            brand_el = soup.select_one(".brand, .product-brand, .brand-name")
+            desc_el = soup.select_one(".product-description, .description, p.description")
+            img_el = soup.select_one(".product-image img, .main-image img, img.product-img")
+            image = img_el.get("src") if img_el else None
+            if image and image.startswith("//"):
+                image = "https:" + image
+            if title_el:
+                result["barcodelookup"] = {
+                    "title": title_el.get_text(strip=True),
+                    "brand": brand_el.get_text(strip=True) if brand_el else "",
+                    "description": desc_el.get_text(strip=True) if desc_el else "",
+                    "image": image or "",
+                }
+    except Exception:
+        pass
+
+    # 2. Amazon India search
+    try:
+        resp = http_requests.get(
+            f"https://www.amazon.in/s?k={urllib.parse.quote(barcode)}",
+            headers=headers, timeout=timeout,
+        )
+        if resp.ok:
+            soup = BeautifulSoup(resp.text, "lxml")
+            cards = soup.select("[data-component-type='s-search-result']")
+            if cards:
+                card = cards[0]
+                title_el = card.select_one("h2 a, h2 span")
+                price_el = card.select_one(".a-price-whole, .a-offscreen")
+                img_el = card.select_one("img.s-image")
+                link_el = card.select_one("h2 a")
+                title = title_el.get_text(strip=True) if title_el else None
+                if title:
+                    price = price_el.get_text(strip=True) if price_el else ""
+                    result["amazon"] = {
+                        "title": title,
+                        "price": price,
+                        "image": img_el.get("src") if img_el else "",
+                        "url": "https://www.amazon.in" + link_el.get("href") if link_el and link_el.get("href") else "",
+                    }
+    except Exception:
+        pass
+
+    # 3. Flipkart search
+    try:
+        resp = http_requests.get(
+            f"https://www.flipkart.com/search?q={urllib.parse.quote(barcode)}",
+            headers=headers, timeout=timeout,
+        )
+        if resp.ok:
+            soup = BeautifulSoup(resp.text, "lxml")
+            cards = soup.select("[data-id], .tUxRFH, ._1xHGtK, ._75nlfW, .slAVV4")
+            if not cards:
+                cards = soup.select("a[href*='/p/']")
+            if cards:
+                card = cards[0]
+                title_el = card.select_one("a[href*='/p/'] .IRpwTa, .s1Q9rs, ._4rR01T, .WKTcLC, a[href*='/p/']")
+                if not title_el:
+                    title_el = card.select_one("a[href*='/p/'] img[alt]")
+                price_el = card.select_one("._30jeq3, ._8YxJ6h, ._1xHGtK ._30jeq3")
+                img_el = card.select_one("img[src*='flipkart']")
+                link_el = card if card.name == "a" and card.get("href") else card.select_one("a[href*='/p/']")
+                title = title_el.get_text(strip=True) if title_el else (title_el.get("alt") if title_el and title_el.name == "img" else None)
+                if title:
+                    href = link_el.get("href") if link_el else ""
+                    if href and not href.startswith("http"):
+                        href = "https://www.flipkart.com" + href
+                    result["flipkart"] = {
+                        "title": title,
+                        "price": price_el.get_text(strip=True) if price_el else "",
+                        "image": img_el.get("src") if img_el else "",
+                        "url": href,
+                    }
+    except Exception:
+        pass
+
+    # 4. Google Shopping search
+    try:
+        resp = http_requests.get(
+            f"https://www.google.com/search?q={urllib.parse.quote(barcode)}&tbm=shop",
+            headers=headers, timeout=timeout,
+        )
+        if resp.ok:
+            soup = BeautifulSoup(resp.text, "lxml")
+            cards = soup.select(".sh-dgr__content, .sh-dlr__list-result, [data-shop-impression]")
+            if cards:
+                card = cards[0]
+                title_el = card.select_one(".tAxDx, .Lq5OHe, a[href*='/shopping/product']")
+                price_el = card.select_one(".kHxwFf, .a8Pemb, .o8QZt")
+                img_el = card.select_one("img[src*='data:image']") or card.select_one("img")
+                link_el = card.select_one("a[href*='/shopping/product']")
+                title = title_el.get_text(strip=True) if title_el else None
+                if title:
+                    href = link_el.get("href") if link_el else ""
+                    if href and href.startswith("/"):
+                        href = "https://www.google.com" + href
+                    result["google_shopping"] = {
+                        "title": title,
+                        "price": price_el.get_text(strip=True) if price_el else "",
+                        "image": img_el.get("src") if img_el and img_el.get("src") and not img_el.get("src", "").startswith("data:") else "",
+                        "url": href,
+                    }
+    except Exception:
+        pass
+
+    return jsonify(result), 200
 
 
 def _root_dir_id(upload_session, upload_dir):

@@ -1,0 +1,62 @@
+#!/usr/bin/env python3
+"""Restart a single docker compose service with Claude-like animation."""
+
+import sys
+import subprocess
+import threading
+import shutil
+import time
+import os
+
+
+def spinner(stop, message, status_ok):
+    frames = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏']
+    cols = shutil.get_terminal_size((80, 24)).columns
+    while not stop.is_set():
+        for f in frames:
+            if stop.is_set():
+                return
+            line = f"\033[33m{f}\033[0m \033[1m{message}\033[0m"
+            line = line[:cols]
+            sys.stdout.write(f"\r{line}{' ' * (cols - len(line))}")
+            sys.stdout.flush()
+            time.sleep(0.06)
+
+
+def main():
+    if len(sys.argv) < 2:
+        print("\033[1;31m✘ service name required\033[0m")
+        sys.exit(1)
+
+    service = sys.argv[1]
+    stop = threading.Event()
+
+    t = threading.Thread(target=spinner, args=(stop, f"Rebuilding {service}...", None), daemon=True)
+    t.start()
+
+    proc = subprocess.Popen(
+        ["docker", "compose", "up", "-d", "--no-deps", "--build", service],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        universal_newlines=True,
+    )
+    output, _ = proc.communicate()
+    stop.set()
+    t.join()
+
+    cols = shutil.get_terminal_size((80, 24)).columns
+    sys.stdout.write(f"\r{' ' * cols}\r")
+    sys.stdout.flush()
+
+    if proc.returncode == 0:
+        print(f"\033[1;32m✔\033[0m \033[1m{service}\033[0m \033[32mrestarted successfully\033[0m")
+    else:
+        print(f"\033[1;31m✘\033[0m \033[1m{service}\033[0m \033[31mfailed (exit {proc.returncode})\033[0m")
+        if output:
+            print()
+            print(output)
+        sys.exit(proc.returncode)
+
+
+if __name__ == "__main__":
+    main()
