@@ -7,11 +7,33 @@ export const description = 'Scan product barcodes and QR codes using your camera
 
 const HISTORY_KEY = 'barcode_scanner_history';
 const HISTORY_MAX = 50;
+const CACHE_KEY = 'barcode_scanner_cache';
+const CACHE_TTL = 86400000; // 24h
 
 const PRODUCT_FORMATS = new Set([
   'EAN_13', 'EAN_8', 'UPC_A', 'UPC_E', 'CODE_128', 'CODE_39',
   'CODE_93', 'CODABAR', 'ITF', 'RSS_14', 'RSS_EXPANDED',
 ]);
+
+async function getCachedProduct(code) {
+  const cache = await getPref(CACHE_KEY, {});
+  const entry = cache[code];
+  if (!entry) return null;
+  if (Date.now() - entry.timestamp > CACHE_TTL) return null;
+  return entry;
+}
+
+async function setCachedProduct(code, product, source) {
+  const cache = await getPref(CACHE_KEY, {});
+  cache[code] = { product, source, timestamp: Date.now() };
+  await setPref(CACHE_KEY, cache);
+}
+
+async function clearCachedProduct(code) {
+  const cache = await getPref(CACHE_KEY, {});
+  delete cache[code];
+  await setPref(CACHE_KEY, cache);
+}
 
 export function init(container) {
   let html5QrCode = null;
@@ -464,7 +486,7 @@ export function init(container) {
     });
   }
 
-  function showProductResult(value, format, product, source) {
+  function showProductResult(value, format, product, source, fromCache = false) {
     resultCard.style.display = 'block';
 
     const imageUrl = product.image_url || product.image_front_url || (product.images && product.images.front?.display?.url) || null;
@@ -479,7 +501,23 @@ export function init(container) {
     const name = product.product_name || product.title || `Product ${value}`;
     const brand = product.brands || product.brand || '';
     resultTitle.textContent = name;
-    resultSub.textContent = [brand, format.toUpperCase(), source].filter(Boolean).join(' · ');
+
+    const subParts = [brand, format.toUpperCase(), source].filter(Boolean);
+    if (fromCache) subParts.push('(cached)');
+    resultSub.textContent = subParts.join(' · ');
+
+    if (fromCache) {
+      const refreshBtn = document.createElement('button');
+      refreshBtn.textContent = '⟳ Refresh';
+      refreshBtn.title = 'Fetch latest product data from APIs';
+      refreshBtn.style.cssText =
+        'padding:0.25rem 0.5rem;border:1px solid var(--color-border);border-radius:6px;font-size:0.65rem;cursor:pointer;background:none;color:var(--color-text-muted);flex-shrink:0;margin-left:auto;';
+      refreshBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        forceRefreshProduct(value, format);
+      });
+      resultSub.parentNode.insertBefore(refreshBtn, expandIcon);
+    }
 
     const barcodeRow = document.createElement('div');
     barcodeRow.style.cssText = 'display:flex;align-items:center;gap:0.35rem;padding:0 0.85rem 0.35rem;';
@@ -652,7 +690,7 @@ export function init(container) {
     });
     resultDetails.appendChild(addCartBtn);
 
-    status.textContent = `Product found via ${source}. Tap card for details.`;
+    status.textContent = `Product found via ${source}${fromCache ? ' (from cache)' : ''}. Tap card for details.`;
     addToHistory({
       type: 'barcode', format, value,
       product: { name, brand, imageUrl, source },
@@ -660,8 +698,26 @@ export function init(container) {
     });
   }
 
-  async function lookupProduct(code, format) {
+  async function forceRefreshProduct(code, format) {
     const normalized = code.replace(/^0+/, '');
+    await clearCachedProduct(normalized);
+    status.textContent = 'Force-refreshing product data...';
+    resultCard.style.display = 'none';
+    await lookupProduct(code, format, true);
+  }
+
+  async function lookupProduct(code, format, forceRefresh = false) {
+    const normalized = code.replace(/^0+/, '');
+
+    if (!forceRefresh) {
+      const cached = await getCachedProduct(normalized);
+      if (cached) {
+        const { product, source } = cached;
+        showProductResult(code, format, product, source, true);
+        addExternalSearchLinks(code, format);
+        return;
+      }
+    }
 
     const results = await Promise.allSettled([
       lookupOpenFoodFacts(normalized, 'world'),
@@ -676,7 +732,8 @@ export function init(container) {
     for (const result of results) {
       if (result.status === 'fulfilled' && result.value) {
         const { product, source } = result.value;
-        showProductResult(code, format, product, source);
+        await setCachedProduct(normalized, product, source);
+        showProductResult(code, format, product, source, false);
         found = true;
         break;
       }
