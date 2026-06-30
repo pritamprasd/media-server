@@ -1,5 +1,6 @@
 import L from "leaflet";
 
+export const icon = "📡";
 export const name = "Device Sensors";
 export const description = "Read live data from your device's available sensors with permission prompts";
 

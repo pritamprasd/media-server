@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
 
+export const icon = "🌍";
 export const name = "3D Globe Explorer";
 export const description = "Premium 3D Earth GIS tool with dynamic open-source map tiling, fly-to navigation, search autocomplete, and live weather integrations.";
 

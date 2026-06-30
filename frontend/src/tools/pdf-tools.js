@@ -1,3 +1,4 @@
+export const icon = "📄";
 export const name = "PDF Tools";
 export const description = "All-in-one PDF editor, converter, compressor and more";
 

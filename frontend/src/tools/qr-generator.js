@@ -1,5 +1,6 @@
 import QRCode from "qrcode";
 
+export const icon = "🔲";
 export const name = "QR Code Generator";
 export const description = "Generate and download QR codes from any text or URL";
 

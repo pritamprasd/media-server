@@ -14,6 +14,7 @@ export function getTools() {
       type: 'js',
       name: mod.name || toolId(path),
       description: mod.description || '',
+      icon: mod.icon || '',
       module: mod,
     });
   }
@@ -33,7 +34,7 @@ export function getTool(id) {
   for (const [path, mod] of Object.entries(jsModules)) {
     if (path.endsWith('/index.js')) continue;
     if (toolId(path) === id) {
-      return { id, type: 'js', name: mod.name || id, description: mod.description || '', module: mod };
+      return { id, type: 'js', name: mod.name || id, description: mod.description || '', icon: mod.icon || '', module: mod };
     }
   }
   for (const [path, url] of Object.entries(htmlModules)) {

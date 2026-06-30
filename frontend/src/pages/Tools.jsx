@@ -26,7 +26,9 @@ function ToolsGrid() {
             onClick={() => navigate(`/tools/${tool.id}`)}
           >
             <div className="tools__tile-thumb">
-              {tool.type === "html" ? (
+              {tool.icon ? (
+                <span className="tools__tile-emoji">{tool.icon}</span>
+              ) : tool.type === "html" ? (
                 <span className="tools__tile-type" style={{ background: "#2d5a27" }}>&lt;/&gt;</span>
               ) : (
                 <span className="tools__tile-type" style={{ background: "#3a1f6b" }}>JS</span>

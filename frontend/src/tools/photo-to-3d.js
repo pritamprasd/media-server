@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 
+export const icon = "🎯";
 export const name = "Photo to 3D";
 export const description = "Take a photo with your camera and map it as a texture onto an animated 3D object";
 

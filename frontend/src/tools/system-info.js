@@ -1,3 +1,4 @@
+export const icon = "🖥️";
 export const name = "System Info";
 export const description = "Comprehensive hardware, network, display, and environment diagnostics dashboard";
 
