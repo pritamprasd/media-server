@@ -933,6 +933,20 @@ function estimatePositionGrams(items, allItems) {
   return Math.round(totalEst);
 }
 
+function createLoader(text) {
+  const el = document.createElement('div');
+  el.style.cssText = 'display:flex;align-items:center;justify-content:center;gap:0.6rem;padding:2rem;color:var(--color-text-muted);font-size:0.82rem;';
+  const sp = document.createElement('div');
+  sp.style.cssText = 'width:22px;height:22px;border:2px solid var(--color-border);border-top-color:var(--color-primary);border-radius:50%;animation:spin 0.8s linear infinite;';
+  el.appendChild(sp);
+  if (text) {
+    const t = document.createElement('span');
+    t.textContent = text;
+    el.appendChild(t);
+  }
+  return el;
+}
+
 // ── Image preprocessing for better OCR ──
 function preprocessImageForOCR(dataUrl) {
   return new Promise((resolve) => {
@@ -1011,14 +1025,24 @@ function parseNutritionFacts(text) {
   const result = {
     servingSize: null,
     servingsPerPack: null,
+    packageWeight: null,
     perServing: {},
     per100g: {},
+    perPackage: {},
   };
 
   const ss = text.match(/serving\s*size[:\s]*([0-9.]+)\s*(g|ml)/i);
   if (ss) result.servingSize = parseFloat(ss[1]);
   const sp = text.match(/servings?\s*per\s*(pack|container)[:\s]*([0-9.]+)/i);
   if (sp) result.servingsPerPack = parseFloat(sp[2]);
+
+  const pw = text.match(/(?:net\s+(?:weight|wt|quantity|content)|total\s+weight|net\s*[:])[:\s]*([0-9.]+)\s*(g|kg|ml|l)/i);
+  if (pw) {
+    let val = parseFloat(pw[1]);
+    const unit = pw[2].toLowerCase();
+    if (unit === 'kg' || unit === 'l') val *= 1000;
+    result.packageWeight = val;
+  }
 
   const lines = text.split('\n');
   let active = false;
@@ -1088,6 +1112,24 @@ function parseNutritionFacts(text) {
     const kjMatch = text.match(/energy[^0-9]*([0-9.]+)\s*kj/i);
     if (kjMatch) {
       result.per100g.energy_kcal = Math.round(parseFloat(kjMatch[1]) / 4.184);
+    }
+  }
+
+  // Calculate per-package values
+  const hasP100 = Object.keys(result.per100g).length > 0;
+  if (hasP100) {
+    if (result.servingsPerPack && result.servingSize) {
+      for (const key of Object.keys(result.perServing)) {
+        result.perPackage[key] = Math.round(result.perServing[key] * result.servingsPerPack * 10) / 10;
+      }
+    } else if (result.packageWeight) {
+      for (const key of Object.keys(result.per100g)) {
+        result.perPackage[key] = Math.round(result.per100g[key] * result.packageWeight / 100 * 10) / 10;
+      }
+    } else if (result.servingSize) {
+      for (const key of Object.keys(result.perServing)) {
+        result.perPackage[key] = result.perServing[key];
+      }
     }
   }
 
@@ -1467,6 +1509,13 @@ export function init(container) {
       return;
     }
 
+    // Show loaders while AI is processing
+    ingredientTableContainer.innerHTML = '';
+    ingredientTableContainer.appendChild(createLoader('🤖 AI analyzing ingredients...'));
+    analysisCards.innerHTML = '';
+    analysisCards.appendChild(createLoader('Waiting for analysis results...'));
+    resultsSection.style.display = 'flex';
+
     // Try backend AI for enhanced categorization (async submit + poll)
     let aiIngredients = null;
     let aiUsed = false;
@@ -1560,6 +1609,16 @@ export function init(container) {
     const listHeader = document.createElement('div');
     listHeader.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:0.75rem 1rem;background:var(--color-surface);border-bottom:1px solid var(--color-border);border-radius:8px 8px 0 0;';
 
+    const leftGroup = document.createElement('div');
+    leftGroup.style.cssText = 'display:flex;align-items:center;gap:0.5rem;';
+
+    const toggleBtn = document.createElement('button');
+    toggleBtn.textContent = '▼';
+    toggleBtn.style.cssText = 'background:none;border:none;cursor:pointer;font-size:0.6rem;color:var(--color-text-muted);padding:0;width:16px;height:16px;display:flex;align-items:center;justify-content:center;border-radius:3px;transition:background 0.15s;';
+    toggleBtn.onmouseenter = () => { toggleBtn.style.background = 'var(--color-bg)'; };
+    toggleBtn.onmouseleave = () => { toggleBtn.style.background = 'none'; };
+    let ingredientsExpanded = true;
+
     const listTitle = document.createElement('span');
     listTitle.style.cssText = 'font-size:0.85rem;font-weight:600;color:var(--color-text);display:flex;align-items:center;gap:0.5rem;';
     listTitle.innerHTML = `<span style="font-size:1rem;">📋</span> Ingredients (${parsed.length})`;
@@ -1568,8 +1627,26 @@ export function init(container) {
     listBadge.textContent = aiUsed ? 'AI Enhanced' : 'Client-side';
     listBadge.style.cssText = 'font-size:0.65rem;padding:0.2rem 0.5rem;border-radius:4px;background:var(--color-primary);color:#fff;font-weight:500;white-space:nowrap;';
 
-    listHeader.appendChild(listTitle);
-    listHeader.appendChild(listBadge);
+    leftGroup.appendChild(toggleBtn);
+    leftGroup.appendChild(listTitle);
+    leftGroup.appendChild(listBadge);
+
+    const rightGroup = document.createElement('div');
+    rightGroup.style.cssText = 'display:flex;gap:0.3rem;';
+
+    const expandAllBtn = document.createElement('button');
+    expandAllBtn.textContent = 'Expand All';
+    expandAllBtn.style.cssText = 'font-size:0.65rem;padding:0.15rem 0.4rem;border:1px solid var(--color-border);border-radius:4px;cursor:pointer;background:none;color:var(--color-text-muted);white-space:nowrap;';
+
+    const collapseAllBtn = document.createElement('button');
+    collapseAllBtn.textContent = 'Collapse All';
+    collapseAllBtn.style.cssText = 'font-size:0.65rem;padding:0.15rem 0.4rem;border:1px solid var(--color-border);border-radius:4px;cursor:pointer;background:none;color:var(--color-text-muted);white-space:nowrap;';
+
+    rightGroup.appendChild(expandAllBtn);
+    rightGroup.appendChild(collapseAllBtn);
+
+    listHeader.appendChild(leftGroup);
+    listHeader.appendChild(rightGroup);
     ingredientTableContainer.appendChild(listHeader);
 
     const listBody = document.createElement('div');
@@ -1630,7 +1707,20 @@ export function init(container) {
       listBody.appendChild(row);
     }
 
-    ingredientTableContainer.appendChild(listBody);
+    const listBodyWrapper = document.createElement('div');
+    listBodyWrapper.style.cssText = 'overflow:hidden;transition:max-height 0.25s ease;';
+    listBodyWrapper.appendChild(listBody);
+    ingredientTableContainer.appendChild(listBodyWrapper);
+
+    function toggleIngredients(expand) {
+      ingredientsExpanded = expand !== undefined ? expand : !ingredientsExpanded;
+      toggleBtn.textContent = ingredientsExpanded ? '▼' : '▶';
+      listBodyWrapper.style.display = ingredientsExpanded ? '' : 'none';
+    }
+
+    toggleBtn.addEventListener('click', () => toggleIngredients());
+    expandAllBtn.addEventListener('click', () => toggleIngredients(true));
+    collapseAllBtn.addEventListener('click', () => toggleIngredients(false));
 
     // ── Nutrition Facts panel ──
     let nutritionPanel = null;
@@ -1641,24 +1731,41 @@ export function init(container) {
       const nutHeader = document.createElement('div');
       nutHeader.style.cssText = 'display:flex;align-items:center;gap:0.5rem;padding:0.75rem 1rem;background:var(--color-surface);border-bottom:1px solid var(--color-border);font-size:0.85rem;font-weight:600;color:var(--color-text);';
       nutHeader.innerHTML = '<span style="font-size:1rem;">📊</span> Nutrition Facts';
+      const nutBadges = document.createElement('div');
+      nutBadges.style.cssText = 'display:flex;gap:0.3rem;margin-left:auto;';
       if (nutritionData.servingSize) {
         const ssBadge = document.createElement('span');
         ssBadge.textContent = `Serving: ${nutritionData.servingSize}g`;
-        ssBadge.style.cssText = 'font-size:0.65rem;padding:0.15rem 0.4rem;border-radius:4px;background:var(--color-bg);color:var(--color-text-muted);font-weight:500;margin-left:auto;';
-        nutHeader.appendChild(ssBadge);
+        ssBadge.style.cssText = 'font-size:0.65rem;padding:0.15rem 0.4rem;border-radius:4px;background:var(--color-bg);color:var(--color-text-muted);font-weight:500;';
+        nutBadges.appendChild(ssBadge);
       }
+      if (nutritionData.packageWeight) {
+        const pwBadge = document.createElement('span');
+        pwBadge.textContent = `Pack: ${nutritionData.packageWeight}g`;
+        pwBadge.style.cssText = 'font-size:0.65rem;padding:0.15rem 0.4rem;border-radius:4px;background:var(--color-bg);color:var(--color-text-muted);font-weight:500;';
+        nutBadges.appendChild(pwBadge);
+      }
+      if (nutritionData.servingsPerPack) {
+        const spBadge = document.createElement('span');
+        spBadge.textContent = `${nutritionData.servingsPerPack} servings`;
+        spBadge.style.cssText = 'font-size:0.65rem;padding:0.15rem 0.4rem;border-radius:4px;background:var(--color-bg);color:var(--color-text-muted);font-weight:500;';
+        nutBadges.appendChild(spBadge);
+      }
+      if (nutBadges.children.length > 0) nutHeader.appendChild(nutBadges);
       nutritionPanel.appendChild(nutHeader);
 
       const p100 = nutritionData.per100g;
       const pSrv = nutritionData.perServing;
+      const pPack = nutritionData.perPackage;
 
       // Build rows for available nutrients
       const nutRows = [];
       const addRow = (label, key, unit) => {
         const val100 = p100[key];
         const valSrv = pSrv[key];
-        if (val100 === undefined && valSrv === undefined) return;
-        nutRows.push({ label, valSrv, val100, unit });
+        const valPack = pPack[key];
+        if (val100 === undefined && valSrv === undefined && valPack === undefined) return;
+        nutRows.push({ label, valSrv, val100, valPack, unit });
       };
 
       addRow('Energy', 'energy_kcal', 'kcal');
@@ -1673,24 +1780,34 @@ export function init(container) {
       addRow('Sodium', 'sodium_mg', 'mg');
       addRow('Dietary Fiber', 'dietary_fiber_g', 'g');
 
-      if (nutRows.length > 0) {
-        const table = document.createElement('div');
-        table.style.cssText = 'display:grid;grid-template-columns:1fr auto auto;font-size:0.75rem;';
+      const hasPackColumn = Object.keys(pPack).length > 0;
 
-        // Header row
+      if (nutRows.length > 0) {
+        const cols = hasPackColumn ? '1fr auto auto auto' : '1fr auto auto';
+        const table = document.createElement('div');
+        table.style.cssText = `display:grid;grid-template-columns:${cols};font-size:0.75rem;`;
+
         const hdr = document.createElement('div');
         hdr.style.cssText = 'display:contents;font-weight:600;color:var(--color-text-muted);font-size:0.68rem;text-transform:uppercase;letter-spacing:0.3px;';
-        hdr.innerHTML = `<div style="padding:0.4rem 0.75rem;border-bottom:1px solid var(--color-border);">Nutrient</div>
-          <div style="padding:0.4rem 0.75rem;border-bottom:1px solid var(--color-border);text-align:right;">Per serving</div>
-          <div style="padding:0.4rem 0.75rem;border-bottom:1px solid var(--color-border);text-align:right;">Per 100g</div>`;
+        let hdrHTML = '<div style="padding:0.4rem 0.75rem;border-bottom:1px solid var(--color-border);">Nutrient</div>'
+          + '<div style="padding:0.4rem 0.75rem;border-bottom:1px solid var(--color-border);text-align:right;">Per serving</div>'
+          + '<div style="padding:0.4rem 0.75rem;border-bottom:1px solid var(--color-border);text-align:right;">Per 100g</div>';
+        if (hasPackColumn) {
+          hdrHTML += '<div style="padding:0.4rem 0.75rem;border-bottom:1px solid var(--color-border);text-align:right;">Per pack</div>';
+        }
+        hdr.innerHTML = hdrHTML;
         table.appendChild(hdr);
 
         for (const r of nutRows) {
           const rowDiv = document.createElement('div');
           rowDiv.style.cssText = 'display:contents;';
-          rowDiv.innerHTML = `<div style="padding:0.35rem 0.75rem;border-bottom:1px solid var(--color-border);color:var(--color-text);">${r.label}</div>
-            <div style="padding:0.35rem 0.75rem;border-bottom:1px solid var(--color-border);text-align:right;color:var(--color-text);font-weight:500;">${r.valSrv !== undefined ? `${r.valSrv} ${r.unit}` : '—'}</div>
-            <div style="padding:0.35rem 0.75rem;border-bottom:1px solid var(--color-border);text-align:right;color:var(--color-text-muted);">${r.val100 !== undefined ? `${r.val100} ${r.unit}` : '—'}</div>`;
+          let rowHTML = `<div style="padding:0.35rem 0.75rem;border-bottom:1px solid var(--color-border);color:var(--color-text);">${r.label}</div>`
+            + `<div style="padding:0.35rem 0.75rem;border-bottom:1px solid var(--color-border);text-align:right;color:var(--color-text);font-weight:500;">${r.valSrv !== undefined ? `${r.valSrv} ${r.unit}` : '—'}</div>`
+            + `<div style="padding:0.35rem 0.75rem;border-bottom:1px solid var(--color-border);text-align:right;color:var(--color-text-muted);">${r.val100 !== undefined ? `${r.val100} ${r.unit}` : '—'}</div>`;
+          if (hasPackColumn) {
+            rowHTML += `<div style="padding:0.35rem 0.75rem;border-bottom:1px solid var(--color-border);text-align:right;color:var(--color-text);font-weight:600;">${r.valPack !== undefined ? `${r.valPack} ${r.unit}` : '—'}</div>`;
+          }
+          rowDiv.innerHTML = rowHTML;
           table.appendChild(rowDiv);
         }
         nutritionPanel.appendChild(table);
