@@ -40,7 +40,20 @@ export function init(container) {
   let scanning = false;
   const formatsToSupport = Object.values(Html5QrcodeSupportedFormats)
     .filter(v => typeof v === 'number');
-  const camConfig = { fps: 20, qrbox: { width: 250, height: 250 }, formatsToSupport };
+  const camConfig = {
+    fps: 20,
+    qrbox: { width: 250, height: 250 },
+    formatsToSupport,
+    videoConstraints: {
+      facingMode: 'environment',
+      width: { min: 640, ideal: 1280 },
+      height: { min: 480, ideal: 720 },
+      advanced: [
+        { focusMode: 'continuous' },
+        { exposureMode: 'continuous' },
+      ],
+    },
+  };
 
   const wrapper = document.createElement('div');
   wrapper.style.cssText =
@@ -256,47 +269,9 @@ export function init(container) {
   syncCartBtn.addEventListener('click', syncToServer);
   setInterval(syncToServer, 3600000);
 
-  let availableCameras = [];
-  let selectedCameraId = null;
-
-  const camSelect = document.createElement('select');
-  camSelect.style.cssText = 'padding:0.4rem 0.5rem;border:1px solid var(--color-border);border-radius:6px;font-size:0.75rem;background:var(--color-surface);color:var(--color-text);max-width:200px;display:none;cursor:pointer;';
-  camSelect.addEventListener('change', () => {
-    selectedCameraId = camSelect.value || null;
-  });
-
-  headerBtns.appendChild(camSelect);
-
-  const camNameEl = document.createElement('span');
-  camNameEl.style.cssText = 'font-size:0.72rem;color:var(--color-text-muted);display:none;';
-  wrapper.insertBefore(camNameEl, status);
-
   Html5Qrcode.getCameras().then(cameras => {
-    availableCameras = cameras || [];
-    if (availableCameras.length === 0) {
+    if (!cameras || cameras.length === 0) {
       status.textContent = 'No camera detected — use "Upload Image" to scan from a photo.';
-      return;
-    }
-    camSelect.style.display = 'inline-block';
-    camSelect.innerHTML = '';
-    const defaultOpt = document.createElement('option');
-    defaultOpt.value = '';
-    defaultOpt.textContent = 'Auto (best)';
-    camSelect.appendChild(defaultOpt);
-    let envIdx = -1;
-    availableCameras.forEach((cam, i) => {
-      const opt = document.createElement('option');
-      opt.value = cam.id;
-      const label = cam.label || `Camera ${i + 1}`;
-      opt.textContent = label;
-      camSelect.appendChild(opt);
-      if (label.toLowerCase().includes('back') || label.toLowerCase().includes('environment') || label.toLowerCase().includes('rear')) {
-        envIdx = i;
-      }
-    });
-    if (envIdx >= 0) {
-      camSelect.selectedIndex = envIdx + 1;
-      selectedCameraId = availableCameras[envIdx].id;
     }
   }).catch(() => {});
 
@@ -334,20 +309,7 @@ export function init(container) {
 
     html5QrCode = new Html5Qrcode('barcode-scanner-inner');
 
-    if (selectedCameraId) {
-      const cam = availableCameras.find(c => c.id === selectedCameraId);
-      camNameEl.textContent = '📷 ' + (cam ? cam.label || cam.id : selectedCameraId);
-      camNameEl.style.display = 'inline';
-      tryStart(selectedCameraId);
-    } else {
-      camNameEl.textContent = '📷 Auto';
-      camNameEl.style.display = 'inline';
-      tryStart({ facingMode: 'environment' });
-    }
-  }
-
-  function tryStart(camIdOrConfig) {
-    html5QrCode.start(camIdOrConfig, camConfig, onScanSuccess, onScanFailure)
+    html5QrCode.start({ facingMode: 'environment' }, camConfig, onScanSuccess, onScanFailure)
       .then(() => {
         status.textContent = 'Point camera at a barcode or QR code...';
       })
@@ -938,6 +900,7 @@ export function init(container) {
       { label: 'Google Shopping', url: searchUrl('https://www.google.com/search?q={code}&tbm=shop') },
       { label: 'Buycott', url: searchUrl('https://www.buycott.com/upc/{code}') },
       { label: 'SaiSuperMarket', url: searchUrl('https://www.saisupermarket.in/search?q={code}') },
+      { label: 'Smart Consumer', url: searchUrl('https://smartconsumer.org.in/search?q={code}') },
     ];
 
     const row = document.createElement('div');
