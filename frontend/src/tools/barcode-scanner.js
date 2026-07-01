@@ -10,6 +10,16 @@ const HISTORY_KEY = 'barcode_scanner_history';
 const HISTORY_MAX = 50;
 const CACHE_KEY = 'barcode_scanner_cache';
 const CACHE_TTL = 86400000; // 24h
+const SETTINGS_KEY = 'barcode_scanner_settings';
+
+const ALL_PROVIDERS = [
+  { id: 'off_world', label: 'Open Food Facts (global)', source: 'Open Food Facts' },
+  { id: 'off_india', label: 'Open Food Facts India', source: 'Open Food Facts India' },
+  { id: 'datakick', label: 'Datakick', source: 'Datakick' },
+  { id: 'barcodelookup', label: 'BarcodeLookup', source: 'BarcodeLookup' },
+  { id: 'buycott', label: 'Buycott', source: 'Buycott' },
+  { id: 'saisupermarket', label: 'SaiSuperMarket', source: 'SaiSuperMarket' },
+];
 
 const PRODUCT_FORMATS = new Set([
   'EAN_13', 'EAN_8', 'UPC_A', 'UPC_E', 'CODE_128', 'CODE_39',
@@ -86,6 +96,12 @@ function providersToResults(providers) {
   return Object.entries(providers).map(([source, data]) => ({ product: data.product, source }));
 }
 
+async function getEnabledProviderIds() {
+  const settings = await getPref(SETTINGS_KEY, {});
+  if (!settings.enabledProviders) return ALL_PROVIDERS.map(p => p.id);
+  return settings.enabledProviders;
+}
+
 export function init(container) {
   let html5QrCode = null;
   let scanning = false;
@@ -152,11 +168,90 @@ export function init(container) {
   fileInput.accept = 'image/*';
   fileInput.style.display = 'none';
 
+  const settingsBtn = document.createElement('button');
+  settingsBtn.textContent = '⚙';
+  settingsBtn.title = 'Provider Settings';
+  settingsBtn.style.cssText =
+    'width:36px;height:36px;border:1px solid var(--color-border);border-radius:8px;background:var(--color-surface);color:var(--color-text);font-size:1.1rem;cursor:pointer;transition:opacity 0.15s;display:flex;align-items:center;justify-content:center;';
+
   headerBtns.appendChild(scanBtn);
   headerBtns.appendChild(uploadBtn);
+  headerBtns.appendChild(settingsBtn);
   header.appendChild(title);
   header.appendChild(headerBtns);
   wrapper.appendChild(header);
+
+  const settingsPanel = document.createElement('div');
+  settingsPanel.style.cssText =
+    'display:none;flex-direction:column;gap:0.5rem;padding:0.75rem;border:1px solid var(--color-border);border-radius:8px;background:var(--color-bg);font-size:0.78rem;';
+  settingsPanel.dataset.role = 'settings-panel';
+
+  const settingsTitle = document.createElement('div');
+  settingsTitle.textContent = 'Product Lookup Providers';
+  settingsTitle.style.cssText = 'font-weight:600;color:var(--color-text);font-size:0.82rem;';
+
+  const settingsHint = document.createElement('div');
+  settingsHint.textContent = 'Select which sources to query when scanning a barcode:';
+  settingsHint.style.cssText = 'font-size:0.72rem;color:var(--color-text-muted);';
+
+  settingsPanel.appendChild(settingsTitle);
+  settingsPanel.appendChild(settingsHint);
+
+  const providerToggles = {};
+
+  for (const p of ALL_PROVIDERS) {
+    const row = document.createElement('label');
+    row.style.cssText = 'display:flex;align-items:center;gap:0.5rem;cursor:pointer;padding:0.2rem 0;';
+
+    const cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.checked = true;
+    cb.style.cssText = 'accent-color:var(--color-primary);cursor:pointer;';
+    cb.dataset.providerId = p.id;
+
+    const label = document.createElement('span');
+    label.textContent = p.label;
+    label.style.cssText = 'color:var(--color-text);';
+
+    row.appendChild(cb);
+    row.appendChild(label);
+    settingsPanel.appendChild(row);
+    providerToggles[p.id] = cb;
+  }
+
+  settingsBtn.addEventListener('click', () => {
+    const isOpen = settingsPanel.style.display !== 'none';
+    settingsPanel.style.display = isOpen ? 'none' : 'flex';
+  });
+
+  async function loadProviderSettings() {
+    const settings = await getPref(SETTINGS_KEY, {});
+    const enabled = settings.enabledProviders;
+    if (!enabled) {
+      // All enabled by default
+      for (const p of ALL_PROVIDERS) providerToggles[p.id].checked = true;
+      return;
+    }
+    const enabledSet = new Set(enabled);
+    for (const p of ALL_PROVIDERS) {
+      providerToggles[p.id].checked = enabledSet.has(p.id);
+    }
+  }
+
+  async function saveProviderSettings() {
+    const enabled = [];
+    for (const p of ALL_PROVIDERS) {
+      if (providerToggles[p.id].checked) enabled.push(p.id);
+    }
+    await setPref(SETTINGS_KEY, { enabledProviders: enabled });
+  }
+
+  for (const p of ALL_PROVIDERS) {
+    providerToggles[p.id].addEventListener('change', saveProviderSettings);
+  }
+
+  loadProviderSettings();
+  wrapper.appendChild(settingsPanel);
 
   const status = document.createElement('div');
   status.style.cssText = 'font-size:0.82rem;color:var(--color-text-muted);min-height:1.2em;';
@@ -844,30 +939,47 @@ export function init(container) {
 
   async function lookupProduct(code, format, forceRefresh = false) {
     const normalized = code.replace(/^0+/, '');
+    const enabledIds = await getEnabledProviderIds();
+    const enabledSet = new Set(enabledIds);
     let hasCachedData = false;
 
-    // Phase 1: Show cached data immediately (unless force-refresh)
+    // Phase 1: Show cached data immediately (unless force-refresh), filtered by enabled providers
     if (!forceRefresh) {
       const providers = await getCachedProviders(normalized);
-      if (providers && Object.keys(providers).length > 0) {
-        hasCachedData = true;
-        const merged = mergeProviderResults(providersToResults(providers));
-        const sourcesStr = merged._sources.join(', ');
-        showProductResult(code, format, merged, sourcesStr, true);
-        addExternalSearchLinks(code, format);
-        // Fall through to Phase 2 — still refresh all providers
+      if (providers) {
+        // Filter cached providers to only those still enabled
+        const enabledProviders = {};
+        for (const p of ALL_PROVIDERS) {
+          if (enabledSet.has(p.id) && providers[p.source]) {
+            enabledProviders[p.source] = providers[p.source];
+          }
+        }
+        if (Object.keys(enabledProviders).length > 0) {
+          hasCachedData = true;
+          const merged = mergeProviderResults(providersToResults(enabledProviders));
+          const sourcesStr = merged._sources.join(', ');
+          showProductResult(code, format, merged, sourcesStr, true);
+          addExternalSearchLinks(code, format);
+          // Fall through to Phase 2 — still refresh all providers
+        }
       }
     }
 
-    // Phase 2: Always fire fresh provider lookups
-    const results = await Promise.allSettled([
-      lookupOpenFoodFacts(normalized, 'world'),
-      lookupOpenFoodFacts(normalized, 'in'),
-      lookupDatakick(normalized),
-      lookupBarcodeLookup(normalized),
-      lookupBuycott(normalized),
-      lookupSaiSupermarket(normalized),
-    ]);
+    // Phase 2: Fire only enabled provider lookups
+    const providerTasks = [];
+    for (const p of ALL_PROVIDERS) {
+      if (!enabledSet.has(p.id)) continue;
+      switch (p.id) {
+        case 'off_world': providerTasks.push(lookupOpenFoodFacts(normalized, 'world')); break;
+        case 'off_india': providerTasks.push(lookupOpenFoodFacts(normalized, 'in')); break;
+        case 'datakick': providerTasks.push(lookupDatakick(normalized)); break;
+        case 'barcodelookup': providerTasks.push(lookupBarcodeLookup(normalized)); break;
+        case 'buycott': providerTasks.push(lookupBuycott(normalized)); break;
+        case 'saisupermarket': providerTasks.push(lookupSaiSupermarket(normalized)); break;
+      }
+    }
+
+    const results = await Promise.allSettled(providerTasks);
 
     const freshResults = [];
     for (const result of results) {
