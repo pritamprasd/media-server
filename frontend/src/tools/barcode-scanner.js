@@ -261,6 +261,8 @@ export function init(container) {
   async function syncToServer() {
     const history = await getPref(HISTORY_KEY, []);
     const cartData = await getPref(CART_KEY, { items: [], flatDiscount: 0 });
+    const start = performance.now();
+    toolLog('barcode-scanner', 'api_request', { source: 'backend-sync', url: '/api/tools/barcode-scanner/sync', summary: 'syncing cart + history to server' }).catch(() => {});
     try {
       syncStatus.textContent = 'Syncing...';
       syncStatus.style.display = 'inline';
@@ -270,14 +272,19 @@ export function init(container) {
         body: JSON.stringify({ cart: cartData, history }),
         signal: AbortSignal.timeout(10000),
       });
+      const duration = Math.round(performance.now() - start);
       if (res.ok) {
+        toolLog('barcode-scanner', 'api_response', { source: 'backend-sync', duration, statusCode: 200, summary: 'sync successful' }).catch(() => {});
         syncStatus.textContent = '✓ Synced';
         setTimeout(() => { syncStatus.style.display = 'none'; }, 3000);
       } else {
+        toolLog('barcode-scanner', 'api_error', { source: 'backend-sync', duration, statusCode: res.status, summary: `${res.status} ${res.statusText}` }).catch(() => {});
         syncStatus.textContent = '✕ Sync failed';
         setTimeout(() => { syncStatus.style.display = 'none'; }, 5000);
       }
-    } catch {
+    } catch (err) {
+      const duration = Math.round(performance.now() - start);
+      toolLog('barcode-scanner', 'api_error', { source: 'backend-sync', duration, summary: err.name === 'AbortError' ? 'timeout' : err.message }).catch(() => {});
       syncStatus.textContent = '✕ Sync error';
       setTimeout(() => { syncStatus.style.display = 'none'; }, 5000);
     }
@@ -1195,6 +1202,7 @@ export function init(container) {
 
   function sendPing(data) {
     try {
+      toolLog('barcode-scanner', 'api_request', { source: 'backend-stats', url: '/api/tools/barcode-scanner/stats', summary: `sendBeacon: ${data.rawValue.substring(0, 30)}` }).catch(() => {});
       navigator.sendBeacon('/api/tools/barcode-scanner/stats', JSON.stringify({
         value: data.rawValue,
         format: data.format,
