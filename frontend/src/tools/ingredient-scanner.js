@@ -131,6 +131,24 @@ const CATEGORY_COLORS = {
   other: '#95a5a6',
 };
 
+const CATEGORY_ICONS = {
+  sweetener: '🍬', preservative: '🧪', emulsifier: '🫒', thickener: '🥣',
+  stabilizer: '🔬', gelling_agent: '🍮', artificial_color: '🎨',
+  artificial_flavor: '🧪', artificial_sweetener: '🍬', fat_oil: '🫒',
+  grain: '🌾', fruit_vegetable: '🥦', nut_seed: '🥜', dairy: '🥛',
+  protein: '🥩', salt_sodium: '🧂', leavening_agent: '🎈',
+  acidity_regulator: '⚗️', fortification_nutrient: '💊', allergen: '⚠️',
+  whole_food: '🌿', water: '💧', spice: '🌶️', other: '📦',
+};
+
+const ANALYSIS_ICONS = {
+  sugar: '🍬', additives: '🧪', nova: '🏭', nutriscore: '🥗',
+  calorie_density: '🔥', allergens: '⚠️', recognizability: '👨‍🍳',
+  fat_quality: '🫒', whole_food: '🌾', sodium_risk: '🧂',
+  preservatives: '🧫', list_length: '📋', plant_score: '🌱',
+  artificial: '☣️', texture_additives: '🧴', fortification: '💊',
+};
+
 const RECOGNIZABLE_INGREDIENTS = new Set([
   'sugar', 'salt', 'wheat flour', 'rice flour', 'corn flour', 'butter', 'egg', 'eggs',
   'milk', 'cream', 'buttermilk', 'yogurt', 'cheese', 'paneer', 'honey', 'vinegar',
@@ -781,7 +799,7 @@ export function init(container) {
   let isProcessing = false;
 
   const wrapper = document.createElement('div');
-  wrapper.style.cssText = 'display:flex;flex-direction:column;height:100%;padding:1.25rem;gap:1rem;overflow-y:auto;';
+  wrapper.style.cssText = 'display:flex;flex-direction:column;height:100%;padding:1.5rem;gap:1.25rem;overflow-y:auto;';
   container.appendChild(wrapper);
 
   // ── Header ──
@@ -789,19 +807,19 @@ export function init(container) {
   header.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:0.75rem;flex-wrap:wrap;';
 
   const title = document.createElement('h2');
-  title.textContent = 'Ingredient Scanner';
-  title.style.cssText = 'margin:0;font-size:1.1rem;font-weight:600;color:var(--color-text);';
+  title.textContent = '🔬 Ingredient Scanner';
+  title.style.cssText = 'margin:0;font-size:1.15rem;font-weight:700;color:var(--color-text);';
 
   const headerBtns = document.createElement('div');
-  headerBtns.style.cssText = 'display:flex;gap:0.4rem;';
+  headerBtns.style.cssText = 'display:flex;gap:0.5rem;';
 
   const cameraBtn = document.createElement('button');
-  cameraBtn.textContent = 'Open Camera';
-  cameraBtn.style.cssText = 'padding:0.55rem 1rem;border:none;border-radius:8px;background:var(--color-primary);color:#fff;font-size:0.82rem;font-weight:600;cursor:pointer;transition:opacity 0.15s;';
+  cameraBtn.innerHTML = '📷&nbsp; Camera';
+  cameraBtn.style.cssText = 'padding:0.5rem 1rem;border:none;border-radius:8px;background:var(--color-primary);color:#fff;font-size:0.8rem;font-weight:600;cursor:pointer;transition:opacity 0.15s;display:flex;align-items:center;gap:0.3rem;';
 
   const uploadBtn = document.createElement('button');
-  uploadBtn.textContent = 'Upload Image';
-  uploadBtn.style.cssText = 'padding:0.55rem 1rem;border:1px solid var(--color-border);border-radius:8px;background:var(--color-surface);color:var(--color-text);font-size:0.82rem;font-weight:600;cursor:pointer;transition:opacity 0.15s;';
+  uploadBtn.innerHTML = '📁&nbsp; Upload';
+  uploadBtn.style.cssText = 'padding:0.5rem 1rem;border:1px solid var(--color-border);border-radius:8px;background:var(--color-surface);color:var(--color-text);font-size:0.8rem;font-weight:600;cursor:pointer;transition:opacity 0.15s;display:flex;align-items:center;gap:0.3rem;';
 
   const fileInput = document.createElement('input');
   fileInput.type = 'file';
@@ -809,7 +827,7 @@ export function init(container) {
   fileInput.style.display = 'none';
 
   const settingsBtn = document.createElement('button');
-  settingsBtn.textContent = '⚙';
+  settingsBtn.innerHTML = '⚙';
   settingsBtn.title = 'Analysis Settings';
   settingsBtn.style.cssText = 'width:36px;height:36px;border:1px solid var(--color-border);border-radius:8px;background:var(--color-surface);color:var(--color-text);font-size:1.1rem;cursor:pointer;transition:opacity 0.15s;display:flex;align-items:center;justify-content:center;';
 
@@ -914,10 +932,15 @@ export function init(container) {
   loadSettings();
   wrapper.appendChild(settingsPanel);
 
-  // ── Status ──
+  // ── Status bar ──
   const status = document.createElement('div');
-  status.style.cssText = 'font-size:0.82rem;color:var(--color-text-muted);min-height:1.2em;';
-  status.textContent = 'Capture or upload a product ingredients label to begin.';
+  status.style.cssText = 'display:flex;align-items:center;gap:0.4rem;font-size:0.82rem;color:var(--color-text-muted);padding:0.5rem 0.75rem;background:var(--color-bg);border-radius:8px;border:1px solid var(--color-border);min-height:1.2em;';
+  const statusIcon = document.createElement('span');
+  statusIcon.textContent = '💡';
+  const statusText = document.createElement('span');
+  statusText.textContent = 'Capture or upload a product ingredients label to begin.';
+  status.appendChild(statusIcon);
+  status.appendChild(statusText);
   wrapper.appendChild(status);
 
   // ── Video / Image container ──
@@ -1004,7 +1027,7 @@ export function init(container) {
   resultsSection.appendChild(ingredientTableContainer);
 
   const analysisCards = document.createElement('div');
-  analysisCards.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:0.6rem;';
+  analysisCards.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:0.75rem;';
   resultsSection.appendChild(analysisCards);
 
   // ── File input ──
@@ -1026,9 +1049,9 @@ export function init(container) {
       cameraBtn.textContent = 'Close Camera';
       previewContainer.style.display = 'none';
       resultsSection.style.display = 'none';
-      status.textContent = 'Camera active. Point at ingredients list and tap Capture.';
+      statusText.textContent = 'Camera active. Point at ingredients list and tap Capture.';
     } catch {
-      status.textContent = 'Camera unavailable. Grant permission or use Upload / manual entry.';
+      statusText.textContent = 'Camera unavailable. Grant permission or use Upload / manual entry.';
     }
   });
 
@@ -1074,7 +1097,7 @@ export function init(container) {
     previewContainer.style.display = 'block';
     processingOverlay.style.display = 'flex';
     procStatus.textContent = 'Extracting text from image with OCR...';
-    status.textContent = 'Running OCR...';
+    statusText.textContent = 'Running OCR...';
     resultsSection.style.display = 'none';
 
     try {
@@ -1086,18 +1109,18 @@ export function init(container) {
 
       if (!extracted) {
         procStatus.textContent = 'No text detected. Try a clearer image or enter manually.';
-        status.textContent = 'OCR returned no text.';
+        statusText.textContent = 'OCR returned no text.';
         isProcessing = false;
         return;
       }
 
       procStatus.textContent = 'Analyzing ingredients...';
-      status.textContent = 'Analyzing extracted ingredients...';
+      statusText.textContent = 'Analyzing extracted ingredients...';
       await runAnalysis(extracted);
     } catch (err) {
       toolLog('ingredient-scanner', 'api_error', { summary: `OCR error: ${err.message}` }).catch(() => {});
       procStatus.textContent = 'OCR failed. Try a clearer image or enter manually.';
-      status.textContent = 'OCR error.';
+      statusText.textContent = 'OCR error.';
     } finally {
       isProcessing = false;
       processingOverlay.style.display = 'none';
@@ -1108,19 +1131,19 @@ export function init(container) {
   analyzeBtn.addEventListener('click', async () => {
     const text = textarea.value.trim();
     if (!text) {
-      status.textContent = 'Please enter ingredient text first.';
+      statusText.textContent = 'Please enter ingredient text first.';
       return;
     }
     previewContainer.style.display = 'none';
     resultsSection.style.display = 'none';
-    status.textContent = 'Analyzing ingredients...';
+    statusText.textContent = 'Analyzing ingredients...';
     await runAnalysis(text);
   });
 
   async function runAnalysis(text) {
     const ingredients = parseIngredients(text);
     if (ingredients.length === 0) {
-      status.textContent = 'No ingredients parsed. Check the format (comma-separated).';
+      statusText.textContent = 'No ingredients parsed. Check the format (comma-separated).';
       return;
     }
 
@@ -1184,118 +1207,136 @@ export function init(container) {
     }).catch(() => {});
 
     renderResults(parsed, analysisResults, aiUsed);
-    status.textContent = `${ingredients.length} ingredients analyzed. ${Object.keys(analysisResults).length} health metrics evaluated.`;
+    statusText.textContent = `${ingredients.length} ingredients analyzed. ${Object.keys(analysisResults).length} health metrics evaluated.`;
   }
 
   // ── Render results ──
   function renderResults(parsed, analysisResults, aiUsed) {
-    // Clear previous
     ingredientTableContainer.innerHTML = '';
     analysisCards.innerHTML = '';
 
-    // ── Ingredient table ──
-    const tableTitle = document.createElement('div');
-    tableTitle.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:0.65rem 0.85rem;background:var(--color-surface);border-bottom:1px solid var(--color-border);font-size:0.82rem;font-weight:600;color:var(--color-text);';
+    // ── Ingredient List ──
+    const listHeader = document.createElement('div');
+    listHeader.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:0.75rem 1rem;background:var(--color-surface);border-bottom:1px solid var(--color-border);border-radius:8px 8px 0 0;';
 
-    const tableTitleText = document.createElement('span');
-    tableTitleText.textContent = `Ingredients (${parsed.length})`;
-    const tableBadge = document.createElement('span');
-    tableBadge.textContent = aiUsed ? 'AI Enhanced' : 'Client-side';
-    tableBadge.style.cssText = 'font-size:0.65rem;padding:0.15rem 0.4rem;border-radius:4px;background:var(--color-primary);color:#fff;font-weight:500;';
+    const listTitle = document.createElement('span');
+    listTitle.style.cssText = 'font-size:0.85rem;font-weight:600;color:var(--color-text);display:flex;align-items:center;gap:0.5rem;';
+    listTitle.innerHTML = `<span style="font-size:1rem;">📋</span> Ingredients (${parsed.length})`;
 
-    tableTitle.appendChild(tableTitleText);
-    tableTitle.appendChild(tableBadge);
-    ingredientTableContainer.appendChild(tableTitle);
+    const listBadge = document.createElement('span');
+    listBadge.textContent = aiUsed ? 'AI Enhanced' : 'Client-side';
+    listBadge.style.cssText = 'font-size:0.65rem;padding:0.2rem 0.5rem;border-radius:4px;background:var(--color-primary);color:#fff;font-weight:500;white-space:nowrap;';
 
-    const table = document.createElement('table');
-    table.style.cssText = 'width:100%;border-collapse:collapse;font-size:0.75rem;';
+    listHeader.appendChild(listTitle);
+    listHeader.appendChild(listBadge);
+    ingredientTableContainer.appendChild(listHeader);
 
-    const thead = document.createElement('thead');
-    const hRow = document.createElement('tr');
-    hRow.style.cssText = 'background:var(--color-bg);';
-    ['#', 'Ingredient', 'Category', 'Function', 'E-Number', 'Health'].forEach(h => {
-      const th = document.createElement('th');
-      th.textContent = h;
-      th.style.cssText = `padding:0.4rem 0.5rem;text-align:${h === '#' ? 'center' : 'left'};border-bottom:1px solid var(--color-border);color:var(--color-text-muted);font-weight:600;font-size:0.7rem;text-transform:uppercase;letter-spacing:0.3px;white-space:nowrap;`;
-      hRow.appendChild(th);
-    });
-    thead.appendChild(hRow);
-    table.appendChild(thead);
+    const listBody = document.createElement('div');
+    listBody.style.cssText = 'display:flex;flex-direction:column;';
 
-    const tbody = document.createElement('tbody');
     for (let i = 0; i < parsed.length; i++) {
       const ing = parsed[i];
       const catColor = CATEGORY_COLORS[ing.category] || 'var(--color-text-muted)';
-      const healthColor = ing.is_whole_food ? 'var(--color-green, #2ecc71)' : ing.is_additive ? (ing.e_risk === 'warning' || ing.e_risk === 'caution' ? 'var(--color-red, #e74c3c)' : 'var(--color-orange, #e67e22)') : 'var(--color-text-muted)';
-      const healthLabel = ing.is_whole_food ? 'Good' : ing.is_additive ? (ing.e_risk === 'warning' ? 'Avoid' : ing.e_risk === 'caution' ? 'Caution' : 'Info') : 'Neutral';
 
-      const r = document.createElement('tr');
-      r.style.cssText = 'transition:background 0.1s;';
-      r.onmouseenter = () => { r.style.background = 'var(--color-bg)'; };
-      r.onmouseleave = () => { r.style.background = ''; };
+      let healthDot, healthTitle;
+      if (ing.is_whole_food) {
+        healthDot = '#2ecc71'; healthTitle = 'Good';
+      } else if (ing.is_additive) {
+        if (ing.e_risk === 'warning') { healthDot = '#e74c3c'; healthTitle = 'Avoid'; }
+        else if (ing.e_risk === 'caution') { healthDot = '#e67e22'; healthTitle = 'Caution'; }
+        else { healthDot = '#f39c12'; healthTitle = 'Info'; }
+      } else {
+        healthDot = 'var(--color-text-muted)'; healthTitle = 'Neutral';
+      }
 
-      const cells = [
-        { text: String(i + 1), align: 'center', style: 'color:var(--color-text-muted);font-size:0.7rem;' },
-        { text: ing.name, align: 'left', style: 'color:var(--color-text);font-weight:500;' },
-        { text: ing.category.replace(/_/g, ' '), align: 'left', style: `color:${catColor};` },
-        { text: ing.function, align: 'left', style: 'color:var(--color-text-muted);font-size:0.7rem;' },
-        { text: ing.e_number || '—', align: 'left', style: 'color:var(--color-text-muted);font-size:0.7rem;' },
-        { text: healthLabel, align: 'center', style: `color:${healthColor};font-weight:600;font-size:0.7rem;` },
-      ];
+      const row = document.createElement('div');
+      row.style.cssText = 'display:grid;grid-template-columns:2rem 1fr auto 0.75rem;gap:0.5rem;align-items:center;padding:0.45rem 0.85rem;border-bottom:1px solid var(--color-border);transition:background 0.1s;font-size:0.78rem;';
 
-      cells.forEach(c => {
-        const td = document.createElement('td');
-        td.textContent = c.text;
-        td.style.cssText = `padding:0.35rem 0.5rem;border-bottom:1px solid var(--color-border);vertical-align:middle;${c.style || ''}text-align:${c.align};word-break:break-word;`;
-        r.appendChild(td);
-      });
-      tbody.appendChild(r);
+      const isEven = i % 2 === 0;
+      if (isEven) row.style.background = 'var(--color-bg)';
+      row.onmouseenter = () => { row.style.background = 'var(--color-surface)'; };
+      row.onmouseleave = () => { row.style.background = isEven ? 'var(--color-bg)' : ''; };
+
+      const numEl = document.createElement('span');
+      numEl.textContent = i + 1;
+      numEl.style.cssText = 'color:var(--color-text-muted);font-size:0.7rem;text-align:center;font-weight:500;';
+
+      const nameEl = document.createElement('div');
+      nameEl.style.cssText = 'display:flex;flex-direction:column;gap:1px;min-width:0;';
+      const nameSpan = document.createElement('span');
+      nameSpan.textContent = ing.name;
+      nameSpan.style.cssText = 'color:var(--color-text);font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
+      nameEl.appendChild(nameSpan);
+      if (ing.e_number) {
+        const metaSpan = document.createElement('span');
+        metaSpan.textContent = `E-number: ${ing.e_number}`;
+        metaSpan.style.cssText = 'font-size:0.65rem;color:var(--color-text-muted);';
+        nameEl.appendChild(metaSpan);
+      }
+
+      const catEl = document.createElement('span');
+      catEl.textContent = `${CATEGORY_ICONS[ing.category] || ''} ${ing.category.replace(/_/g, ' ')}`;
+      catEl.style.cssText = `font-size:0.65rem;padding:0.15rem 0.45rem;border-radius:4px;background:${catColor}18;color:${catColor};font-weight:500;white-space:nowrap;`;
+
+      const healthEl = document.createElement('span');
+      healthEl.style.cssText = `width:0.6rem;height:0.6rem;border-radius:50%;background:${healthDot};justify-self:center;flex-shrink:0;`;
+      healthEl.title = healthTitle;
+
+      row.appendChild(numEl);
+      row.appendChild(nameEl);
+      row.appendChild(catEl);
+      row.appendChild(healthEl);
+      listBody.appendChild(row);
     }
-    table.appendChild(tbody);
-    ingredientTableContainer.appendChild(table);
 
-    // ── Analysis cards ──
-    const analysisCount = Object.keys(analysisResults).length;
-    if (analysisCount === 0) {
+    ingredientTableContainer.appendChild(listBody);
+
+    // ── Health Analysis cards ──
+    const cardCount = Object.keys(analysisResults).length;
+    if (cardCount === 0) {
       const empty = document.createElement('div');
-      empty.textContent = 'No analyses selected. Open ⚙ settings to enable analyses.';
-      empty.style.cssText = 'font-size:0.78rem;color:var(--color-text-muted);font-style:italic;padding:0.5rem;text-align:center;';
+      empty.innerHTML = '⚙️ No analyses selected. Open <strong>Settings</strong> to enable analyses.';
+      empty.style.cssText = 'font-size:0.82rem;color:var(--color-text-muted);font-style:italic;padding:1rem;text-align:center;';
       analysisCards.appendChild(empty);
     } else {
-      for (const [, result] of Object.entries(analysisResults)) {
+      for (const [key, result] of Object.entries(analysisResults)) {
         const card = document.createElement('div');
-        card.style.cssText = 'border:1px solid var(--color-border);border-radius:8px;padding:0.65rem;background:var(--color-surface);display:flex;flex-direction:column;gap:0.35rem;';
+        card.style.cssText = 'border:1px solid var(--color-border);border-radius:10px;padding:0.85rem;background:var(--color-surface);display:flex;flex-direction:column;gap:0.55rem;transition:box-shadow 0.15s;';
 
-        const cardHeader = document.createElement('div');
-        cardHeader.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:0.5rem;';
+        const hdr = document.createElement('div');
+        hdr.style.cssText = 'display:flex;align-items:center;gap:0.5rem;';
 
-        const cardLabel = document.createElement('div');
-        cardLabel.textContent = result.label;
-        cardLabel.style.cssText = 'font-size:0.78rem;font-weight:600;color:var(--color-text);flex:1;';
+        const iconEl = document.createElement('span');
+        iconEl.textContent = ANALYSIS_ICONS[key] || '📊';
+        iconEl.style.cssText = 'font-size:1.15rem;flex-shrink:0;line-height:1;';
 
-        const cardGrade = document.createElement('span');
-        cardGrade.textContent = result.grade;
-        cardGrade.style.cssText = `font-size:0.7rem;font-weight:700;padding:0.15rem 0.4rem;border-radius:4px;background:${result.color};color:#fff;white-space:nowrap;`;
+        const labelEl = document.createElement('span');
+        labelEl.textContent = result.label;
+        labelEl.style.cssText = 'font-size:0.82rem;font-weight:600;color:var(--color-text);flex:1;';
 
-        cardHeader.appendChild(cardLabel);
-        cardHeader.appendChild(cardGrade);
-        card.appendChild(cardHeader);
+        const gradeEl = document.createElement('span');
+        gradeEl.textContent = result.grade;
+        gradeEl.style.cssText = `font-size:0.7rem;font-weight:700;padding:0.2rem 0.5rem;border-radius:5px;background:${result.color};color:#fff;white-space:nowrap;`;
 
-        // Bar
+        hdr.appendChild(iconEl);
+        hdr.appendChild(labelEl);
+        hdr.appendChild(gradeEl);
+        card.appendChild(hdr);
+
         if (result.maxScore > 0) {
           const barOuter = document.createElement('div');
-          barOuter.style.cssText = 'height:5px;border-radius:3px;background:var(--color-bg);overflow:hidden;';
+          barOuter.style.cssText = 'height:6px;border-radius:3px;background:var(--color-bg);overflow:hidden;';
           const barInner = document.createElement('div');
-          barInner.style.cssText = `height:100%;width:${Math.min(100, result.percent || 0)}%;background:${result.color};border-radius:3px;transition:width 0.4s;`;
+          barInner.style.cssText = `height:100%;width:${Math.min(100, result.percent || 0)}%;background:${result.color};border-radius:3px;transition:width 0.5s ease;`;
           barOuter.appendChild(barInner);
           card.appendChild(barOuter);
         }
 
-        const cardDetails = document.createElement('div');
-        cardDetails.textContent = result.details;
-        cardDetails.style.cssText = 'font-size:0.68rem;color:var(--color-text-muted);line-height:1.4;';
-        card.appendChild(cardDetails);
+        const detEl = document.createElement('div');
+        detEl.textContent = result.details;
+        detEl.style.cssText = 'font-size:0.7rem;color:var(--color-text-muted);line-height:1.45;';
 
+        card.appendChild(detEl);
         analysisCards.appendChild(card);
       }
     }

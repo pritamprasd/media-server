@@ -2839,7 +2839,7 @@ def ingredient_scanner_analyze():
     text_model = current_app.config.get("OLLAMA_TEXT_MODEL", "llama3.2")
 
     try:
-        client = ollama.Client(host=host, timeout=60)
+        client = ollama.Client(host=host, timeout=20)
     except Exception as e:
         return jsonify({"error": "AI service unavailable", "detail": str(e)}), 503
 
