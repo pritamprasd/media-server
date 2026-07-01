@@ -5,6 +5,8 @@ import random
 import math
 import json
 import time
+import uuid
+import threading
 import urllib.parse
 import urllib.request
 from datetime import datetime
@@ -2825,8 +2827,38 @@ def explorer_remove_favorite():
 
 
 # ──────────────────────────────────────────────
-# Barcode scanner tool stats
+# Ingredient Scanner — async AI task store
 # ──────────────────────────────────────────────
+
+_ai_tasks = {}
+_ai_tasks_lock = threading.Lock()
+_AI_TASK_TTL = 600  # 10 minutes
+
+def _cleanup_ai_tasks():
+    now = time.time()
+    with _ai_tasks_lock:
+        stale = [tid for tid, t in list(_ai_tasks.items()) if now - t.get("created_at", 0) > _AI_TASK_TTL]
+        for tid in stale:
+            del _ai_tasks[tid]
+
+def _run_ollama_task(task_id, text, host, text_model, schema, system_prompt):
+    try:
+        client = ollama.Client(host=host, timeout=60)
+        response = client.chat(
+            model=text_model,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": f"Ingredient list: {text}"},
+            ],
+            format=schema,
+            options={"temperature": 0.2},
+        )
+        result = json.loads(response.message.content)
+        with _ai_tasks_lock:
+            _ai_tasks[task_id] = {"status": "done", "result": result, "created_at": time.time()}
+    except Exception as e:
+        with _ai_tasks_lock:
+            _ai_tasks[task_id] = {"status": "error", "error": str(e), "created_at": time.time()}
 
 @api_bp.route("/tools/ingredient-scanner/analyze", methods=["POST"])
 def ingredient_scanner_analyze():
@@ -2835,13 +2867,10 @@ def ingredient_scanner_analyze():
     if not text:
         return jsonify({"error": "No ingredient text provided"}), 400
 
+    _cleanup_ai_tasks()
+
     host = current_app.config.get("OLLAMA_BASE_URL", "http://localhost:11434")
     text_model = current_app.config.get("OLLAMA_TEXT_MODEL", "llama3.2")
-
-    try:
-        client = ollama.Client(host=host, timeout=20)
-    except Exception as e:
-        return jsonify({"error": "AI service unavailable", "detail": str(e)}), 503
 
     analysis_schema = {
         "type": "object",
@@ -2881,21 +2910,33 @@ def ingredient_scanner_analyze():
         "and e_number to the E-number if applicable."
     )
 
-    try:
-        response = client.chat(
-            model=text_model,
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": f"Ingredient list: {text}"},
-            ],
-            format=analysis_schema,
-            options={"temperature": 0.2},
-        )
-        result = json.loads(response.message.content)
-        return jsonify(result), 200
-    except Exception as e:
-        current_app.logger.error("IngredientScanner AI error: %s", str(e))
-        return jsonify({"error": "AI analysis failed", "detail": str(e)}), 500
+    task_id = str(uuid.uuid4())
+    with _ai_tasks_lock:
+        _ai_tasks[task_id] = {"status": "processing", "created_at": time.time()}
+
+    thread = threading.Thread(
+        target=_run_ollama_task,
+        args=(task_id, text, host, text_model, analysis_schema, system_prompt),
+        daemon=True,
+    )
+    thread.start()
+
+    return jsonify({"task_id": task_id, "status": "processing"}), 202
+
+
+@api_bp.route("/tools/ingredient-scanner/result/<task_id>", methods=["GET"])
+def ingredient_scanner_result(task_id):
+    _cleanup_ai_tasks()
+    with _ai_tasks_lock:
+        task = _ai_tasks.get(task_id)
+    if not task:
+        return jsonify({"error": "Task not found"}), 404
+    if task["status"] == "done":
+        return jsonify({"status": "done", "result": task["result"]}), 200
+    elif task["status"] == "error":
+        return jsonify({"status": "error", "error": task["error"]}), 200
+    else:
+        return jsonify({"status": "processing"}), 200
 
 
 @api_bp.route("/tools/barcode-scanner/stats", methods=["POST"])

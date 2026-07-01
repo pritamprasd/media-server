@@ -1467,7 +1467,7 @@ export function init(container) {
       return;
     }
 
-    // Try backend AI for enhanced categorization
+    // Try backend AI for enhanced categorization (async submit + poll)
     let aiIngredients = null;
     let aiUsed = false;
     try {
@@ -1475,12 +1475,26 @@ export function init(container) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text }),
-        signal: AbortSignal.timeout(15000),
       });
       if (res.ok) {
-        const aiData = await res.json();
-        aiIngredients = aiData.ingredients;
-        aiUsed = true;
+        const { task_id } = await res.json();
+        statusText.textContent = '🤖 AI analyzing ingredients...';
+        let attempts = 0;
+        while (attempts < 30) {
+          await new Promise(r => setTimeout(r, 2000));
+          attempts++;
+          const pollRes = await fetch(`/api/tools/ingredient-scanner/result/${task_id}`);
+          if (pollRes.ok) {
+            const pollData = await pollRes.json();
+            if (pollData.status === 'done') {
+              aiIngredients = pollData.result.ingredients;
+              aiUsed = true;
+              break;
+            } else if (pollData.status === 'error') {
+              break;
+            }
+          }
+        }
       }
     } catch { /* fall back to client-side categorization */ }
 
