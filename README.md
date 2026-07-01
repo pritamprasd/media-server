@@ -117,6 +117,13 @@ A scalable, semantic-searchable media viewer for your home media collection. Fea
 - **Cache clear** — clear all IndexedDB caches and service worker caches; uses `navigator.serviceWorker.ready` for Chrome PWA compatibility
 - **Map Zoom Level** — slider (10–19) with explicit Save button; persisted to IndexedDB and consumed by the Map tab's Zoom In button
 
+### 🧰 Tools
+- **Tool system** — declarative imperative DOM framework; drop a `.js` or `.html` file into `frontend/src/tools/` and it's auto-discovered via `import.meta.glob`; no route, import, or config change needed
+- **Barcode Scanner** — scan product barcodes via camera or uploaded image; auto-looks up product info (name, brand, description, price, rating, ingredients, nutritional scores) from 6 sources (Open Food Facts, Datakick, Buycott, BarcodeLookup, SaiSuperMarket) with **per-provider caching** — re-scanning the same barcode shows all cached provider data instantly while refreshing every source in the background
+- **3D Globe Explorer** — interactive 3D Earth with OpenStreetMap tile layers, map style switcher, fly-to navigation, Nominatim search autocomplete, and live Open-Meteo weather on click
+- **Logs** — real-time IndexedDB log viewer shared across all tools; filter by tool source, color-coded type badges (api_request/api_response/api_error/scan_detected), expandable detail rows, auto-refresh every 3s
+- **QR Code Generator** — encode text/URLs into QR codes with configurable size and error correction
+
 ### 🌍 Geocoding
 - **Reverse geocoding** — backend endpoint calls Nominatim API with 1 req/s rate limiting; results cached in-memory by rounded coordinates (4 decimal places)
 - **Google Maps link** — every GPS entry shows an `ExternalLink` icon that opens `https://www.google.com/maps?q=lat,lng` in a new tab

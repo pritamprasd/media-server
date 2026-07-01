@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
+import { toolLog } from '../services/tool-logger.js';
 
 export const icon = "🌍";
 export const name = "3D Globe Explorer";
@@ -225,7 +226,12 @@ export function init(container) {
     scene.add(markerGroup);
 
     const baseGeometry = new THREE.SphereGeometry(1, 64, 64);
-    const baseTexture = textureLoader.load("https://eoimages.gsfc.nasa.gov/images/imagerecords/73000/73909/world.topo.bathy.200407.3x5400x2700.jpg");
+    toolLog('globe', 'api_request', { source: 'nasa-texture', url: 'https://eoimages.gsfc.nasa.gov/images/imagerecords/73000/73909/world.topo.bathy.200407.3x5400x2700.jpg', summary: 'base globe texture' }).catch(() => {});
+    const baseTexture = textureLoader.load("https://eoimages.gsfc.nasa.gov/images/imagerecords/73000/73909/world.topo.bathy.200407.3x5400x2700.jpg", () => {
+      toolLog('globe', 'api_response', { source: 'nasa-texture', summary: 'base globe texture loaded' }).catch(() => {});
+    }, undefined, () => {
+      toolLog('globe', 'api_error', { source: 'nasa-texture', summary: 'base globe texture failed' }).catch(() => {});
+    });
     const baseMaterial = new THREE.MeshStandardMaterial({
       map: baseTexture,
       roughness: 0.8,
@@ -307,10 +313,13 @@ export function init(container) {
       .replace("{x}", x)
       .replace("{y}", y);
 
+    toolLog('globe', 'api_request', { source: 'map-tiles', url: url.substring(0, 120), summary: `tile z${z}/${x}/${y}` }).catch(() => {});
     const tileTexture = textureLoader.load(url, () => {
       loadingIndicator.style.display = "none";
+      toolLog('globe', 'api_response', { source: 'map-tiles', summary: `tile z${z}/${x}/${y} loaded` }).catch(() => {});
     }, undefined, () => {
       loadingIndicator.style.display = "none";
+      toolLog('globe', 'api_error', { source: 'map-tiles', summary: `tile z${z}/${x}/${y} failed` }).catch(() => {});
     });
 
     const mat = new THREE.MeshBasicMaterial({
@@ -415,12 +424,20 @@ export function init(container) {
   async function fetchLocationData(lat, lon) {
     detailsContent.innerHTML = `<div style="display:flex;flex-direction:column;align-items:center;gap:0.5rem;width:100%;"><span style="display:inline-block;width:18px;height:18px;border:2px solid var(--color-primary);border-top-color:transparent;border-radius:50%;animation:spin 0.8s linear infinite;"></span><span style="color:var(--color-text)">Geocoding location details...</span></div>`;
     
+    const geoUrl = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lon}&zoom=12`;
+    const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current_weather=true&timezone=auto`;
+    toolLog('globe', 'api_request', { source: 'nominatim-reverse', url: geoUrl, summary: `reverse geocode ${lat},${lon}` }).catch(() => {});
+    toolLog('globe', 'api_request', { source: 'open-meteo', url: weatherUrl, summary: `weather at ${lat},${lon}` }).catch(() => {});
     try {
-      const geoResponse = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lon}&zoom=12`);
+      const geoStart = performance.now();
+      const geoResponse = await fetch(geoUrl);
       const geoData = await geoResponse.json();
+      toolLog('globe', 'api_response', { source: 'nominatim-reverse', duration: Math.round(performance.now() - geoStart), statusCode: geoResponse.status, summary: 'reverse geocode ok' }).catch(() => {});
 
-      const weatherResponse = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current_weather=true&timezone=auto`);
+      const weatherStart = performance.now();
+      const weatherResponse = await fetch(weatherUrl);
       const weatherData = await weatherResponse.json();
+      toolLog('globe', 'api_response', { source: 'open-meteo', duration: Math.round(performance.now() - weatherStart), statusCode: weatherResponse.status, summary: 'weather ok' }).catch(() => {});
 
       let placeName = "Inspected Coordinate";
       if (geoData.address) {
@@ -459,6 +476,7 @@ export function init(container) {
         </div>
       `;
     } catch (err) {
+      toolLog('globe', 'api_error', { source: 'fetchLocationData', summary: err.message || 'fetch failed' }).catch(() => {});
       detailsContent.innerHTML = `
         <div style="text-align:left;width:100%;">
           <div style="font-weight:600;color:var(--color-text)">Inspection Complete</div>
@@ -573,9 +591,13 @@ export function init(container) {
     }
 
     searchTimeout = setTimeout(async () => {
+      const searchUrl = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=5`;
+      toolLog('globe', 'api_request', { source: 'nominatim-search', url: searchUrl, summary: `search "${query}"` }).catch(() => {});
+      const searchStart = performance.now();
       try {
-        const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=5`);
+        const response = await fetch(searchUrl);
         const data = await response.json();
+        toolLog('globe', 'api_response', { source: 'nominatim-search', duration: Math.round(performance.now() - searchStart), statusCode: response.status, summary: `${data.length} results for "${query}"` }).catch(() => {});
         
         suggestionsBox.innerHTML = "";
         if (data.length === 0) {
@@ -601,6 +623,7 @@ export function init(container) {
         });
         suggestionsBox.style.display = "block";
       } catch (err) {
+        toolLog('globe', 'api_error', { source: 'nominatim-search', duration: Math.round(performance.now() - searchStart), summary: err.message || 'search failed' }).catch(() => {});
         suggestionsBox.style.display = "none";
       }
     }, 450);

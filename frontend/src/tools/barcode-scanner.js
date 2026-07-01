@@ -16,17 +16,45 @@ const PRODUCT_FORMATS = new Set([
   'CODE_93', 'CODABAR', 'ITF', 'RSS_14', 'RSS_EXPANDED',
 ]);
 
-async function getCachedProduct(code) {
+async function getCachedProviders(code) {
   const cache = await getPref(CACHE_KEY, {});
   const entry = cache[code];
   if (!entry) return null;
-  if (Date.now() - entry.timestamp > CACHE_TTL) return null;
-  return entry;
+
+  // Migrate old single-provider format to per-provider
+  if (entry.product && !entry.providers) {
+    const migrated = {
+      providers: { [entry.source]: { product: entry.product, timestamp: entry.timestamp } },
+    };
+    cache[code] = migrated;
+    await setPref(CACHE_KEY, cache);
+    return migrated.providers;
+  }
+
+  const now = Date.now();
+  const valid = {};
+  for (const [source, data] of Object.entries(entry.providers || {})) {
+    if (now - data.timestamp <= CACHE_TTL) {
+      valid[source] = data;
+    }
+  }
+
+  if (Object.keys(valid).length === 0) return null;
+
+  // Prune expired providers
+  if (Object.keys(valid).length !== Object.keys(entry.providers || {}).length) {
+    cache[code] = { providers: valid };
+    await setPref(CACHE_KEY, cache);
+  }
+
+  return valid;
 }
 
-async function setCachedProduct(code, product, source) {
+async function setCachedProvider(code, source, product) {
   const cache = await getPref(CACHE_KEY, {});
-  cache[code] = { product, source, timestamp: Date.now() };
+  const entry = cache[code] || { providers: {} };
+  entry.providers[source] = { product, timestamp: Date.now() };
+  cache[code] = entry;
   await setPref(CACHE_KEY, cache);
 }
 
@@ -34,6 +62,28 @@ async function clearCachedProduct(code) {
   const cache = await getPref(CACHE_KEY, {});
   delete cache[code];
   await setPref(CACHE_KEY, cache);
+}
+
+function mergeProviderResults(results) {
+  const merged = {};
+  const sources = [];
+  for (const { product, source } of results) {
+    if (!source) continue;
+    sources.push(source);
+    for (const [key, value] of Object.entries(product)) {
+      if (value !== null && value !== undefined && value !== '') {
+        if (merged[key] === undefined || merged[key] === null || merged[key] === '') {
+          merged[key] = value;
+        }
+      }
+    }
+  }
+  merged._sources = [...new Set(sources)];
+  return merged;
+}
+
+function providersToResults(providers) {
+  return Object.entries(providers).map(([source, data]) => ({ product: data.product, source }));
 }
 
 export function init(container) {
@@ -554,8 +604,16 @@ export function init(container) {
     });
   }
 
-  function showProductResult(value, format, product, source, fromCache = false) {
+  function showProductResult(value, format, product, sourcesStr, fromCache = false) {
     resultCard.style.display = 'block';
+
+    // Remove any elements from a previous call (barcode row, refresh btn, loading bar)
+    const prevRow = resultCard.querySelector('[data-role="barcode-row"]');
+    if (prevRow) prevRow.remove();
+    const prevRefresh = resultCard.querySelector('[data-role="refresh-btn"]');
+    if (prevRefresh) prevRefresh.remove();
+    const prevLoading = resultCard.querySelector('[data-role="cache-loading"]');
+    if (prevLoading) prevLoading.remove();
 
     const imageUrl = product.image_url || product.image_front_url || (product.images && product.images.front?.display?.url) || null;
     if (imageUrl) {
@@ -570,7 +628,7 @@ export function init(container) {
     const brand = product.brands || product.brand || '';
     resultTitle.textContent = name;
 
-    const subParts = [brand, format.toUpperCase(), source].filter(Boolean);
+    const subParts = [brand, format.toUpperCase(), sourcesStr].filter(Boolean);
     if (fromCache) subParts.push('(cached)');
     resultSub.textContent = subParts.join(' · ');
 
@@ -578,6 +636,7 @@ export function init(container) {
       const refreshBtn = document.createElement('button');
       refreshBtn.textContent = '⟳ Refresh';
       refreshBtn.title = 'Fetch latest product data from APIs';
+      refreshBtn.dataset.role = 'refresh-btn';
       refreshBtn.style.cssText =
         'padding:0.25rem 0.5rem;border:1px solid var(--color-border);border-radius:6px;font-size:0.65rem;cursor:pointer;background:none;color:var(--color-text-muted);flex-shrink:0;margin-left:auto;';
       refreshBtn.addEventListener('click', (e) => {
@@ -585,9 +644,17 @@ export function init(container) {
         forceRefreshProduct(value, format);
       });
       resultSub.parentNode.insertBefore(refreshBtn, expandIcon);
+
+      // Add a subtle "Refreshing..." indicator that shows when fresh lookup starts
+      const loadingBar = document.createElement('div');
+      loadingBar.dataset.role = 'cache-loading';
+      loadingBar.textContent = '↻ Refreshing...';
+      loadingBar.style.cssText = 'font-size:0.65rem;color:var(--color-text-muted);padding:0 0.85rem 0.35rem;font-style:italic;';
+      resultCard.insertBefore(loadingBar, resultDetails);
     }
 
     const barcodeRow = document.createElement('div');
+    barcodeRow.dataset.role = 'barcode-row';
     barcodeRow.style.cssText = 'display:flex;align-items:center;gap:0.35rem;padding:0 0.85rem 0.35rem;';
     const barcodeLabel = document.createElement('span');
     barcodeLabel.textContent = value;
@@ -753,15 +820,15 @@ export function init(container) {
         brand,
         priceText: product.price || '',
         imageUrl: imageUrl || '',
-        source,
+        source: sourcesStr,
       });
     });
     resultDetails.appendChild(addCartBtn);
 
-    status.textContent = `Product found via ${source}${fromCache ? ' (from cache)' : ''}. Tap card for details.`;
+    status.textContent = `Product data from ${sourcesStr}${fromCache ? ' (from cache)' : ''}. Tap card for details.`;
     addToHistory({
       type: 'barcode', format, value,
-      product: { name, brand, imageUrl, source },
+      product: { name, brand, imageUrl, source: sourcesStr },
       productName: name,
     });
   }
@@ -777,17 +844,22 @@ export function init(container) {
 
   async function lookupProduct(code, format, forceRefresh = false) {
     const normalized = code.replace(/^0+/, '');
+    let hasCachedData = false;
 
+    // Phase 1: Show cached data immediately (unless force-refresh)
     if (!forceRefresh) {
-      const cached = await getCachedProduct(normalized);
-      if (cached) {
-        const { product, source } = cached;
-        showProductResult(code, format, product, source, true);
+      const providers = await getCachedProviders(normalized);
+      if (providers && Object.keys(providers).length > 0) {
+        hasCachedData = true;
+        const merged = mergeProviderResults(providersToResults(providers));
+        const sourcesStr = merged._sources.join(', ');
+        showProductResult(code, format, merged, sourcesStr, true);
         addExternalSearchLinks(code, format);
-        return;
+        // Fall through to Phase 2 — still refresh all providers
       }
     }
 
+    // Phase 2: Always fire fresh provider lookups
     const results = await Promise.allSettled([
       lookupOpenFoodFacts(normalized, 'world'),
       lookupOpenFoodFacts(normalized, 'in'),
@@ -797,18 +869,20 @@ export function init(container) {
       lookupSaiSupermarket(normalized),
     ]);
 
-    let found = false;
+    const freshResults = [];
     for (const result of results) {
       if (result.status === 'fulfilled' && result.value) {
         const { product, source } = result.value;
-        await setCachedProduct(normalized, product, source);
-        showProductResult(code, format, product, source, false);
-        found = true;
-        break;
+        await setCachedProvider(normalized, source, product);
+        freshResults.push({ product, source });
       }
     }
 
-    if (!found) {
+    if (freshResults.length > 0) {
+      const merged = mergeProviderResults(freshResults);
+      const sourcesStr = merged._sources.join(', ');
+      showProductResult(code, format, merged, sourcesStr, false);
+    } else if (!hasCachedData) {
       showNoProductResult(code, format);
     }
 
