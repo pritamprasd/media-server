@@ -74,6 +74,32 @@ async function clearCachedProduct(code) {
   await setPref(CACHE_KEY, cache);
 }
 
+async function clearAllCache() {
+  await setPref(CACHE_KEY, {});
+}
+
+async function clearOneCachedProvider(code, source) {
+  const cache = await getPref(CACHE_KEY, {});
+  const entry = cache[code];
+  if (!entry) return;
+  delete entry.providers[source];
+  if (Object.keys(entry.providers).length === 0) {
+    delete cache[code];
+  } else {
+    cache[code] = entry;
+  }
+  await setPref(CACHE_KEY, cache);
+}
+
+async function getCacheStats() {
+  const cache = await getPref(CACHE_KEY, {});
+  let providerCount = 0;
+  for (const entry of Object.values(cache)) {
+    providerCount += Object.keys(entry.providers || {}).length;
+  }
+  return { codeCount: Object.keys(cache).length, providerCount };
+}
+
 function mergeProviderResults(results) {
   const merged = {};
   const sources = [];
@@ -249,6 +275,39 @@ export function init(container) {
   for (const p of ALL_PROVIDERS) {
     providerToggles[p.id].addEventListener('change', saveProviderSettings);
   }
+
+  const cacheDivider = document.createElement('hr');
+  cacheDivider.style.cssText = 'border:none;border-top:1px solid var(--color-border);margin:0.25rem 0;';
+  settingsPanel.appendChild(cacheDivider);
+
+  const cacheTitle = document.createElement('div');
+  cacheTitle.textContent = 'Cache';
+  cacheTitle.style.cssText = 'font-weight:600;color:var(--color-text);font-size:0.82rem;';
+  settingsPanel.appendChild(cacheTitle);
+
+  const cacheStats = document.createElement('div');
+  cacheStats.style.cssText = 'font-size:0.72rem;color:var(--color-text-muted);';
+  settingsPanel.appendChild(cacheStats);
+
+  const clearCacheBtn = document.createElement('button');
+  clearCacheBtn.textContent = 'Clear All Cache';
+  clearCacheBtn.style.cssText =
+    'padding:0.35rem 0.7rem;border:1px solid var(--color-border);border-radius:6px;font-size:0.72rem;cursor:pointer;background:none;color:var(--color-text-muted);align-self:flex-start;';
+
+  async function updateCacheStats() {
+    const stats = await getCacheStats();
+    cacheStats.textContent = `${stats.codeCount} barcodes cached across ${stats.providerCount} provider entries`;
+  }
+
+  clearCacheBtn.addEventListener('click', async () => {
+    await clearAllCache();
+    await updateCacheStats();
+    status.textContent = 'All product cache cleared.';
+    setTimeout(() => { if (status.textContent === 'All product cache cleared.') status.textContent = ''; }, 3000);
+  });
+
+  settingsPanel.appendChild(clearCacheBtn);
+  updateCacheStats();
 
   loadProviderSettings();
   wrapper.appendChild(settingsPanel);
@@ -709,6 +768,8 @@ export function init(container) {
     if (prevRefresh) prevRefresh.remove();
     const prevLoading = resultCard.querySelector('[data-role="cache-loading"]');
     if (prevLoading) prevLoading.remove();
+    const prevTags = resultCard.querySelector('[data-role="cache-tags"]');
+    if (prevTags) prevTags.remove();
 
     const imageUrl = product.image_url || product.image_front_url || (product.images && product.images.front?.display?.url) || null;
     if (imageUrl) {
@@ -758,6 +819,40 @@ export function init(container) {
     barcodeRow.appendChild(barcodeLabel);
     barcodeRow.appendChild(copyBarcode);
     resultCard.insertBefore(barcodeRow, resultDetails);
+
+    // Per-provider cache tags with delete buttons
+    if (fromCache) {
+      const tagsContainer = document.createElement('div');
+      tagsContainer.dataset.role = 'cache-tags';
+      tagsContainer.style.cssText = 'display:flex;flex-wrap:wrap;gap:0.3rem;padding:0 0.85rem 0.35rem;';
+
+      for (const source of (product._sources || [])) {
+        const tag = document.createElement('span');
+        tag.style.cssText = 'display:inline-flex;align-items:center;gap:0.2rem;padding:0.12rem 0.35rem;border-radius:4px;font-size:0.62rem;background:var(--color-bg);border:1px solid var(--color-border);color:var(--color-text-muted);';
+
+        const nameSpan = document.createElement('span');
+        nameSpan.textContent = source;
+
+        const delBtn = document.createElement('button');
+        delBtn.textContent = '×';
+        delBtn.title = `Delete "${source}" cache entry`;
+        delBtn.style.cssText = 'border:none;background:none;cursor:pointer;font-size:0.72rem;color:var(--color-text-muted);padding:0;line-height:1;opacity:0.5;transition:opacity 0.15s;';
+        delBtn.onmouseenter = () => { delBtn.style.opacity = '1'; };
+        delBtn.onmouseleave = () => { delBtn.style.opacity = '0.5'; };
+        delBtn.addEventListener('click', async (e) => {
+          e.stopPropagation();
+          const normalized = value.replace(/^0+/, '');
+          await clearOneCachedProvider(normalized, source);
+          await showFromCache(value, format);
+        });
+
+        tag.appendChild(nameSpan);
+        tag.appendChild(delBtn);
+        tagsContainer.appendChild(tag);
+      }
+
+      resultCard.insertBefore(tagsContainer, resultDetails);
+    }
 
     resultDetails.style.display = 'none';
     expandIcon.style.transform = 'rotate(0deg)';
@@ -999,6 +1094,30 @@ export function init(container) {
     }
 
     addExternalSearchLinks(code, format);
+  }
+
+  async function showFromCache(code, format) {
+    const normalized = code.replace(/^0+/, '');
+    const enabledIds = await getEnabledProviderIds();
+    const enabledSet = new Set(enabledIds);
+    const providers = await getCachedProviders(normalized);
+    if (providers) {
+      const enabledProviders = {};
+      for (const p of ALL_PROVIDERS) {
+        if (enabledSet.has(p.id) && providers[p.source]) {
+          enabledProviders[p.source] = providers[p.source];
+        }
+      }
+      if (Object.keys(enabledProviders).length > 0) {
+        const merged = mergeProviderResults(providersToResults(enabledProviders));
+        const sourcesStr = merged._sources.join(', ');
+        showProductResult(code, format, merged, sourcesStr, true);
+        addExternalSearchLinks(code, format);
+        return;
+      }
+    }
+    resultCard.style.display = 'none';
+    showNoProductResult(code, format);
   }
 
   function showNoProductResult(code, format) {
