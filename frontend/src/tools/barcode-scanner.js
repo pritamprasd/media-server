@@ -1076,19 +1076,31 @@ export function init(container) {
 
     const results = await Promise.allSettled(providerTasks);
 
-    const freshResults = [];
     for (const result of results) {
       if (result.status === 'fulfilled' && result.value) {
         const { product, source } = result.value;
         await setCachedProvider(normalized, source, product);
-        freshResults.push({ product, source });
       }
     }
 
-    if (freshResults.length > 0) {
-      const merged = mergeProviderResults(freshResults);
-      const sourcesStr = merged._sources.join(', ');
-      showProductResult(code, format, merged, sourcesStr, false);
+    // Re-read cache — merges just-fetched data with any previously cached
+    // data from providers that returned null this time (e.g. OFF data from
+    // a prior scan won't be lost just because OFF returned null today).
+    const finalProviders = await getCachedProviders(normalized);
+    if (finalProviders) {
+      const enabledFinal = {};
+      for (const p of ALL_PROVIDERS) {
+        if (enabledSet.has(p.id) && finalProviders[p.source]) {
+          enabledFinal[p.source] = finalProviders[p.source];
+        }
+      }
+      if (Object.keys(enabledFinal).length > 0) {
+        const merged = mergeProviderResults(providersToResults(enabledFinal));
+        const sourcesStr = merged._sources.join(', ');
+        showProductResult(code, format, merged, sourcesStr, false);
+      } else if (!hasCachedData) {
+        showNoProductResult(code, format);
+      }
     } else if (!hasCachedData) {
       showNoProductResult(code, format);
     }
