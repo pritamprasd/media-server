@@ -1,5 +1,6 @@
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
 import { getPref, setPref } from '../services/db.js';
+import { toolLog } from '../services/tool-logger.js';
 
 export const icon = '📷';
 export const name = 'Barcode Scanner';
@@ -325,6 +326,7 @@ export function init(container) {
 
     html5QrCode = new Html5Qrcode('barcode-scanner-inner');
 
+    toolLog('barcode-scanner', 'camera_start', { summary: 'camera started' }).catch(() => {});
     html5QrCode.start({ facingMode: 'environment' }, camConfig, onScanSuccess, onScanFailure)
       .then(() => {
         status.textContent = 'Tap the viewfinder to focus. Point camera at a barcode or QR code...';
@@ -357,7 +359,28 @@ export function init(container) {
     status.textContent = 'Scanning image for codes...';
     resultCard.style.display = 'none';
 
-    const codeScanner = new Html5Qrcode('barcode-scanner-file');
+    const formats = ['ean_13','ean_8','upc_a','upc_e','code_128','code_39','code_93','codabar','itf','qr_code','data_matrix','pdf417','aztec'];
+
+    if ('BarcodeDetector' in window) {
+      try {
+        const bitmap = await createImageBitmap(file);
+        const detector = new BarcodeDetector({ formats });
+        const results = await detector.detect(bitmap);
+        if (results.length > 0) {
+          const r = results[0];
+          status.textContent = 'Code found in image.';
+          sendPing({ rawValue: r.rawValue, format: r.format });
+          onDetected(r.rawValue, r.format);
+          return;
+        }
+      } catch { /* fall through to html5-qrcode */ }
+    }
+
+    const scanEl = document.createElement('div');
+    scanEl.id = 'barcode-scanner-file-fallback';
+    scanEl.style.cssText = 'position:fixed;left:-9999px;top:-9999px;width:320px;height:240px;';
+    document.body.appendChild(scanEl);
+    const codeScanner = new Html5Qrcode('barcode-scanner-file-fallback');
     try {
       const result = await codeScanner.scanFileV2(file, false);
       status.textContent = 'Code found in image.';
@@ -369,6 +392,7 @@ export function init(container) {
       status.textContent = 'No code detected in the selected image. Try another.';
     } finally {
       codeScanner.clear();
+      document.body.removeChild(scanEl);
     }
   }
 
@@ -460,6 +484,7 @@ export function init(container) {
   }
 
   function onDetected(rawValue, format) {
+    toolLog('barcode-scanner', 'scan_detected', { barcode: rawValue, format, summary: `${format}: ${rawValue.substring(0, 30)}` }).catch(() => {});
     const isQR = format === 'QR_CODE';
     const isProduct = PRODUCT_FORMATS.has(format);
 
@@ -737,6 +762,7 @@ export function init(container) {
   async function forceRefreshProduct(code, format) {
     const normalized = code.replace(/^0+/, '');
     await clearCachedProduct(normalized);
+    await toolLog('barcode-scanner', 'api_request', { barcode: code, source: 'force-refresh', summary: 'clearing cache and re-fetching all sources' }).catch(() => {});
     status.textContent = 'Force-refreshing product data...';
     resultCard.style.display = 'none';
     await lookupProduct(code, format, true);
@@ -800,29 +826,49 @@ export function init(container) {
   async function lookupOpenFoodFacts(code, region) {
     const domain = region === 'in' ? 'in.openfoodfacts.org' : 'world.openfoodfacts.net';
     const url = `https://${domain}/api/v2/product/${code}?fields=product_name,brands,categories,ingredients_text,quantity,packaging,nutriscore_grade,ecoscore_grade,nova_group,allergens,traces,image_url,image_front_url,image_nutrition_url,images`;
+    const source = region === 'in' ? 'Open Food Facts India' : 'Open Food Facts';
+    const start = performance.now();
+    toolLog('barcode-scanner', 'api_request', { source, barcode: code, url: url.substring(0, 200) }).catch(() => {});
 
     try {
       const res = await fetch(url, {
         headers: { 'User-Agent': 'MediaServer-BarcodeScanner/1.0' },
         signal: AbortSignal.timeout(5000),
       });
-      if (!res.ok) return null;
+      const duration = Math.round(performance.now() - start);
+      if (!res.ok) {
+        toolLog('barcode-scanner', 'api_error', { source, barcode: code, duration, statusCode: res.status, summary: `${res.status} ${res.statusText}` }).catch(() => {});
+        return null;
+      }
       const data = await res.json();
       if (data.status === 1 && data.product) {
-        return { product: data.product, source: region === 'in' ? 'Open Food Facts India' : 'Open Food Facts' };
+        toolLog('barcode-scanner', 'api_response', { source, barcode: code, duration, statusCode: res.status, summary: 'product found' }).catch(() => {});
+        return { product: data.product, source };
       }
+      toolLog('barcode-scanner', 'api_response', { source, barcode: code, duration, statusCode: res.status, summary: 'no product data' }).catch(() => {});
       return null;
-    } catch { return null; }
+    } catch (err) {
+      const duration = Math.round(performance.now() - start);
+      toolLog('barcode-scanner', 'api_error', { source, barcode: code, duration, summary: err.name === 'AbortError' ? 'timeout' : err.message }).catch(() => {});
+      return null;
+    }
   }
 
   async function lookupDatakick(code) {
+    const source = 'Datakick';
+    const url = `https://www.gtinsearch.org/api/items/${code}`;
+    const start = performance.now();
+    toolLog('barcode-scanner', 'api_request', { source, barcode: code, url }).catch(() => {});
     try {
-      const res = await fetch(`https://www.gtinsearch.org/api/items/${code}`, {
-        signal: AbortSignal.timeout(5000),
-      });
-      if (!res.ok) return null;
+      const res = await fetch(url, { signal: AbortSignal.timeout(5000) });
+      const duration = Math.round(performance.now() - start);
+      if (!res.ok) {
+        toolLog('barcode-scanner', 'api_error', { source, barcode: code, duration, statusCode: res.status, summary: `${res.status} ${res.statusText}` }).catch(() => {});
+        return null;
+      }
       const data = await res.json();
       if (data && data.title) {
+        toolLog('barcode-scanner', 'api_response', { source, barcode: code, duration, statusCode: res.status, summary: data.title.substring(0, 80) }).catch(() => {});
         return {
           product: {
             product_name: data.title,
@@ -834,20 +880,35 @@ export function init(container) {
           source: 'Datakick',
         };
       }
+      toolLog('barcode-scanner', 'api_response', { source, barcode: code, duration, statusCode: res.status, summary: 'no product data' }).catch(() => {});
       return null;
-    } catch { return null; }
+    } catch (err) {
+      const duration = Math.round(performance.now() - start);
+      toolLog('barcode-scanner', 'api_error', { source, barcode: code, duration, summary: err.name === 'AbortError' ? 'timeout' : err.message }).catch(() => {});
+      return null;
+    }
   }
 
   async function lookupBuycott(code) {
-    const url = `https://www.buycott.com/upc/${encodeURIComponent(code)}`;
+    const source = 'Buycott';
+    const baseUrl = `https://www.buycott.com/upc/${encodeURIComponent(code)}`;
     const proxies = [
       u => `https://corsproxy.io/?url=${encodeURIComponent(u)}`,
       u => `https://api.cors.syrins.tech/?url=${encodeURIComponent(u)}`,
     ];
+    let proxyIdx = 0;
     for (const proxy of proxies) {
+      const url = proxy(baseUrl);
+      const start = performance.now();
+      toolLog('barcode-scanner', 'api_request', { source, barcode: code, proxy: String(proxyIdx + 1), url: url.substring(0, 200) }).catch(() => {});
       try {
-        const res = await fetch(proxy(url), { signal: AbortSignal.timeout(6000) });
-        if (!res.ok) continue;
+        const res = await fetch(url, { signal: AbortSignal.timeout(6000) });
+        const duration = Math.round(performance.now() - start);
+        if (!res.ok) {
+          toolLog('barcode-scanner', 'api_error', { source, barcode: code, proxy: String(proxyIdx + 1), duration, statusCode: res.status, summary: `${res.status} ${res.statusText}` }).catch(() => {});
+          proxyIdx++;
+          continue;
+        }
         const html = await res.text();
         const parser = new DOMParser();
         const doc = parser.parseFromString(html, 'text/html');
@@ -858,6 +919,7 @@ export function init(container) {
         const priceEl = doc.querySelector('.price, .product-price, .item-price, span.price, [class*="price"]');
         const ratingEl = doc.querySelector('.rating, .product-rating, .star-rating, [class*="rating"], .average');
         if (titleEl) {
+          toolLog('barcode-scanner', 'api_response', { source, barcode: code, proxy: String(proxyIdx + 1), duration, statusCode: res.status, summary: titleEl.textContent.trim().substring(0, 80) }).catch(() => {});
           return {
             product: {
               product_name: titleEl.textContent.trim(),
@@ -870,21 +932,36 @@ export function init(container) {
             source: 'Buycott',
           };
         }
-      } catch { /* try next proxy */ }
+        toolLog('barcode-scanner', 'api_response', { source, barcode: code, proxy: String(proxyIdx + 1), duration, statusCode: res.status, summary: 'page parsed, no product found' }).catch(() => {});
+      } catch (err) {
+        const duration = Math.round(performance.now() - start);
+        toolLog('barcode-scanner', 'api_error', { source, barcode: code, proxy: String(proxyIdx + 1), duration, summary: err.name === 'AbortError' ? 'timeout' : err.message }).catch(() => {});
+      }
+      proxyIdx++;
     }
     return null;
   }
 
   async function lookupBarcodeLookup(code) {
+    const source = 'BarcodeLookup';
+    const baseUrl = `https://www.barcodelookup.com/${code}`;
     const proxies = [
       u => `https://corsproxy.io/?url=${encodeURIComponent(u)}`,
       u => `https://api.cors.syrins.tech/?url=${encodeURIComponent(u)}`,
     ];
+    let proxyIdx = 0;
     for (const proxy of proxies) {
+      const url = proxy(baseUrl);
+      const start = performance.now();
+      toolLog('barcode-scanner', 'api_request', { source, barcode: code, proxy: String(proxyIdx + 1), url: url.substring(0, 200) }).catch(() => {});
       try {
-        const url = proxy(`https://www.barcodelookup.com/${code}`);
         const res = await fetch(url, { signal: AbortSignal.timeout(6000) });
-        if (!res.ok) continue;
+        const duration = Math.round(performance.now() - start);
+        if (!res.ok) {
+          toolLog('barcode-scanner', 'api_error', { source, barcode: code, proxy: String(proxyIdx + 1), duration, statusCode: res.status, summary: `${res.status} ${res.statusText}` }).catch(() => {});
+          proxyIdx++;
+          continue;
+        }
         const html = await res.text();
         const parser = new DOMParser();
         const doc = parser.parseFromString(html, 'text/html');
@@ -895,6 +972,7 @@ export function init(container) {
         const priceEl = doc.querySelector('.product-price, .price, span.price, .product-offer-price');
         const ratingEl = doc.querySelector('.product-rating, .rating, .average-rating, [class*="rating"], .star-rating');
         if (titleEl) {
+          toolLog('barcode-scanner', 'api_response', { source, barcode: code, proxy: String(proxyIdx + 1), duration, statusCode: res.status, summary: titleEl.textContent.trim().substring(0, 80) }).catch(() => {});
           return {
             product: {
               product_name: titleEl.textContent.trim(),
@@ -907,30 +985,50 @@ export function init(container) {
             source: 'BarcodeLookup',
           };
         }
-      } catch { /* try next proxy */ }
+        toolLog('barcode-scanner', 'api_response', { source, barcode: code, proxy: String(proxyIdx + 1), duration, statusCode: res.status, summary: 'page parsed, no product found' }).catch(() => {});
+      } catch (err) {
+        const duration = Math.round(performance.now() - start);
+        toolLog('barcode-scanner', 'api_error', { source, barcode: code, proxy: String(proxyIdx + 1), duration, summary: err.name === 'AbortError' ? 'timeout' : err.message }).catch(() => {});
+      }
+      proxyIdx++;
     }
     return null;
   }
 
   async function lookupSaiSupermarket(code) {
+    const source = 'SaiSuperMarket';
+    const baseUrl = `https://www.saisupermarket.in/search?q=${encodeURIComponent(code)}`;
     const proxies = [
       u => `https://corsproxy.io/?url=${encodeURIComponent(u)}`,
       u => `https://api.cors.syrins.tech/?url=${encodeURIComponent(u)}`,
     ];
+    let proxyIdx = 0;
     for (const proxy of proxies) {
+      const url = proxy(baseUrl);
+      const start = performance.now();
+      toolLog('barcode-scanner', 'api_request', { source, barcode: code, proxy: String(proxyIdx + 1), url: url.substring(0, 200) }).catch(() => {});
       try {
-        const url = proxy(`https://www.saisupermarket.in/search?q=${encodeURIComponent(code)}`);
         const res = await fetch(url, { signal: AbortSignal.timeout(6000) });
-        if (!res.ok) continue;
+        const duration = Math.round(performance.now() - start);
+        if (!res.ok) {
+          toolLog('barcode-scanner', 'api_error', { source, barcode: code, proxy: String(proxyIdx + 1), duration, statusCode: res.status, summary: `${res.status} ${res.statusText}` }).catch(() => {});
+          proxyIdx++;
+          continue;
+        }
         const html = await res.text();
         const parser = new DOMParser();
         const doc = parser.parseFromString(html, 'text/html');
         const card = doc.querySelector('.product-item, [class*="product"], .item, .product-card, .search-result-item');
         if (!card) {
           const link = doc.querySelector(`a[href*="/product/"], a[href*="/p/"], a[href*="/item/"]`);
-          if (!link) continue;
+          if (!link) {
+            toolLog('barcode-scanner', 'api_response', { source, barcode: code, proxy: String(proxyIdx + 1), duration, statusCode: res.status, summary: 'no product found on page' }).catch(() => {});
+            proxyIdx++;
+            continue;
+          }
           const title2 = link.getAttribute('title') || link.textContent.trim();
           if (title2) {
+            toolLog('barcode-scanner', 'api_response', { source, barcode: code, proxy: String(proxyIdx + 1), duration, statusCode: res.status, summary: title2.substring(0, 80) }).catch(() => {});
             return {
               product: {
                 product_name: title2,
@@ -940,6 +1038,7 @@ export function init(container) {
               source: 'SaiSuperMarket',
             };
           }
+          proxyIdx++;
           continue;
         }
         const titleEl = card.querySelector('.product-title, .name, .title, h3, h4, a[href*="/product/"], a[href*="/p/"]');
@@ -948,6 +1047,7 @@ export function init(container) {
         const imgEl = card.querySelector('img[src*="product"], img[src*="upload"], .product-image img');
         const title = titleEl ? (titleEl.textContent || titleEl.getAttribute('title') || '').trim() : '';
         if (title) {
+          toolLog('barcode-scanner', 'api_response', { source, barcode: code, proxy: String(proxyIdx + 1), duration, statusCode: res.status, summary: title.substring(0, 80) }).catch(() => {});
           return {
             product: {
               product_name: title,
@@ -958,7 +1058,12 @@ export function init(container) {
             source: 'SaiSuperMarket',
           };
         }
-      } catch { /* try next proxy */ }
+        toolLog('barcode-scanner', 'api_response', { source, barcode: code, proxy: String(proxyIdx + 1), duration, statusCode: res.status, summary: 'page parsed, no product found' }).catch(() => {});
+      } catch (err) {
+        const duration = Math.round(performance.now() - start);
+        toolLog('barcode-scanner', 'api_error', { source, barcode: code, proxy: String(proxyIdx + 1), duration, summary: err.name === 'AbortError' ? 'timeout' : err.message }).catch(() => {});
+      }
+      proxyIdx++;
     }
     return null;
   }
