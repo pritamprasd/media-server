@@ -35,6 +35,7 @@ from bs4 import BeautifulSoup
 from app.utility.file_system import traverse_directory
 from app.utility.hash_utility import hamming_distance
 from app.utility.mime_utility import guess_mime
+import ollama
 
 config = get_config()
 
@@ -2826,6 +2827,72 @@ def explorer_remove_favorite():
 # ──────────────────────────────────────────────
 # Barcode scanner tool stats
 # ──────────────────────────────────────────────
+
+@api_bp.route("/tools/ingredient-scanner/analyze", methods=["POST"])
+def ingredient_scanner_analyze():
+    data = request.get_json(silent=True) or {}
+    text = (data.get("text") or "").strip()
+    if not text:
+        return jsonify({"error": "No ingredient text provided"}), 400
+
+    host = current_app.config.get("OLLAMA_BASE_URL", "http://localhost:11434")
+    text_model = current_app.config.get("OLLAMA_TEXT_MODEL", "llama3.2")
+    client = ollama.Client(host=host)
+
+    analysis_schema = {
+        "type": "object",
+        "properties": {
+            "ingredients": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "name": {"type": "string"},
+                        "category": {"type": "string"},
+                        "function": {"type": "string"},
+                        "is_whole_food": {"type": "boolean"},
+                        "is_recognizable": {"type": "boolean"},
+                        "is_additive": {"type": "boolean"},
+                        "e_number": {"type": "string"},
+                    },
+                    "required": ["name", "category", "function"],
+                },
+            },
+            "total_ingredients": {"type": "integer"},
+        },
+        "required": ["ingredients", "total_ingredients"],
+    }
+
+    system_prompt = (
+        "You are a food science expert. Given a product's ingredient list, "
+        "parse each ingredient and categorize it. Respond with valid JSON "
+        "matching the provided schema. Categories: sweetener, preservative, "
+        "emulsifier, thickener, stabilizer, gelling_agent, artificial_color, "
+        "artificial_flavor, artificial_sweetener, fat_oil, grain, fruit_vegetable, "
+        "nut_seed, dairy, protein, salt_sodium, leavening_agent, acidity_regulator, "
+        "fortification_nutrient, allergen, whole_food, water, spice, other. "
+        "For each ingredient, set is_whole_food=true if it's a single minimally-processed "
+        "food item, is_recognizable=true if a typical consumer would know it from home cooking, "
+        "is_additive=true if it's a food additive (E-number or chemical name), "
+        "and e_number to the E-number if applicable."
+    )
+
+    try:
+        response = client.chat(
+            model=text_model,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": f"Ingredient list: {text}"},
+            ],
+            format=analysis_schema,
+            options={"temperature": 0.2},
+        )
+        result = json.loads(response.message.content)
+        return jsonify(result), 200
+    except Exception as e:
+        current_app.logger.error("IngredientScanner AI error: %s", str(e))
+        return jsonify({"error": "AI analysis failed", "detail": str(e)}), 500
+
 
 @api_bp.route("/tools/barcode-scanner/stats", methods=["POST"])
 def barcode_scanner_stats():
