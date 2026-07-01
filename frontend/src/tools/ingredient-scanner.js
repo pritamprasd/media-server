@@ -7,8 +7,20 @@ export const name = 'Ingredient Scanner';
 export const description = 'Scan food ingredient labels using camera or image upload, extract text with OCR, and get AI-powered health analysis';
 
 const SETTINGS_KEY = 'ingredient_scanner_analysis';
+const PREPROCESS_KEY = 'ingredient_scanner_preprocess';
 
+function getDefaultPreprocess() {
+  return { scaleMin: 1200, sharpenStrength: 0.5, binarize: true, contrastPercentile: 0.05 };
+}
 
+async function getPreprocessSettings() {
+  const s = await getPref(PREPROCESS_KEY, {});
+  return { ...getDefaultPreprocess(), ...s };
+}
+
+async function savePreprocessSettings(settings) {
+  await setPref(PREPROCESS_KEY, settings);
+}
 
 const ALL_ANALYSES = [
   {
@@ -976,13 +988,17 @@ function computeOtsuThreshold(grayData, total) {
 }
 
 // ── Image preprocessing for better OCR ──
-function preprocessImageForOCR(dataUrl) {
+async function preprocessImageForOCR(dataUrl, opts = {}) {
+  const scaleMin = opts.scaleMin ?? 1200;
+  const sharpenStrength = opts.sharpenStrength ?? 0.5;
+  const binarize = opts.binarize !== false;
+  const contrastPct = opts.contrastPercentile ?? 0.05;
   return new Promise((resolve) => {
     const img = new Image();
     img.onload = () => {
       const w = img.width;
       const h = img.height;
-      const scale = Math.max(1, 1600 / Math.max(w, h));
+      const scale = Math.max(1, scaleMin / Math.max(w, h));
       const cw = Math.round(w * scale);
       const ch = Math.round(h * scale);
       const canvas = document.createElement('canvas');
@@ -1004,11 +1020,11 @@ function preprocessImageForOCR(dataUrl) {
         gray[i] = 0.299 * data[j] + 0.587 * data[j + 1] + 0.114 * data[j + 2];
       }
 
-      // Step 2: Contrast stretching (2% - 98%)
+      // Step 2: Contrast stretching (contrastPct to 1-contrastPct)
       let sorted = new Float32Array(gray);
       sorted.sort();
-      const minVal = sorted[Math.floor(total * 0.02)];
-      const maxVal = sorted[Math.floor(total * 0.98)];
+      const minVal = sorted[Math.floor(total * contrastPct)];
+      const maxVal = sorted[Math.floor(total * (1 - contrastPct))];
       const range = maxVal - minVal || 1;
       for (let i = 0; i < total; i++) {
         gray[i] = (gray[i] - minVal) / range * 255;
@@ -1050,17 +1066,27 @@ function preprocessImageForOCR(dataUrl) {
           }
         }
         const blur = sum / count;
-        sharpened[i] = medianFiltered[i] + (medianFiltered[i] - blur) * 0.8;
+        sharpened[i] = medianFiltered[i] + (medianFiltered[i] - blur) * sharpenStrength;
       }
 
-      // Step 5: Otsu binarization
-      const otsuThresh = computeOtsuThreshold(sharpened, total);
-      for (let i = 0; i < total; i++) {
-        const v = sharpened[i] > otsuThresh ? 255 : 0;
-        const j = i * 4;
-        data[j] = v;
-        data[j + 1] = v;
-        data[j + 2] = v;
+      // Step 5: Optional binarization
+      if (binarize) {
+        const otsuThresh = computeOtsuThreshold(sharpened, total);
+        for (let i = 0; i < total; i++) {
+          const v = sharpened[i] > otsuThresh ? 255 : 0;
+          const j = i * 4;
+          data[j] = v;
+          data[j + 1] = v;
+          data[j + 2] = v;
+        }
+      } else {
+        for (let i = 0; i < total; i++) {
+          const v = Math.max(0, Math.min(255, Math.round(sharpened[i])));
+          const j = i * 4;
+          data[j] = v;
+          data[j + 1] = v;
+          data[j + 2] = v;
+        }
       }
 
       ctx.putImageData(imageData, 0, 0);
@@ -1252,9 +1278,15 @@ export function init(container) {
   settingsBtn.title = 'Analysis Settings';
   settingsBtn.style.cssText = 'width:36px;height:36px;border:1px solid var(--color-border);border-radius:8px;background:var(--color-surface);color:var(--color-text);font-size:1.1rem;cursor:pointer;transition:opacity 0.15s;display:flex;align-items:center;justify-content:center;';
 
+  const preprocessBtn = document.createElement('button');
+  preprocessBtn.innerHTML = '🔧';
+  preprocessBtn.title = 'OCR Preprocessing Settings';
+  preprocessBtn.style.cssText = 'width:36px;height:36px;border:1px solid var(--color-border);border-radius:8px;background:var(--color-surface);color:var(--color-text);font-size:1rem;cursor:pointer;transition:opacity 0.15s;display:flex;align-items:center;justify-content:center;';
+
   headerBtns.appendChild(cameraBtn);
   headerBtns.appendChild(uploadBtn);
   headerBtns.appendChild(settingsBtn);
+  headerBtns.appendChild(preprocessBtn);
   header.appendChild(title);
   header.appendChild(headerBtns);
   wrapper.appendChild(header);
@@ -1353,6 +1385,99 @@ export function init(container) {
   loadSettings();
   wrapper.appendChild(settingsPanel);
 
+  // ── OCR Preprocessing Settings Panel ──
+  const preprocessPanel = document.createElement('div');
+  preprocessPanel.style.cssText = 'display:none;flex-direction:column;gap:0.5rem;padding:0.75rem;border:1px solid var(--color-border);border-radius:8px;background:var(--color-bg);font-size:0.78rem;';
+  preprocessPanel.dataset.role = 'preprocess-panel';
+
+  const ppTitle = document.createElement('div');
+  ppTitle.textContent = '🔧 OCR Preprocessing Settings';
+  ppTitle.style.cssText = 'font-weight:600;color:var(--color-text);font-size:0.82rem;';
+  preprocessPanel.appendChild(ppTitle);
+
+  const ppScaleRow = document.createElement('label');
+  ppScaleRow.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:0.5rem;';
+  ppScaleRow.innerHTML = '<span style="color:var(--color-text);font-size:0.75rem;">Min upscale (px)</span>';
+  const ppScale = document.createElement('select');
+  ppScale.style.cssText = 'padding:0.2rem 0.4rem;border:1px solid var(--color-border);border-radius:4px;font-size:0.72rem;background:var(--color-surface);color:var(--color-text);';
+  [800, 1200, 1600, 2000].forEach(v => {
+    const o = document.createElement('option');
+    o.value = v;
+    o.textContent = v;
+    ppScale.appendChild(o);
+  });
+  ppScaleRow.appendChild(ppScale);
+  preprocessPanel.appendChild(ppScaleRow);
+
+  const ppSharpenRow = document.createElement('label');
+  ppSharpenRow.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:0.5rem;';
+  ppSharpenRow.innerHTML = '<span style="color:var(--color-text);font-size:0.75rem;">Sharpening</span>';
+  const ppSharpen = document.createElement('select');
+  ppSharpen.style.cssText = 'padding:0.2rem 0.4rem;border:1px solid var(--color-border);border-radius:4px;font-size:0.72rem;background:var(--color-surface);color:var(--color-text);';
+  [['None', 0], ['Light', 0.3], ['Medium', 0.5], ['Strong', 0.8], ['Aggressive', 1.0]].forEach(([label, val]) => {
+    const o = document.createElement('option');
+    o.value = val;
+    o.textContent = label;
+    ppSharpen.appendChild(o);
+  });
+  ppSharpenRow.appendChild(ppSharpen);
+  preprocessPanel.appendChild(ppSharpenRow);
+
+  const ppContrastRow = document.createElement('label');
+  ppContrastRow.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:0.5rem;';
+  ppContrastRow.innerHTML = '<span style="color:var(--color-text);font-size:0.75rem;">Contrast stretch</span>';
+  const ppContrast = document.createElement('select');
+  ppContrast.style.cssText = 'padding:0.2rem 0.4rem;border:1px solid var(--color-border);border-radius:4px;font-size:0.72rem;background:var(--color-surface);color:var(--color-text);';
+  [['Mild (10%-90%)', 0.1], ['Moderate (5%-95%)', 0.05], ['Aggressive (2%-98%)', 0.02]].forEach(([label, val]) => {
+    const o = document.createElement('option');
+    o.value = val;
+    o.textContent = label;
+    ppContrast.appendChild(o);
+  });
+  ppContrastRow.appendChild(ppContrast);
+  preprocessPanel.appendChild(ppContrastRow);
+
+  const ppBinRow = document.createElement('label');
+  ppBinRow.style.cssText = 'display:flex;align-items:center;gap:0.5rem;cursor:pointer;';
+  const ppBin = document.createElement('input');
+  ppBin.type = 'checkbox';
+  ppBin.style.cssText = 'accent-color:var(--color-primary);cursor:pointer;';
+  const ppBinLabel = document.createElement('span');
+  ppBinLabel.textContent = 'Binarize (B&W)';
+  ppBinLabel.style.cssText = 'color:var(--color-text);font-size:0.75rem;';
+  ppBinRow.appendChild(ppBin);
+  ppBinRow.appendChild(ppBinLabel);
+  preprocessPanel.appendChild(ppBinRow);
+
+  async function loadPreprocess() {
+    const s = await getPreprocessSettings();
+    ppScale.value = s.scaleMin;
+    ppSharpen.value = s.sharpenStrength;
+    ppContrast.value = s.contrastPercentile;
+    ppBin.checked = s.binarize;
+  }
+
+  async function savePreprocess() {
+    await savePreprocessSettings({
+      scaleMin: Number(ppScale.value),
+      sharpenStrength: Number(ppSharpen.value),
+      contrastPercentile: Number(ppContrast.value),
+      binarize: ppBin.checked,
+    });
+  }
+
+  preprocessBtn.addEventListener('click', () => {
+    preprocessPanel.style.display = preprocessPanel.style.display === 'none' ? 'flex' : 'none';
+  });
+
+  ppScale.addEventListener('change', savePreprocess);
+  ppSharpen.addEventListener('change', savePreprocess);
+  ppContrast.addEventListener('change', savePreprocess);
+  ppBin.addEventListener('change', savePreprocess);
+
+  loadPreprocess();
+  wrapper.appendChild(preprocessPanel);
+
   // ── Status bar ──
   const status = document.createElement('div');
   status.style.cssText = 'display:flex;align-items:center;gap:0.4rem;font-size:0.82rem;color:var(--color-text-muted);padding:0.5rem 0.75rem;background:var(--color-bg);border-radius:8px;border:1px solid var(--color-border);min-height:1.2em;';
@@ -1389,7 +1514,18 @@ export function init(container) {
   wrapper.appendChild(previewContainer);
 
   const previewImg = document.createElement('img');
-  previewImg.style.cssText = 'width:100%;max-height:260px;object-fit:contain;display:block;';
+  previewImg.style.cssText = 'width:100%;max-height:260px;object-fit:contain;display:block;cursor:zoom-in;';
+  previewImg.addEventListener('click', () => {
+    if (!previewImg.src) return;
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.85);display:flex;align-items:center;justify-content:center;cursor:zoom-out;';
+    const fullImg = document.createElement('img');
+    fullImg.src = previewImg.src;
+    fullImg.style.cssText = 'max-width:95vw;max-height:95vh;object-fit:contain;border-radius:4px;';
+    overlay.appendChild(fullImg);
+    overlay.addEventListener('click', () => overlay.remove());
+    document.body.appendChild(overlay);
+  });
   previewContainer.appendChild(previewImg);
 
   const processingOverlay = document.createElement('div');
@@ -1523,7 +1659,8 @@ export function init(container) {
 
     try {
       // Preprocess image for better OCR
-      const preprocessed = await preprocessImageForOCR(dataUrl);
+      const ppOpts = await getPreprocessSettings();
+      const preprocessed = await preprocessImageForOCR(dataUrl, ppOpts);
       previewImg.src = preprocessed;
 
       if (!tesseractWorker) {
