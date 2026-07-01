@@ -321,6 +321,11 @@ function parseIngredients(text) {
   return parts;
 }
 
+function extractQuantity(name) {
+  const m = name.match(/\d+[\d.,]*\s*%/);
+  return m ? m[0].trim() : null;
+}
+
 function normalizeIngredientName(name) {
   return name.toLowerCase().replace(/\([^)]*\)/g, '').replace(/\s*\d+[\d.,]*%\s*/g, '').trim().replace(/\s+/g, ' ');
 }
@@ -947,6 +952,29 @@ function createLoader(text) {
   return el;
 }
 
+function computeOtsuThreshold(grayData, total) {
+  const hist = new Uint32Array(256);
+  for (let i = 0; i < total; i++) {
+    const v = Math.round(Math.max(0, Math.min(255, grayData[i])));
+    hist[v]++;
+  }
+  let sum = 0;
+  for (let i = 0; i < 256; i++) sum += i * hist[i];
+  let sumB = 0, wB = 0, maxV = 0, threshold = 0;
+  for (let t = 0; t < 256; t++) {
+    wB += hist[t];
+    if (wB === 0) continue;
+    const wF = total - wB;
+    if (wF === 0) break;
+    sumB += t * hist[t];
+    const mB = sumB / wB;
+    const mF = (sum - sumB) / wF;
+    const between = wB * wF * (mB - mF) * (mB - mF);
+    if (between > maxV) { maxV = between; threshold = t; }
+  }
+  return threshold;
+}
+
 // ── Image preprocessing for better OCR ──
 function preprocessImageForOCR(dataUrl) {
   return new Promise((resolve) => {
@@ -954,49 +982,85 @@ function preprocessImageForOCR(dataUrl) {
     img.onload = () => {
       const w = img.width;
       const h = img.height;
-      // Upscale if too small
-      const scale = Math.max(1, 1200 / Math.max(w, h));
+      const scale = Math.max(1, 1600 / Math.max(w, h));
       const cw = Math.round(w * scale);
       const ch = Math.round(h * scale);
       const canvas = document.createElement('canvas');
       canvas.width = cw;
       canvas.height = ch;
       const ctx = canvas.getContext('2d');
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
       ctx.drawImage(img, 0, 0, cw, ch);
 
       const imageData = ctx.getImageData(0, 0, cw, ch);
       const data = imageData.data;
+      const total = cw * ch;
+      const gray = new Float32Array(total);
 
-      // Step 1: Grayscale + contrast stretch + sharpen
-      const gray = new Float32Array(data.length / 4);
-      for (let i = 0; i < data.length; i += 4) {
-        gray[i / 4] = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+      // Step 1: Grayscale
+      for (let i = 0; i < total; i++) {
+        const j = i * 4;
+        gray[i] = 0.299 * data[j] + 0.587 * data[j + 1] + 0.114 * data[j + 2];
       }
 
-      // Simple unsharp mask (3x3)
-      for (let i = 0; i < data.length; i += 4) {
-        let idx = i / 4;
-        let orig = gray[idx];
+      // Step 2: Contrast stretching (2% - 98%)
+      let sorted = new Float32Array(gray);
+      sorted.sort();
+      const minVal = sorted[Math.floor(total * 0.02)];
+      const maxVal = sorted[Math.floor(total * 0.98)];
+      const range = maxVal - minVal || 1;
+      for (let i = 0; i < total; i++) {
+        gray[i] = (gray[i] - minVal) / range * 255;
+      }
+
+      // Step 3: 3x3 median filter for noise reduction
+      const medianFiltered = new Float32Array(total);
+      const k = [];
+      for (let y = 0; y < ch; y++) {
+        for (let x = 0; x < cw; x++) {
+          k.length = 0;
+          for (let dy = -1; dy <= 1; dy++) {
+            const ny = y + dy;
+            if (ny < 0 || ny >= ch) continue;
+            for (let dx = -1; dx <= 1; dx++) {
+              const nx = x + dx;
+              if (nx < 0 || nx >= cw) continue;
+              k.push(gray[ny * cw + nx]);
+            }
+          }
+          k.sort((a, b) => a - b);
+          medianFiltered[y * cw + x] = k[Math.floor(k.length / 2)];
+        }
+      }
+
+      // Step 4: Unsharp mask (3x3)
+      const sharpened = new Float32Array(total);
+      for (let i = 0; i < total; i++) {
+        const y = Math.floor(i / cw), x = i % cw;
         let sum = 0, count = 0;
         for (let dy = -1; dy <= 1; dy++) {
+          const ny = y + dy;
+          if (ny < 0 || ny >= ch) continue;
           for (let dx = -1; dx <= 1; dx++) {
-            const ny = Math.floor(idx / cw) + dy;
-            const nx = (idx % cw) + dx;
-            if (ny >= 0 && ny < ch && nx >= 0 && nx < cw) {
-              sum += gray[ny * cw + nx];
-              count++;
-            }
+            const nx = x + dx;
+            if (nx < 0 || nx >= cw) continue;
+            sum += medianFiltered[ny * cw + nx];
+            count++;
           }
         }
         const blur = sum / count;
-        const sharp = orig + (orig - blur) * 0.8;
-        const clamped = Math.max(0, Math.min(255, sharp));
+        sharpened[i] = medianFiltered[i] + (medianFiltered[i] - blur) * 0.8;
+      }
 
-        // Otsu-like binarization (simplified: fixed threshold at 128 after contrast stretch)
-        const bin = clamped > 128 ? 255 : 0;
-        data[i] = bin;
-        data[i + 1] = bin;
-        data[i + 2] = bin;
+      // Step 5: Otsu binarization
+      const otsuThresh = computeOtsuThreshold(sharpened, total);
+      for (let i = 0; i < total; i++) {
+        const v = sharpened[i] > otsuThresh ? 255 : 0;
+        const j = i * 4;
+        data[j] = v;
+        data[j + 1] = v;
+        data[j + 2] = v;
       }
 
       ctx.putImageData(imageData, 0, 0);
@@ -1046,6 +1110,7 @@ function parseNutritionFacts(text) {
 
   const lines = text.split('\n');
   let active = false;
+  let colOrderSrvFirst = true; // default: per serving first
 
   for (const raw of lines) {
     const line = raw.trim();
@@ -1053,8 +1118,15 @@ function parseNutritionFacts(text) {
     if (/nutrition/i.test(line) && !active) { active = true; continue; }
     if (!active) continue;
 
-    // Skip header lines
+    // Detect column order from header lines
+    if (/per\s*serving/i.test(line) && /per\s*100/i.test(line)) {
+      const srvIdx = line.search(/per\s*serving/i);
+      const p100Idx = line.search(/per\s*100/i);
+      colOrderSrvFirst = srvIdx < p100Idx;
+      continue;
+    }
     if (/per\s*(serving|100)|serving\s*size|servings?\s*per/i.test(line)) continue;
+    if (/amount\s*per/i.test(line)) continue;
 
     // Find which nutrient this line matches
     let matched = null;
@@ -1066,14 +1138,13 @@ function parseNutritionFacts(text) {
     }
     if (!matched) continue;
 
-    // Extract all number-value pairs from the line
-    const vals = [...line.matchAll(/([0-9.]+)\s*(kcal|kj|g|mg|mcg|\\u00b5g)/gi)];
+    // Extract all number-value pairs from the line — support µg (microgram)
+    const vals = [...line.matchAll(/([0-9.]+)\s*(kcal|kj|g|mg|mcg|µg)/gi)];
     if (vals.length === 0) continue;
 
     const nums = vals.map(v => parseFloat(v[1]));
 
     if (matched.unit === 'kcal' && matched.key === 'energy_kcal') {
-      // Handle kJ → kcal conversion: if first value has kJ unit, convert
       if (vals[0][2].toLowerCase() === 'kj' && nums.length >= 1) {
         result.per100g.energy_kcal = Math.round(nums[0] / 4.184);
         if (nums.length >= 2) result.perServing.energy_kcal = Math.round(nums[1] / 4.184);
@@ -1084,8 +1155,13 @@ function parseNutritionFacts(text) {
       }
       if (vals[0][2].toLowerCase() === 'kcal') {
         if (nums.length >= 2) {
-          result.perServing.energy_kcal = nums[0];
-          result.per100g.energy_kcal = nums[1];
+          if (colOrderSrvFirst) {
+            result.perServing.energy_kcal = nums[0];
+            result.per100g.energy_kcal = nums[1];
+          } else {
+            result.per100g.energy_kcal = nums[0];
+            result.perServing.energy_kcal = nums[1];
+          }
         } else {
           result.per100g.energy_kcal = nums[0];
         }
@@ -1094,13 +1170,15 @@ function parseNutritionFacts(text) {
     }
 
     if (nums.length >= 2) {
-      // Dual column: first is per serving, second is per 100g
-      result.perServing[matched.key] = nums[0];
-      result.per100g[matched.key] = nums[1];
+      if (colOrderSrvFirst) {
+        result.perServing[matched.key] = nums[0];
+        result.per100g[matched.key] = nums[1];
+      } else {
+        result.per100g[matched.key] = nums[0];
+        result.perServing[matched.key] = nums[1];
+      }
     } else {
-      // Single column: assume per 100g
       result.per100g[matched.key] = nums[0];
-      // Derive per serving if serving size known
       if (result.servingSize) {
         result.perServing[matched.key] = Math.round(nums[0] * result.servingSize / 100 * 10) / 10;
       }
@@ -1488,15 +1566,10 @@ export function init(container) {
   });
 
   async function runAnalysis(text) {
-    // Try to split ingredients vs nutrition section
     let ingredientsText = text;
     let nutritionText = text;
-
-    // Auto-detect: look for nutrition section and split
     const nutritionIdx = text.search(/nutrition\s*(information|facts|label|values?|data)/i);
     if (nutritionIdx >= 0) {
-      // Text before nutrition section = ingredients
-      // Text from nutrition section onwards = nutrition data
       ingredientsText = text.substring(0, nutritionIdx).trim();
       nutritionText = text.substring(nutritionIdx).trim();
     }
@@ -1509,103 +1582,94 @@ export function init(container) {
       return;
     }
 
-    // Show loaders while AI is processing
-    ingredientTableContainer.innerHTML = '';
-    ingredientTableContainer.appendChild(createLoader('🤖 AI analyzing ingredients...'));
-    analysisCards.innerHTML = '';
-    analysisCards.appendChild(createLoader('Waiting for analysis results...'));
-    resultsSection.style.display = 'flex';
+    // Client-side categorization (immediate)
+    const parsed = [];
+    for (const ing of ingredients) {
+      const cat = categorizeIngredientClient(ing);
+      const eInfo = cat.e_number ? getAdditiveInfo(cat.e_number) : null;
+      parsed.push({
+        name: ing,
+        quantity: extractQuantity(ing),
+        category: cat.category,
+        function: INGREDIENT_FUNCTIONS[cat.category] || 'Other',
+        is_whole_food: isWholeFood(ing, cat.category),
+        is_recognizable: isRecognizable(ing),
+        is_additive: isAdditive(cat.category, cat.e_number),
+        e_number: cat.e_number,
+        e_risk: eInfo?.risk || null,
+      });
+    }
 
-    // Try backend AI for enhanced categorization (async submit + poll)
-    let aiIngredients = null;
-    let aiUsed = false;
+    // Run analyses immediately
+    const enabled = await getAnalysisSettings();
+    const analysisResults = await analyzeIngredients(ingredients, text, enabled, nutritionData);
+
+    // Show results immediately
+    resultsSection.style.display = 'flex';
+    renderResults(parsed, analysisResults, false, nutritionData);
+
+    const parts = [`${ingredients.length} ingredients`];
+    if (nutritionData && nutritionData.per100g.energy_kcal) parts.push('nutrition data parsed');
+    parts.push(`${Object.keys(analysisResults).length} health metrics evaluated`);
+    statusText.textContent = parts.join(', ') + '.';
+
+    toolLog('ingredient-scanner', 'api_response', {
+      summary: `Analyzed ${ingredients.length} ingredients, ${Object.keys(analysisResults).length} analysis metrics`,
+      aiUsed: false,
+    }).catch(() => {});
+
+    // AI enhancement in background (non-blocking)
+    pollAI(text, ingredients);
+  }
+
+  async function pollAI(text, ingredients) {
     try {
       const res = await fetch('/api/tools/ingredient-scanner/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text }),
       });
-      if (res.ok) {
-        const { task_id } = await res.json();
-        statusText.textContent = '🤖 AI analyzing ingredients...';
-        let attempts = 0;
-        while (attempts < 30) {
-          await new Promise(r => setTimeout(r, 2000));
-          attempts++;
-          const pollRes = await fetch(`/api/tools/ingredient-scanner/result/${task_id}`);
-          if (pollRes.ok) {
-            const pollData = await pollRes.json();
-            if (pollData.status === 'done') {
-              aiIngredients = pollData.result.ingredients;
-              aiUsed = true;
-              break;
-            } else if (pollData.status === 'error') {
-              break;
-            }
+      if (!res.ok) return;
+      const { task_id } = await res.json();
+      statusText.textContent = '🤖 AI analyzing ingredients...';
+      let attempts = 0;
+      while (attempts < 30) {
+        await new Promise(r => setTimeout(r, 2000));
+        attempts++;
+        const pollRes = await fetch(`/api/tools/ingredient-scanner/result/${task_id}`);
+        if (!pollRes.ok) continue;
+        const pollData = await pollRes.json();
+        if (pollData.status === 'done') {
+          const aiIngs = pollData.result.ingredients;
+          if (!aiIngs || aiIngs.length !== ingredients.length) return;
+          const aiParsed = [];
+          for (let i = 0; i < aiIngs.length; i++) {
+            const ai = aiIngs[i];
+            const origName = ingredients[i] || ai.name;
+            aiParsed.push({
+              name: ai.name,
+              quantity: extractQuantity(origName),
+              category: ai.category || 'other',
+              function: INGREDIENT_FUNCTIONS[ai.category] || ai.function || 'Unknown',
+              is_whole_food: ai.is_whole_food ?? isWholeFood(ai.name, ai.category),
+              is_recognizable: ai.is_recognizable ?? isRecognizable(ai.name),
+              is_additive: ai.is_additive ?? isAdditive(ai.category, ai.e_number),
+              e_number: ai.e_number || null,
+            });
           }
+          renderIngredientList(aiParsed, true, ingredientTableContainer);
+          statusText.textContent = `AI analysis complete. ${aiParsed.length} ingredients.`;
+          return;
+        } else if (pollData.status === 'error') {
+          statusText.textContent = statusText.textContent.replace('🤖 AI analyzing ingredients...', 'AI analysis unavailable.');
+          return;
         }
       }
-    } catch { /* fall back to client-side categorization */ }
-
-    // Build ingredient objects (AI enhanced or client-side)
-    const parsed = [];
-    if (aiIngredients && aiIngredients.length === ingredients.length) {
-      // AI returned structured data — use it
-      for (const ai of aiIngredients) {
-        parsed.push({
-          name: ai.name,
-          category: ai.category || 'other',
-          function: INGREDIENT_FUNCTIONS[ai.category] || ai.function || 'Unknown',
-          is_whole_food: ai.is_whole_food ?? isWholeFood(ai.name, ai.category),
-          is_recognizable: ai.is_recognizable ?? isRecognizable(ai.name),
-          is_additive: ai.is_additive ?? isAdditive(ai.category, ai.e_number),
-          e_number: ai.e_number || null,
-        });
-      }
-    } else {
-      // Client-side categorization
-      for (const ing of ingredients) {
-        const cat = categorizeIngredientClient(ing);
-        const eInfo = cat.e_number ? getAdditiveInfo(cat.e_number) : null;
-        parsed.push({
-          name: ing,
-          category: cat.category,
-          function: INGREDIENT_FUNCTIONS[cat.category] || 'Other',
-          is_whole_food: isWholeFood(ing, cat.category),
-          is_recognizable: isRecognizable(ing),
-          is_additive: isAdditive(cat.category, cat.e_number),
-          e_number: cat.e_number,
-          e_risk: eInfo?.risk || null,
-        });
-      }
-    }
-
-    // Run enabled analyses
-    const enabled = await getAnalysisSettings();
-    const analysisResults = await analyzeIngredients(ingredients, text, enabled, nutritionData);
-
-    toolLog('ingredient-scanner', 'api_response', {
-      summary: `Analyzed ${ingredients.length} ingredients, ${Object.keys(analysisResults).length} analysis metrics`,
-      aiUsed,
-    }).catch(() => {});
-
-    renderResults(parsed, analysisResults, aiUsed, nutritionData);
-    const parts = [`${ingredients.length} ingredients`];
-    if (nutritionData && nutritionData.per100g.energy_kcal) parts.push('nutrition data parsed');
-    parts.push(`${Object.keys(analysisResults).length} health metrics evaluated`);
-    statusText.textContent = parts.join(', ') + '.';
+    } catch { /* fallback — client-side already shown */ }
   }
 
-  // ── Render results ──
-  function renderResults(parsed, analysisResults, aiUsed, nutritionData) {
-    ingredientTableContainer.innerHTML = '';
-    analysisCards.innerHTML = '';
-    const hasNutrition = nutritionData && (
-      nutritionData.per100g.energy_kcal ||
-      Object.keys(nutritionData.per100g).length > 0
-    );
-
-    // ── Ingredient List ──
+  function renderIngredientList(parsed, aiUsed, container) {
+    container.innerHTML = '';
     const listHeader = document.createElement('div');
     listHeader.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:0.75rem 1rem;background:var(--color-surface);border-bottom:1px solid var(--color-border);border-radius:8px 8px 0 0;';
 
@@ -1627,13 +1691,6 @@ export function init(container) {
     listBadge.textContent = aiUsed ? 'AI Enhanced' : 'Client-side';
     listBadge.style.cssText = 'font-size:0.65rem;padding:0.2rem 0.5rem;border-radius:4px;background:var(--color-primary);color:#fff;font-weight:500;white-space:nowrap;';
 
-    leftGroup.appendChild(toggleBtn);
-    leftGroup.appendChild(listTitle);
-    leftGroup.appendChild(listBadge);
-
-    const rightGroup = document.createElement('div');
-    rightGroup.style.cssText = 'display:flex;gap:0.3rem;';
-
     const expandAllBtn = document.createElement('button');
     expandAllBtn.textContent = 'Expand All';
     expandAllBtn.style.cssText = 'font-size:0.65rem;padding:0.15rem 0.4rem;border:1px solid var(--color-border);border-radius:4px;cursor:pointer;background:none;color:var(--color-text-muted);white-space:nowrap;';
@@ -1642,15 +1699,22 @@ export function init(container) {
     collapseAllBtn.textContent = 'Collapse All';
     collapseAllBtn.style.cssText = 'font-size:0.65rem;padding:0.15rem 0.4rem;border:1px solid var(--color-border);border-radius:4px;cursor:pointer;background:none;color:var(--color-text-muted);white-space:nowrap;';
 
-    rightGroup.appendChild(expandAllBtn);
-    rightGroup.appendChild(collapseAllBtn);
+    leftGroup.appendChild(toggleBtn);
+    leftGroup.appendChild(expandAllBtn);
+    leftGroup.appendChild(collapseAllBtn);
+    leftGroup.appendChild(listTitle);
+    leftGroup.appendChild(listBadge);
 
     listHeader.appendChild(leftGroup);
-    listHeader.appendChild(rightGroup);
-    ingredientTableContainer.appendChild(listHeader);
+    container.appendChild(listHeader);
 
     const listBody = document.createElement('div');
     listBody.style.cssText = 'display:flex;flex-direction:column;';
+
+    const hdrRow = document.createElement('div');
+    hdrRow.style.cssText = 'display:grid;grid-template-columns:2rem auto 1fr auto 0.75rem;gap:0.5rem;align-items:center;padding:0.35rem 0.85rem;border-bottom:1px solid var(--color-border);font-size:0.6rem;color:var(--color-text-muted);font-weight:600;text-transform:uppercase;letter-spacing:0.3px;background:var(--color-bg);';
+    hdrRow.innerHTML = '<span style="text-align:center;">#</span><span style="text-align:right;">Qty</span><span>Ingredient</span><span>Category</span><span></span>';
+    listBody.appendChild(hdrRow);
 
     for (let i = 0; i < parsed.length; i++) {
       const ing = parsed[i];
@@ -1668,7 +1732,7 @@ export function init(container) {
       }
 
       const row = document.createElement('div');
-      row.style.cssText = 'display:grid;grid-template-columns:2rem 1fr auto 0.75rem;gap:0.5rem;align-items:center;padding:0.45rem 0.85rem;border-bottom:1px solid var(--color-border);transition:background 0.1s;font-size:0.78rem;';
+      row.style.cssText = 'display:grid;grid-template-columns:2rem auto 1fr auto 0.75rem;gap:0.5rem;align-items:center;padding:0.45rem 0.85rem;border-bottom:1px solid var(--color-border);transition:background 0.1s;font-size:0.78rem;';
 
       const isEven = i % 2 === 0;
       if (isEven) row.style.background = 'var(--color-bg)';
@@ -1677,12 +1741,16 @@ export function init(container) {
 
       const numEl = document.createElement('span');
       numEl.textContent = i + 1;
-      numEl.style.cssText = 'color:var(--color-text-muted);font-size:0.7rem;text-align:center;font-weight:500;';
+      numEl.style.cssText = 'color:var(--color-text-muted);font-size:0.7rem;text-align:center;font-weight:500;min-width:1.2rem;';
+
+      const qtyEl = document.createElement('span');
+      qtyEl.textContent = ing.quantity || '—';
+      qtyEl.style.cssText = 'color:var(--color-text-muted);font-size:0.68rem;text-align:right;font-weight:500;min-width:2.2rem;white-space:nowrap;';
 
       const nameEl = document.createElement('div');
       nameEl.style.cssText = 'display:flex;flex-direction:column;gap:1px;min-width:0;';
       const nameSpan = document.createElement('span');
-      nameSpan.textContent = ing.name;
+      nameSpan.textContent = ing.name.replace(/\s*\d+[\d.,]*%/g, '').trim();
       nameSpan.style.cssText = 'color:var(--color-text);font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
       nameEl.appendChild(nameSpan);
       if (ing.e_number) {
@@ -1701,6 +1769,7 @@ export function init(container) {
       healthEl.title = healthTitle;
 
       row.appendChild(numEl);
+      row.appendChild(qtyEl);
       row.appendChild(nameEl);
       row.appendChild(catEl);
       row.appendChild(healthEl);
@@ -1710,7 +1779,7 @@ export function init(container) {
     const listBodyWrapper = document.createElement('div');
     listBodyWrapper.style.cssText = 'overflow:hidden;transition:max-height 0.25s ease;';
     listBodyWrapper.appendChild(listBody);
-    ingredientTableContainer.appendChild(listBodyWrapper);
+    container.appendChild(listBodyWrapper);
 
     function toggleIngredients(expand) {
       ingredientsExpanded = expand !== undefined ? expand : !ingredientsExpanded;
@@ -1721,6 +1790,18 @@ export function init(container) {
     toggleBtn.addEventListener('click', () => toggleIngredients());
     expandAllBtn.addEventListener('click', () => toggleIngredients(true));
     collapseAllBtn.addEventListener('click', () => toggleIngredients(false));
+  }
+
+  // ── Render results ──
+  function renderResults(parsed, analysisResults, aiUsed, nutritionData) {
+    ingredientTableContainer.innerHTML = '';
+    analysisCards.innerHTML = '';
+    const hasNutrition = nutritionData && (
+      nutritionData.per100g.energy_kcal ||
+      Object.keys(nutritionData.per100g).length > 0
+    );
+
+    renderIngredientList(parsed, aiUsed, ingredientTableContainer);
 
     // ── Nutrition Facts panel ──
     let nutritionPanel = null;
