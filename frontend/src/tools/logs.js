@@ -6,6 +6,7 @@ export const description = 'View logs emitted by tools and tabs — API requests
 
 export function init(container) {
   let refreshInterval = null;
+  const expandedIds = new Set();
 
   container.style.overflow = 'auto';
 
@@ -66,6 +67,13 @@ export function init(container) {
     if (current && sources.includes(current)) filterSelect.value = current;
   }
 
+  function formatBody(val) {
+    if (typeof val === 'string') {
+      try { return JSON.stringify(JSON.parse(val), null, 2); } catch { return val; }
+    }
+    return JSON.stringify(val, null, 2);
+  }
+
   async function render() {
     const tool = filterSelect.value || undefined;
     const logs = await getLogs({ tool, limit: 200 });
@@ -81,12 +89,12 @@ export function init(container) {
     }
 
     for (const entry of logs) {
+      const isExpanded = expandedIds.has(entry.id);
       const row = document.createElement('div');
       row.style.cssText = 'display:flex;flex-direction:column;border:1px solid var(--color-border);border-radius:6px;background:var(--color-surface);overflow:hidden;';
 
       const rowHeader = document.createElement('div');
       rowHeader.style.cssText = 'display:flex;align-items:center;gap:0.5rem;padding:0.45rem 0.65rem;cursor:pointer;user-select:none;';
-      rowHeader.dataset.expanded = 'false';
 
       const timeEl = document.createElement('span');
       const d = new Date(entry.ts);
@@ -124,26 +132,45 @@ export function init(container) {
 
       const expandArrow = document.createElement('span');
       expandArrow.textContent = '▸';
-      expandArrow.style.cssText = 'font-size:0.6rem;color:var(--color-text-muted);transition:transform 0.2s;flex-shrink:0;';
+      expandArrow.style.cssText = `font-size:0.6rem;color:var(--color-text-muted);transition:transform 0.2s;flex-shrink:0;transform:${isExpanded ? 'rotate(90deg)' : 'rotate(0deg)'};`;
 
       rowHeader.append(timeEl, toolBadge, typeBadge, summary, durEl, expandArrow);
 
       const detailBody = document.createElement('div');
-      detailBody.style.cssText = 'display:none;flex-direction:column;padding:0.5rem 0.65rem;border-top:1px solid var(--color-border);font-size:0.75rem;gap:0.3rem;';
+      detailBody.style.cssText = `display:${isExpanded ? 'flex' : 'none'};flex-direction:column;padding:0.5rem 0.65rem;border-top:1px solid var(--color-border);font-size:0.75rem;gap:0.4rem;`;
 
       if (entry.data) {
         for (const [key, val] of Object.entries(entry.data)) {
           if (val == null || val === '') continue;
-          const line = document.createElement('div');
-          line.style.cssText = 'display:flex;gap:0.5rem;';
-          const kEl = document.createElement('span');
-          kEl.textContent = key + ':';
-          kEl.style.cssText = 'font-weight:600;color:var(--color-text-muted);flex-shrink:0;min-width:80px;';
-          const vEl = document.createElement('span');
-          vEl.textContent = typeof val === 'object' ? JSON.stringify(val) : String(val);
-          vEl.style.cssText = 'color:var(--color-text);word-break:break-all;font-family:monospace;font-size:0.7rem;';
-          line.append(kEl, vEl);
-          detailBody.appendChild(line);
+
+          if (key === 'requestBody' || key === 'responseBody') {
+            const section = document.createElement('div');
+            section.style.cssText = 'display:flex;flex-direction:column;gap:0.2rem;';
+
+            const label = document.createElement('div');
+            label.textContent = key === 'requestBody' ? '📤 Request Body' : '📥 Response Body';
+            label.style.cssText = 'font-size:0.68rem;font-weight:600;color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.3px;';
+
+            const pre = document.createElement('pre');
+            pre.textContent = formatBody(val);
+            pre.style.cssText = 'margin:0;padding:0.5rem;background:var(--color-bg);border:1px solid var(--color-border);border-radius:4px;font-size:0.68rem;font-family:monospace;color:var(--color-text);white-space:pre-wrap;word-break:break-word;overflow-x:auto;max-height:300px;overflow-y:auto;';
+
+            section.appendChild(label);
+            section.appendChild(pre);
+            detailBody.appendChild(section);
+          } else {
+            const line = document.createElement('div');
+            line.style.cssText = 'display:flex;gap:0.5rem;';
+            const kEl = document.createElement('span');
+            kEl.textContent = key + ':';
+            kEl.style.cssText = 'font-weight:600;color:var(--color-text-muted);flex-shrink:0;min-width:80px;';
+            const vEl = document.createElement('span');
+            const vText = typeof val === 'object' ? JSON.stringify(val) : String(val);
+            vEl.textContent = vText;
+            vEl.style.cssText = 'color:var(--color-text);word-break:break-all;font-family:monospace;font-size:0.7rem;';
+            line.append(kEl, vEl);
+            detailBody.appendChild(line);
+          }
         }
       }
 
@@ -151,10 +178,11 @@ export function init(container) {
       list.appendChild(row);
 
       rowHeader.addEventListener('click', () => {
-        const expanded = rowHeader.dataset.expanded === 'true';
-        rowHeader.dataset.expanded = expanded ? 'false' : 'true';
-        detailBody.style.display = expanded ? 'none' : 'flex';
-        expandArrow.style.transform = expanded ? 'rotate(0deg)' : 'rotate(90deg)';
+        const nowExpanded = !expandedIds.has(entry.id);
+        if (nowExpanded) expandedIds.add(entry.id);
+        else expandedIds.delete(entry.id);
+        detailBody.style.display = nowExpanded ? 'flex' : 'none';
+        expandArrow.style.transform = nowExpanded ? 'rotate(90deg)' : 'rotate(0deg)';
       });
     }
   }

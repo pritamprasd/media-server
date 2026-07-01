@@ -128,6 +128,13 @@
 - **Grid tile**: Shows tool name, description (from exports), and a JS/HTML type badge. No thumbnail customization yet.
 - **Fullscreen view**: Clicking a tile navigates to `/tools/:toolId`. The ToolViewer component renders with a mandatory back button (top-left arrow or browser back). Tool fills entire viewport below the header.
 - **Adding a tool**: just create the `.js` or `.html` file in `frontend/src/tools/` and re-build. No route, import, or config changes needed.
+- **OCR preprocessing**: The Ingredient Scanner applies canvas-based preprocessing before Tesseract.js: grayscale conversion, unsharp mask (0.8 strength), binarization, and upscaling to 1200px min dimension. All in `preprocessImageForOCR` before `init`.
+
+### Ingredient Scanner — Nutrition Facts
+- **Auto-detect from OCR text**: `runAnalysis()` searches for `nutrition (information|facts|label|values?|data)` in the OCR text and splits it: text before is treated as ingredients, text from the match onwards as nutrition data. Both sections parsed independently.
+- **Indian FSSAI format**: `parseNutritionFacts()` handles dual-column (per serving + per 100g) and single-column (per 100g) Indian nutrition labels. Parses 11 nutrients via regex line-by-line. kJ→kcal conversion via divide by 4.184.
+- **3 nutrition-based analyses**: `nutrition_breakdown` (per-serving energy/macros), `daily_values` (%DV estimates on 2000 kcal diet), `nutrient_density` (beneficial-to-concerning nutrient ratio). All require `nutritionData` with at least one `per100g` value to activate.
+- **Nutrition panel in results**: Renders a CSS grid table with 3 columns (Nutrient / Per serving / Per 100g) between the ingredient list and analysis cards. Only shows rows for detected nutrients.
 
 ## Production Deployment
 - Nginx reverse proxy with HTTPS, HTTP/2 support

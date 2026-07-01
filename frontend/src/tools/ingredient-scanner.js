@@ -75,6 +75,18 @@ const ALL_ANALYSES = [
     id: 'fortification', label: 'Fortification & Enrichment',
     description: 'Presence of added vitamins, minerals, and synthetic nutrients',
   },
+  {
+    id: 'nutrition_breakdown', label: 'Nutrition Breakdown (Per Serving)',
+    description: 'Energy, protein, carbs, fat, sodium per serving — requires nutrition data from label',
+  },
+  {
+    id: 'daily_values', label: 'Daily Value Completeness',
+    description: 'How well the product covers daily nutritional needs based on a 2000 kcal diet',
+  },
+  {
+    id: 'nutrient_density', label: 'Nutrient Density Scoring',
+    description: 'Ratio of beneficial nutrients (protein, fiber) to calories',
+  },
 ];
 
 const INGREDIENT_FUNCTIONS = {
@@ -147,6 +159,7 @@ const ANALYSIS_ICONS = {
   fat_quality: '🫒', whole_food: '🌾', sodium_risk: '🧂',
   preservatives: '🧫', list_length: '📋', plant_score: '🌱',
   artificial: '☣️', texture_additives: '🧴', fortification: '💊',
+  nutrition_breakdown: '🍱', daily_values: '📊', nutrient_density: '🧬',
 };
 
 const RECOGNIZABLE_INGREDIENTS = new Set([
@@ -438,7 +451,7 @@ function isAdditive(category, eNumber) {
   return additiveCategories.includes(category);
 }
 
-async function analyzeIngredients(ingredients, text, enabled) {
+async function analyzeIngredients(ingredients, text, enabled, nutritionData) {
   const enabledSet = new Set(enabled);
   const results = {};
   const total = ingredients.length;
@@ -741,6 +754,133 @@ async function analyzeIngredients(ingredients, text, enabled) {
     };
   }
 
+  // ── Nutrition data analyses ──
+  const hasNutrition = nutritionData && (
+    nutritionData.per100g.energy_kcal ||
+    Object.keys(nutritionData.per100g).length > 0
+  );
+
+  if (enabledSet.has('nutrition_breakdown') && hasNutrition) {
+    const p100 = nutritionData.per100g;
+    const pSrv = nutritionData.perServing;
+    const { servingSize } = nutritionData;
+    const cal = pSrv.energy_kcal || (p100.energy_kcal && servingSize ? Math.round(p100.energy_kcal * servingSize / 100) : p100.energy_kcal) || 0;
+
+    // Grade based on calorie density ± macro balance
+    const calPer100 = p100.energy_kcal || 0;
+    let ngGrade, ngColor;
+    if (calPer100 > 400) { ngGrade = 'D (High cal)'; ngColor = 'var(--color-orange, #e67e22)'; }
+    else if (calPer100 > 275) { ngGrade = 'C (Moderate cal)'; ngColor = 'var(--color-yellow, #f1c40f)'; }
+    else if (calPer100 > 100) { ngGrade = 'B (Low cal)'; ngColor = '#8bc34a'; }
+    else { ngGrade = 'A (Very low cal)'; ngColor = 'var(--color-green, #2ecc71)'; }
+
+    // Protein quality check
+    const protein = pSrv.protein_g || (p100.protein_g && servingSize ? p100.protein_g * servingSize / 100 : p100.protein_g) || 0;
+    const proteinPer100 = p100.protein_g || 0;
+    const proteinScore = cal > 0 ? Math.round(proteinPer100 / (calPer100 / 100) * 100) / 100 : 0;
+
+    const details = [
+      servingSize ? `Serving: ${servingSize}g` : '',
+      `Energy: ${cal} kcal${p100.energy_kcal ? ` (${p100.energy_kcal} kcal/100g)` : ''}`,
+      protein ? `Protein: ${protein.toFixed(1)}g` : '',
+      pSrv.total_fat_g ? `Fat: ${pSrv.total_fat_g}g` : (p100.total_fat_g ? `Fat: ${p100.total_fat_g}g/100g` : ''),
+      pSrv.carbohydrate_g ? `Carbs: ${pSrv.carbohydrate_g}g` : (p100.carbohydrate_g ? `Carbs: ${p100.carbohydrate_g}g/100g` : ''),
+      pSrv.sodium_mg ? `Sodium: ${pSrv.sodium_mg}mg` : (p100.sodium_mg ? `Sodium: ${p100.sodium_mg}mg/100g` : ''),
+      proteinScore > 0 && calPer100 > 0 ? `Protein density: ${proteinScore.toFixed(2)}g per 100 kcal` : '',
+    ].filter(Boolean).join(' · ');
+
+    results.nutrition_breakdown = {
+      label: 'Nutrition Breakdown',
+      score: calPer100,
+      maxScore: 500,
+      percent: Math.min(100, Math.round((calPer100 / 500) * 100)),
+      grade: ngGrade,
+      color: ngColor,
+      details,
+    };
+  }
+
+  if (enabledSet.has('daily_values') && hasNutrition) {
+    const p100 = nutritionData.per100g;
+    // Estimate %DV per serving based on 2000 kcal diet
+    const proteinDV = p100.protein_g ? Math.min(100, Math.round(p100.protein_g / 50 * 100)) : 0;
+    const fiberDV = p100.dietary_fiber_g ? Math.min(100, Math.round(p100.dietary_fiber_g / 25 * 100)) : 0;
+    const satFatDV = p100.saturated_fat_g ? Math.min(100, Math.round(p100.saturated_fat_g / 20 * 100)) : 0;
+    const sodiumDV = p100.sodium_mg ? Math.min(100, Math.round(p100.sodium_mg / 2300 * 100)) : 0;
+    const carbDV = p100.carbohydrate_g ? Math.min(100, Math.round(p100.carbohydrate_g / 275 * 100)) : 0;
+
+    const beneficialDV = proteinDV + fiberDV;
+    const concerningDV = satFatDV + sodiumDV;
+    const completeness = Math.min(100, Math.round((beneficialDV + Math.max(0, 100 - concerningDV)) / 3));
+
+    let dvGrade, dvColor;
+    if (completeness >= 70) { dvGrade = 'A (Balanced)'; dvColor = 'var(--color-green, #2ecc71)'; }
+    else if (completeness >= 50) { dvGrade = 'B (Decent)'; dvColor = '#8bc34a'; }
+    else if (completeness >= 35) { dvGrade = 'C (Moderate)'; dvColor = 'var(--color-yellow, #f1c40f)'; }
+    else { dvGrade = 'D (Low)'; dvColor = 'var(--color-orange, #e67e22)'; }
+
+    const dvParts = [];
+    if (proteinDV > 0) dvParts.push(`Protein ${proteinDV}%`);
+    if (fiberDV > 0) dvParts.push(`Fiber ${fiberDV}%`);
+    if (carbDV > 0) dvParts.push(`Carbs ${carbDV}%`);
+    if (satFatDV > 0) dvParts.push(`Sat.fat ${satFatDV}%`);
+    if (sodiumDV > 0) dvParts.push(`Sodium ${sodiumDV}%`);
+
+    results.daily_values = {
+      label: 'Daily Value Completeness',
+      score: completeness,
+      maxScore: 100,
+      percent: completeness,
+      grade: dvGrade,
+      color: dvColor,
+      details: dvParts.length > 0
+        ? `Estimated %DV (per 100g, 2000 kcal): ${dvParts.join(' | ')}. Overall: ${completeness}/100.`
+        : 'Insufficient nutrition data to estimate daily values.',
+    };
+  }
+
+  if (enabledSet.has('nutrient_density') && hasNutrition) {
+    const p100 = nutritionData.per100g;
+    const calPer100 = p100.energy_kcal || 0;
+    const protein = p100.protein_g || 0;
+    const fiber = p100.dietary_fiber_g || 0;
+    const satFat = p100.saturated_fat_g || 0;
+    const sugar = p100.sugars_g || 0;
+    const sodium = p100.sodium_mg || 0;
+
+    let ndScore = 0;
+    let ndMax = 0;
+
+    if (calPer100 > 0) {
+      // Positive contributions
+      if (protein > 0) { ndScore += Math.min(25, protein / (calPer100 / 100) * 5); ndMax += 25; }
+      if (fiber > 0) { ndScore += Math.min(25, fiber / (calPer100 / 100) * 10); ndMax += 25; }
+      // Negative contributions (inverted)
+      if (satFat > 0) { ndScore += Math.max(0, 25 - satFat / (calPer100 / 100) * 5); ndMax += 25; }
+      if (sugar > 0) { ndScore += Math.max(0, 25 - sugar / (calPer100 / 100) * 4); ndMax += 25; }
+      if (sodium > 0) { ndScore += Math.max(0, 25 - sodium / (calPer100 / 100) * 2); ndMax += 25; }
+    }
+
+    const ndPct = ndMax > 0 ? Math.round(ndScore / ndMax * 100) : 50;
+    let ndGrade, ndColor;
+    if (ndPct >= 75) { ndGrade = 'A (Nutrient-dense)'; ndColor = 'var(--color-green, #2ecc71)'; }
+    else if (ndPct >= 55) { ndGrade = 'B (Good)'; ndColor = '#8bc34a'; }
+    else if (ndPct >= 40) { ndGrade = 'C (Average)'; ndColor = 'var(--color-yellow, #f1c40f)'; }
+    else { ndGrade = 'D (Low nutrient density)'; ndColor = 'var(--color-orange, #e67e22)'; }
+
+    results.nutrient_density = {
+      label: 'Nutrient Density Index',
+      score: ndPct,
+      maxScore: 100,
+      percent: ndPct,
+      grade: ndGrade,
+      color: ndColor,
+      details: calPer100 > 0
+        ? `Score: ${ndPct}/100. Protein: ${protein}g, Fiber: ${fiber}g, Sat.fat: ${satFat}g, Sugar: ${sugar}g, Sodium: ${sodium}mg (per 100g).`
+        : 'Insufficient nutrition data for density scoring.',
+    };
+  }
+
   if (enabledSet.has('fortification')) {
     const foundFort = ingredients.filter(i => FORTIFICATION_NUTRIENTS.some(f => i.toLowerCase().includes(f)));
     results.fortification = {
@@ -791,6 +931,167 @@ function estimatePositionGrams(items, allItems) {
     totalEst += est;
   }
   return Math.round(totalEst);
+}
+
+// ── Image preprocessing for better OCR ──
+function preprocessImageForOCR(dataUrl) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      const w = img.width;
+      const h = img.height;
+      // Upscale if too small
+      const scale = Math.max(1, 1200 / Math.max(w, h));
+      const cw = Math.round(w * scale);
+      const ch = Math.round(h * scale);
+      const canvas = document.createElement('canvas');
+      canvas.width = cw;
+      canvas.height = ch;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, cw, ch);
+
+      const imageData = ctx.getImageData(0, 0, cw, ch);
+      const data = imageData.data;
+
+      // Step 1: Grayscale + contrast stretch + sharpen
+      const gray = new Float32Array(data.length / 4);
+      for (let i = 0; i < data.length; i += 4) {
+        gray[i / 4] = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+      }
+
+      // Simple unsharp mask (3x3)
+      for (let i = 0; i < data.length; i += 4) {
+        let idx = i / 4;
+        let orig = gray[idx];
+        let sum = 0, count = 0;
+        for (let dy = -1; dy <= 1; dy++) {
+          for (let dx = -1; dx <= 1; dx++) {
+            const ny = Math.floor(idx / cw) + dy;
+            const nx = (idx % cw) + dx;
+            if (ny >= 0 && ny < ch && nx >= 0 && nx < cw) {
+              sum += gray[ny * cw + nx];
+              count++;
+            }
+          }
+        }
+        const blur = sum / count;
+        const sharp = orig + (orig - blur) * 0.8;
+        const clamped = Math.max(0, Math.min(255, sharp));
+
+        // Otsu-like binarization (simplified: fixed threshold at 128 after contrast stretch)
+        const bin = clamped > 128 ? 255 : 0;
+        data[i] = bin;
+        data[i + 1] = bin;
+        data[i + 2] = bin;
+      }
+
+      ctx.putImageData(imageData, 0, 0);
+      resolve(canvas.toDataURL('image/png'));
+    };
+    img.src = dataUrl;
+  });
+}
+
+// ── Nutrition facts parser (Indian FSSAI format) ──
+const NUTRIENT_FIELDS = [
+  { key: 'energy_kcal', names: ['energy'], unit: 'kcal', multiplier: 1 },
+  { key: 'protein_g', names: ['protein'], unit: 'g' },
+  { key: 'carbohydrate_g', names: ['carbohydrate', 'carbs', 'total carbohydrate'], unit: 'g' },
+  { key: 'sugars_g', names: ['sugars', 'total sugars', 'sugar'], unit: 'g' },
+  { key: 'added_sugars_g', names: ['added sugars', 'added sugar'], unit: 'g' },
+  { key: 'total_fat_g', names: ['total fat', 'fat'], unit: 'g' },
+  { key: 'saturated_fat_g', names: ['saturated fat', 'saturated', 'saturates'], unit: 'g' },
+  { key: 'trans_fat_g', names: ['trans fat', 'trans', 'trans fatty acids'], unit: 'g' },
+  { key: 'cholesterol_mg', names: ['cholesterol'], unit: 'mg' },
+  { key: 'sodium_mg', names: ['sodium'], unit: 'mg' },
+  { key: 'dietary_fiber_g', names: ['dietary fiber', 'dietary fibre', 'fiber', 'fibre'], unit: 'g' },
+];
+
+function parseNutritionFacts(text) {
+  const result = {
+    servingSize: null,
+    servingsPerPack: null,
+    perServing: {},
+    per100g: {},
+  };
+
+  const ss = text.match(/serving\s*size[:\s]*([0-9.]+)\s*(g|ml)/i);
+  if (ss) result.servingSize = parseFloat(ss[1]);
+  const sp = text.match(/servings?\s*per\s*(pack|container)[:\s]*([0-9.]+)/i);
+  if (sp) result.servingsPerPack = parseFloat(sp[2]);
+
+  const lines = text.split('\n');
+  let active = false;
+
+  for (const raw of lines) {
+    const line = raw.trim();
+    if (!line) continue;
+    if (/nutrition/i.test(line) && !active) { active = true; continue; }
+    if (!active) continue;
+
+    // Skip header lines
+    if (/per\s*(serving|100)|serving\s*size|servings?\s*per/i.test(line)) continue;
+
+    // Find which nutrient this line matches
+    let matched = null;
+    for (const f of NUTRIENT_FIELDS) {
+      if (f.names.some(n => new RegExp(`\\b${n}\\b`, 'i').test(line))) {
+        matched = f;
+        break;
+      }
+    }
+    if (!matched) continue;
+
+    // Extract all number-value pairs from the line
+    const vals = [...line.matchAll(/([0-9.]+)\s*(kcal|kj|g|mg|mcg|\\u00b5g)/gi)];
+    if (vals.length === 0) continue;
+
+    const nums = vals.map(v => parseFloat(v[1]));
+
+    if (matched.unit === 'kcal' && matched.key === 'energy_kcal') {
+      // Handle kJ → kcal conversion: if first value has kJ unit, convert
+      if (vals[0][2].toLowerCase() === 'kj' && nums.length >= 1) {
+        result.per100g.energy_kcal = Math.round(nums[0] / 4.184);
+        if (nums.length >= 2) result.perServing.energy_kcal = Math.round(nums[1] / 4.184);
+        else if (result.servingSize) {
+          result.perServing.energy_kcal = Math.round(nums[0] / 4.184 * result.servingSize / 100);
+        }
+        continue;
+      }
+      if (vals[0][2].toLowerCase() === 'kcal') {
+        if (nums.length >= 2) {
+          result.perServing.energy_kcal = nums[0];
+          result.per100g.energy_kcal = nums[1];
+        } else {
+          result.per100g.energy_kcal = nums[0];
+        }
+        continue;
+      }
+    }
+
+    if (nums.length >= 2) {
+      // Dual column: first is per serving, second is per 100g
+      result.perServing[matched.key] = nums[0];
+      result.per100g[matched.key] = nums[1];
+    } else {
+      // Single column: assume per 100g
+      result.per100g[matched.key] = nums[0];
+      // Derive per serving if serving size known
+      if (result.servingSize) {
+        result.perServing[matched.key] = Math.round(nums[0] * result.servingSize / 100 * 10) / 10;
+      }
+    }
+  }
+
+  // If energy not found, try kJ as fallback
+  if (!result.per100g.energy_kcal) {
+    const kjMatch = text.match(/energy[^0-9]*([0-9.]+)\s*kj/i);
+    if (kjMatch) {
+      result.per100g.energy_kcal = Math.round(parseFloat(kjMatch[1]) / 4.184);
+    }
+  }
+
+  return result;
 }
 
 export function init(container) {
@@ -1101,10 +1402,14 @@ export function init(container) {
     resultsSection.style.display = 'none';
 
     try {
+      // Preprocess image for better OCR
+      const preprocessed = await preprocessImageForOCR(dataUrl);
+      previewImg.src = preprocessed;
+
       if (!tesseractWorker) {
         tesseractWorker = await Tesseract.createWorker('eng');
       }
-      const { data } = await tesseractWorker.recognize(dataUrl);
+      const { data } = await tesseractWorker.recognize(preprocessed);
       const extracted = data.text.trim();
 
       if (!extracted) {
@@ -1141,9 +1446,24 @@ export function init(container) {
   });
 
   async function runAnalysis(text) {
-    const ingredients = parseIngredients(text);
-    if (ingredients.length === 0) {
-      statusText.textContent = 'No ingredients parsed. Check the format (comma-separated).';
+    // Try to split ingredients vs nutrition section
+    let ingredientsText = text;
+    let nutritionText = text;
+
+    // Auto-detect: look for nutrition section and split
+    const nutritionIdx = text.search(/nutrition\s*(information|facts|label|values?|data)/i);
+    if (nutritionIdx >= 0) {
+      // Text before nutrition section = ingredients
+      // Text from nutrition section onwards = nutrition data
+      ingredientsText = text.substring(0, nutritionIdx).trim();
+      nutritionText = text.substring(nutritionIdx).trim();
+    }
+
+    const ingredients = parseIngredients(ingredientsText);
+    const nutritionData = parseNutritionFacts(nutritionText);
+
+    if (ingredients.length === 0 && !nutritionData.per100g.energy_kcal && Object.keys(nutritionData.per100g).length === 0) {
+      statusText.textContent = 'No ingredients or nutrition data parsed. Check the format.';
       return;
     }
 
@@ -1199,21 +1519,28 @@ export function init(container) {
 
     // Run enabled analyses
     const enabled = await getAnalysisSettings();
-    const analysisResults = await analyzeIngredients(ingredients, text, enabled);
+    const analysisResults = await analyzeIngredients(ingredients, text, enabled, nutritionData);
 
     toolLog('ingredient-scanner', 'api_response', {
       summary: `Analyzed ${ingredients.length} ingredients, ${Object.keys(analysisResults).length} analysis metrics`,
       aiUsed,
     }).catch(() => {});
 
-    renderResults(parsed, analysisResults, aiUsed);
-    statusText.textContent = `${ingredients.length} ingredients analyzed. ${Object.keys(analysisResults).length} health metrics evaluated.`;
+    renderResults(parsed, analysisResults, aiUsed, nutritionData);
+    const parts = [`${ingredients.length} ingredients`];
+    if (nutritionData && nutritionData.per100g.energy_kcal) parts.push('nutrition data parsed');
+    parts.push(`${Object.keys(analysisResults).length} health metrics evaluated`);
+    statusText.textContent = parts.join(', ') + '.';
   }
 
   // ── Render results ──
-  function renderResults(parsed, analysisResults, aiUsed) {
+  function renderResults(parsed, analysisResults, aiUsed, nutritionData) {
     ingredientTableContainer.innerHTML = '';
     analysisCards.innerHTML = '';
+    const hasNutrition = nutritionData && (
+      nutritionData.per100g.energy_kcal ||
+      Object.keys(nutritionData.per100g).length > 0
+    );
 
     // ── Ingredient List ──
     const listHeader = document.createElement('div');
@@ -1290,6 +1617,78 @@ export function init(container) {
     }
 
     ingredientTableContainer.appendChild(listBody);
+
+    // ── Nutrition Facts panel ──
+    let nutritionPanel = null;
+    if (hasNutrition) {
+      nutritionPanel = document.createElement('div');
+      nutritionPanel.style.cssText = 'border:1px solid var(--color-border);border-radius:8px;overflow:hidden;';
+
+      const nutHeader = document.createElement('div');
+      nutHeader.style.cssText = 'display:flex;align-items:center;gap:0.5rem;padding:0.75rem 1rem;background:var(--color-surface);border-bottom:1px solid var(--color-border);font-size:0.85rem;font-weight:600;color:var(--color-text);';
+      nutHeader.innerHTML = '<span style="font-size:1rem;">📊</span> Nutrition Facts';
+      if (nutritionData.servingSize) {
+        const ssBadge = document.createElement('span');
+        ssBadge.textContent = `Serving: ${nutritionData.servingSize}g`;
+        ssBadge.style.cssText = 'font-size:0.65rem;padding:0.15rem 0.4rem;border-radius:4px;background:var(--color-bg);color:var(--color-text-muted);font-weight:500;margin-left:auto;';
+        nutHeader.appendChild(ssBadge);
+      }
+      nutritionPanel.appendChild(nutHeader);
+
+      const p100 = nutritionData.per100g;
+      const pSrv = nutritionData.perServing;
+
+      // Build rows for available nutrients
+      const nutRows = [];
+      const addRow = (label, key, unit) => {
+        const val100 = p100[key];
+        const valSrv = pSrv[key];
+        if (val100 === undefined && valSrv === undefined) return;
+        nutRows.push({ label, valSrv, val100, unit });
+      };
+
+      addRow('Energy', 'energy_kcal', 'kcal');
+      addRow('Protein', 'protein_g', 'g');
+      addRow('Carbohydrate', 'carbohydrate_g', 'g');
+      addRow('Sugars', 'sugars_g', 'g');
+      addRow('Added Sugars', 'added_sugars_g', 'g');
+      addRow('Total Fat', 'total_fat_g', 'g');
+      addRow('Saturated Fat', 'saturated_fat_g', 'g');
+      addRow('Trans Fat', 'trans_fat_g', 'g');
+      addRow('Cholesterol', 'cholesterol_mg', 'mg');
+      addRow('Sodium', 'sodium_mg', 'mg');
+      addRow('Dietary Fiber', 'dietary_fiber_g', 'g');
+
+      if (nutRows.length > 0) {
+        const table = document.createElement('div');
+        table.style.cssText = 'display:grid;grid-template-columns:1fr auto auto;font-size:0.75rem;';
+
+        // Header row
+        const hdr = document.createElement('div');
+        hdr.style.cssText = 'display:contents;font-weight:600;color:var(--color-text-muted);font-size:0.68rem;text-transform:uppercase;letter-spacing:0.3px;';
+        hdr.innerHTML = `<div style="padding:0.4rem 0.75rem;border-bottom:1px solid var(--color-border);">Nutrient</div>
+          <div style="padding:0.4rem 0.75rem;border-bottom:1px solid var(--color-border);text-align:right;">Per serving</div>
+          <div style="padding:0.4rem 0.75rem;border-bottom:1px solid var(--color-border);text-align:right;">Per 100g</div>`;
+        table.appendChild(hdr);
+
+        for (const r of nutRows) {
+          const rowDiv = document.createElement('div');
+          rowDiv.style.cssText = 'display:contents;';
+          rowDiv.innerHTML = `<div style="padding:0.35rem 0.75rem;border-bottom:1px solid var(--color-border);color:var(--color-text);">${r.label}</div>
+            <div style="padding:0.35rem 0.75rem;border-bottom:1px solid var(--color-border);text-align:right;color:var(--color-text);font-weight:500;">${r.valSrv !== undefined ? `${r.valSrv} ${r.unit}` : '—'}</div>
+            <div style="padding:0.35rem 0.75rem;border-bottom:1px solid var(--color-border);text-align:right;color:var(--color-text-muted);">${r.val100 !== undefined ? `${r.val100} ${r.unit}` : '—'}</div>`;
+          table.appendChild(rowDiv);
+        }
+        nutritionPanel.appendChild(table);
+      } else {
+        const empty = document.createElement('div');
+        empty.textContent = 'Nutrition data parsed but no structured values extracted.';
+        empty.style.cssText = 'padding:0.75rem;font-size:0.75rem;color:var(--color-text-muted);text-align:center;';
+        nutritionPanel.appendChild(empty);
+      }
+
+      resultsSection.insertBefore(nutritionPanel, analysisCards);
+    }
 
     // ── Health Analysis cards ──
     const cardCount = Object.keys(analysisResults).length;

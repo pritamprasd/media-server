@@ -466,23 +466,38 @@ export function init(container) {
     const history = await getPref(HISTORY_KEY, []);
     const cartData = await getPref(CART_KEY, { items: [], flatDiscount: 0 });
     const start = performance.now();
-    toolLog('barcode-scanner', 'api_request', { source: 'backend-sync', url: '/api/tools/barcode-scanner/sync', summary: 'syncing cart + history to server' }).catch(() => {});
+    const requestBody = JSON.stringify({ cart: cartData, history });
+    toolLog('barcode-scanner', 'api_request', {
+      source: 'backend-sync', url: '/api/tools/barcode-scanner/sync',
+      requestBody: requestBody.substring(0, 1000),
+      summary: 'syncing cart + history to server'
+    }).catch(() => {});
     try {
       syncStatus.textContent = 'Syncing...';
       syncStatus.style.display = 'inline';
       const res = await fetch('/api/tools/barcode-scanner/sync', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ cart: cartData, history }),
+        body: requestBody,
         signal: AbortSignal.timeout(10000),
       });
       const duration = Math.round(performance.now() - start);
+      let responseBody = '';
+      try { responseBody = JSON.stringify(await res.clone().json()).substring(0, 1000); } catch { responseBody = ''; }
       if (res.ok) {
-        toolLog('barcode-scanner', 'api_response', { source: 'backend-sync', duration, statusCode: 200, summary: 'sync successful' }).catch(() => {});
+        toolLog('barcode-scanner', 'api_response', {
+          source: 'backend-sync', duration, statusCode: 200,
+          responseBody,
+          summary: 'sync successful'
+        }).catch(() => {});
         syncStatus.textContent = '✓ Synced';
         setTimeout(() => { syncStatus.style.display = 'none'; }, 3000);
       } else {
-        toolLog('barcode-scanner', 'api_error', { source: 'backend-sync', duration, statusCode: res.status, summary: `${res.status} ${res.statusText}` }).catch(() => {});
+        toolLog('barcode-scanner', 'api_error', {
+          source: 'backend-sync', duration, statusCode: res.status,
+          responseBody,
+          summary: `${res.status} ${res.statusText}`
+        }).catch(() => {});
         syncStatus.textContent = '✕ Sync failed';
         setTimeout(() => { syncStatus.style.display = 'none'; }, 5000);
       }
@@ -1165,11 +1180,12 @@ export function init(container) {
         return null;
       }
       const data = await res.json();
+      let responseBody = JSON.stringify(data).substring(0, 2000);
       if (data.status === 1 && data.product) {
-        toolLog('barcode-scanner', 'api_response', { source, barcode: code, duration, statusCode: res.status, summary: 'product found' }).catch(() => {});
+        toolLog('barcode-scanner', 'api_response', { source, barcode: code, duration, statusCode: res.status, responseBody, summary: 'product found' }).catch(() => {});
         return { product: data.product, source };
       }
-      toolLog('barcode-scanner', 'api_response', { source, barcode: code, duration, statusCode: res.status, summary: 'no product data' }).catch(() => {});
+      toolLog('barcode-scanner', 'api_response', { source, barcode: code, duration, statusCode: res.status, responseBody, summary: 'no product data' }).catch(() => {});
       return null;
     } catch (err) {
       const duration = Math.round(performance.now() - start);
@@ -1191,8 +1207,9 @@ export function init(container) {
         return null;
       }
       const data = await res.json();
+      let responseBody = JSON.stringify(data).substring(0, 2000);
       if (data && data.title) {
-        toolLog('barcode-scanner', 'api_response', { source, barcode: code, duration, statusCode: res.status, summary: data.title.substring(0, 80) }).catch(() => {});
+        toolLog('barcode-scanner', 'api_response', { source, barcode: code, duration, statusCode: res.status, responseBody, summary: data.title.substring(0, 80) }).catch(() => {});
         return {
           product: {
             product_name: data.title,
@@ -1204,7 +1221,7 @@ export function init(container) {
           source: 'Datakick',
         };
       }
-      toolLog('barcode-scanner', 'api_response', { source, barcode: code, duration, statusCode: res.status, summary: 'no product data' }).catch(() => {});
+      toolLog('barcode-scanner', 'api_response', { source, barcode: code, duration, statusCode: res.status, responseBody, summary: 'no product data' }).catch(() => {});
       return null;
     } catch (err) {
       const duration = Math.round(performance.now() - start);
@@ -1234,6 +1251,7 @@ export function init(container) {
           continue;
         }
         const html = await res.text();
+        const responseBody = html.substring(0, 500);
         const parser = new DOMParser();
         const doc = parser.parseFromString(html, 'text/html');
         const titleEl = doc.querySelector('h1, .product-title, .product-name, .item-name');
@@ -1243,7 +1261,7 @@ export function init(container) {
         const priceEl = doc.querySelector('.price, .product-price, .item-price, span.price, [class*="price"]');
         const ratingEl = doc.querySelector('.rating, .product-rating, .star-rating, [class*="rating"], .average');
         if (titleEl) {
-          toolLog('barcode-scanner', 'api_response', { source, barcode: code, proxy: String(proxyIdx + 1), duration, statusCode: res.status, summary: titleEl.textContent.trim().substring(0, 80) }).catch(() => {});
+          toolLog('barcode-scanner', 'api_response', { source, barcode: code, proxy: String(proxyIdx + 1), duration, statusCode: res.status, responseBody, summary: titleEl.textContent.trim().substring(0, 80) }).catch(() => {});
           return {
             product: {
               product_name: titleEl.textContent.trim(),
@@ -1256,7 +1274,7 @@ export function init(container) {
             source: 'Buycott',
           };
         }
-        toolLog('barcode-scanner', 'api_response', { source, barcode: code, proxy: String(proxyIdx + 1), duration, statusCode: res.status, summary: 'page parsed, no product found' }).catch(() => {});
+        toolLog('barcode-scanner', 'api_response', { source, barcode: code, proxy: String(proxyIdx + 1), duration, statusCode: res.status, responseBody, summary: 'page parsed, no product found' }).catch(() => {});
       } catch (err) {
         const duration = Math.round(performance.now() - start);
         toolLog('barcode-scanner', 'api_error', { source, barcode: code, proxy: String(proxyIdx + 1), duration, summary: err.name === 'AbortError' ? 'timeout' : err.message }).catch(() => {});
@@ -1287,6 +1305,7 @@ export function init(container) {
           continue;
         }
         const html = await res.text();
+        const responseBody = html.substring(0, 500);
         const parser = new DOMParser();
         const doc = parser.parseFromString(html, 'text/html');
         const titleEl = doc.querySelector('.product-title, h1, .product-name, .item-name');
@@ -1296,7 +1315,7 @@ export function init(container) {
         const priceEl = doc.querySelector('.product-price, .price, span.price, .product-offer-price');
         const ratingEl = doc.querySelector('.product-rating, .rating, .average-rating, [class*="rating"], .star-rating');
         if (titleEl) {
-          toolLog('barcode-scanner', 'api_response', { source, barcode: code, proxy: String(proxyIdx + 1), duration, statusCode: res.status, summary: titleEl.textContent.trim().substring(0, 80) }).catch(() => {});
+          toolLog('barcode-scanner', 'api_response', { source, barcode: code, proxy: String(proxyIdx + 1), duration, statusCode: res.status, responseBody, summary: titleEl.textContent.trim().substring(0, 80) }).catch(() => {});
           return {
             product: {
               product_name: titleEl.textContent.trim(),
@@ -1309,7 +1328,7 @@ export function init(container) {
             source: 'BarcodeLookup',
           };
         }
-        toolLog('barcode-scanner', 'api_response', { source, barcode: code, proxy: String(proxyIdx + 1), duration, statusCode: res.status, summary: 'page parsed, no product found' }).catch(() => {});
+        toolLog('barcode-scanner', 'api_response', { source, barcode: code, proxy: String(proxyIdx + 1), duration, statusCode: res.status, responseBody, summary: 'page parsed, no product found' }).catch(() => {});
       } catch (err) {
         const duration = Math.round(performance.now() - start);
         toolLog('barcode-scanner', 'api_error', { source, barcode: code, proxy: String(proxyIdx + 1), duration, summary: err.name === 'AbortError' ? 'timeout' : err.message }).catch(() => {});
@@ -1340,19 +1359,20 @@ export function init(container) {
           continue;
         }
         const html = await res.text();
+        const responseBody = html.substring(0, 500);
         const parser = new DOMParser();
         const doc = parser.parseFromString(html, 'text/html');
         const card = doc.querySelector('.product-item, [class*="product"], .item, .product-card, .search-result-item');
         if (!card) {
           const link = doc.querySelector(`a[href*="/product/"], a[href*="/p/"], a[href*="/item/"]`);
           if (!link) {
-            toolLog('barcode-scanner', 'api_response', { source, barcode: code, proxy: String(proxyIdx + 1), duration, statusCode: res.status, summary: 'no product found on page' }).catch(() => {});
+            toolLog('barcode-scanner', 'api_response', { source, barcode: code, proxy: String(proxyIdx + 1), duration, statusCode: res.status, responseBody, summary: 'no product found on page' }).catch(() => {});
             proxyIdx++;
             continue;
           }
           const title2 = link.getAttribute('title') || link.textContent.trim();
           if (title2) {
-            toolLog('barcode-scanner', 'api_response', { source, barcode: code, proxy: String(proxyIdx + 1), duration, statusCode: res.status, summary: title2.substring(0, 80) }).catch(() => {});
+            toolLog('barcode-scanner', 'api_response', { source, barcode: code, proxy: String(proxyIdx + 1), duration, statusCode: res.status, responseBody, summary: title2.substring(0, 80) }).catch(() => {});
             return {
               product: {
                 product_name: title2,
@@ -1371,7 +1391,7 @@ export function init(container) {
         const imgEl = card.querySelector('img[src*="product"], img[src*="upload"], .product-image img');
         const title = titleEl ? (titleEl.textContent || titleEl.getAttribute('title') || '').trim() : '';
         if (title) {
-          toolLog('barcode-scanner', 'api_response', { source, barcode: code, proxy: String(proxyIdx + 1), duration, statusCode: res.status, summary: title.substring(0, 80) }).catch(() => {});
+          toolLog('barcode-scanner', 'api_response', { source, barcode: code, proxy: String(proxyIdx + 1), duration, statusCode: res.status, responseBody, summary: title.substring(0, 80) }).catch(() => {});
           return {
             product: {
               product_name: title,
@@ -1382,7 +1402,7 @@ export function init(container) {
             source: 'SaiSuperMarket',
           };
         }
-        toolLog('barcode-scanner', 'api_response', { source, barcode: code, proxy: String(proxyIdx + 1), duration, statusCode: res.status, summary: 'page parsed, no product found' }).catch(() => {});
+        toolLog('barcode-scanner', 'api_response', { source, barcode: code, proxy: String(proxyIdx + 1), duration, statusCode: res.status, responseBody, summary: 'page parsed, no product found' }).catch(() => {});
       } catch (err) {
         const duration = Math.round(performance.now() - start);
         toolLog('barcode-scanner', 'api_error', { source, barcode: code, proxy: String(proxyIdx + 1), duration, summary: err.name === 'AbortError' ? 'timeout' : err.message }).catch(() => {});
