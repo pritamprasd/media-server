@@ -55,6 +55,22 @@ export function init(container) {
     },
   };
 
+  const focusAnims = document.createElement('style');
+  focusAnims.textContent = `
+@keyframes focusFade {
+  0% { transform:scale(1); opacity:1; }
+  100% { transform:scale(0.85); opacity:0; }
+}
+@keyframes focusCorner {
+  0% { height:0; }
+  100% { height:14px; }
+}
+@keyframes focusCornerH {
+  0% { width:0; }
+  100% { width:14px; }
+}`;
+  document.head.appendChild(focusAnims);
+
   const wrapper = document.createElement('div');
   wrapper.style.cssText =
     'display:flex;flex-direction:column;height:100%;padding:1.25rem;gap:1rem;overflow-y:auto;';
@@ -304,14 +320,15 @@ export function init(container) {
 
     const scannerEl = document.createElement('div');
     scannerEl.id = 'barcode-scanner-inner';
-    scannerEl.style.cssText = 'width:100%;height:100%;';
+    scannerEl.style.cssText = 'width:100%;height:100%;position:relative;';
     videoContainer.appendChild(scannerEl);
 
     html5QrCode = new Html5Qrcode('barcode-scanner-inner');
 
     html5QrCode.start({ facingMode: 'environment' }, camConfig, onScanSuccess, onScanFailure)
       .then(() => {
-        status.textContent = 'Point camera at a barcode or QR code...';
+        status.textContent = 'Tap the viewfinder to focus. Point camera at a barcode or QR code...';
+        setupTapToFocus(scannerEl);
       })
       .catch(() => {
         onCameraError();
@@ -383,6 +400,63 @@ export function init(container) {
     scanBtn.disabled = false;
     scanBtn.style.opacity = '1';
     scanBtn.textContent = 'Scan';
+  }
+
+  function setupTapToFocus(containerEl) {
+    const video = containerEl.querySelector('video');
+    if (!video) return;
+    video.style.cursor = 'crosshair';
+    video.addEventListener('click', (e) => {
+      const rect = video.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      showFocusAnimation(containerEl, x, y);
+      triggerAutofocus(video);
+    });
+  }
+
+  function showFocusAnimation(containerEl, x, y) {
+    const box = document.createElement('div');
+    box.style.cssText =
+      `position:absolute;left:${x}px;top:${y}px;width:0;height:0;pointer-events:none;z-index:10;`;
+    const inner = document.createElement('div');
+    inner.style.cssText =
+      `position:absolute;left:-24px;top:-24px;width:48px;height:48px;border-radius:6px;animation:focusFade 0.8s ease-out forwards;`;
+    const tl = document.createElement('div');
+    tl.style.cssText =
+      'position:absolute;top:-2px;left:-2px;width:14px;height:2px;background:#fff;border-radius:1px;';
+    const tr = document.createElement('div');
+    tr.style.cssText =
+      'position:absolute;top:-2px;right:-2px;width:2px;height:14px;background:#fff;border-radius:1px;';
+    const bl = document.createElement('div');
+    bl.style.cssText =
+      'position:absolute;bottom:-2px;left:-2px;width:2px;height:14px;background:#fff;border-radius:1px;';
+    const br = document.createElement('div');
+    br.style.cssText =
+      'position:absolute;bottom:-2px;right:-2px;width:14px;height:2px;background:#fff;border-radius:1px;';
+    const dots = document.createElement('div');
+    dots.style.cssText =
+      'position:absolute;left:calc(50% - 2px);top:calc(50% - 2px);width:4px;height:4px;border-radius:50%;background:rgba(255,255,255,0.6);';
+    inner.append(tl, tr, bl, br, dots);
+    box.appendChild(inner);
+    containerEl.appendChild(box);
+    setTimeout(() => box.remove(), 800);
+  }
+
+  function triggerAutofocus(video) {
+    const stream = video.srcObject;
+    if (!stream) return;
+    const track = stream.getVideoTracks()[0];
+    if (!track) return;
+    track.applyConstraints({ advanced: [{ focusMode: 'single-shot' }] })
+      .then(() => {
+        setTimeout(() => {
+          track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] }).catch(() => {});
+        }, 300);
+      })
+      .catch(() => {
+        track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] }).catch(() => {});
+      });
   }
 
   function onDetected(rawValue, format) {
