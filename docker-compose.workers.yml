@@ -1,0 +1,65 @@
+services:
+  backend:
+    container_name: media_server_be
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    ports:
+      - "15020:5000"
+    env_file: ./backend/.env
+    command: sh -c "flask db upgrade && gunicorn -w 4 -b 0.0.0.0:5000 --timeout 120 run:app"
+    volumes:
+      - /home/pritam/media_server_files/edited:/edited
+      - ${MEDIA_PATH:-/media}:/media:ro
+      - /home/pritam/media_server_files:/media_files
+      - /home/pritam/media_server_files/uploads:/uploads
+    networks:
+      - default-network
+    user: "${UID}:${GID}"
+    dns:
+      - 172.17.0.1
+    restart: unless-stopped
+
+  worker:
+    container_name: media_server_worker
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    env_file: ./backend/.env
+    environment:
+      - FACE_PROVIDERS=CPUExecutionProvider
+      - FACE_MATCH_THRESHOLD=0.4
+      - FACE_DET_THRESH=0.3
+    command: celery -A app.tasks.celery worker -Q import_queue,metadata,ai_metadata,thumbnail,face_detection -l info --concurrency=4 --hostname=worker@%h
+    volumes:
+      - /home/pritam/media_server_files/edited:/edited
+      - ${MEDIA_PATH:-/media}:/media:ro
+      - /home/pritam/media_server_files:/media_files
+      - /home/pritam/media_server_files/uploads:/uploads
+      - /home/pritam/.insightface:/root/.insightface
+    networks:
+      - default-network
+    dns:
+      - 172.17.0.1
+      - 8.8.8.8
+    restart: unless-stopped
+
+  frontend:
+    container_name: media_server_fe
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    ports:
+      - "3443:443"
+    volumes:
+      - /home/pritam/media_server_files/certs:/etc/nginx/certs
+    networks:
+      - default-network
+    dns:
+      - 172.17.0.1
+    restart: unless-stopped
+
+networks:
+  default-network:
+    external: true
+    name: default-network
