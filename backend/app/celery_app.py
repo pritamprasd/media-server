@@ -63,3 +63,7 @@ def init_celery(app, celery=celery):
         **{k: v for k, v in app.config.items() if k.startswith("CELERY_")},
     )
     return celery
+
+
+from app.metrics import instrument_celery
+instrument_celery(celery)

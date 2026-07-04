@@ -40,6 +40,12 @@ from app.utility.mime_utility import guess_mime
 import ollama
 import tempfile
 
+from app.metrics import (
+    files_deleted_total, files_served_total, files_downloaded_total,
+    files_edited_total, files_exported_total, uploads_total, upload_bytes_total,
+    explorer_operations_total, geocode_requests_total,
+)
+
 config = get_config()
 
 @api_bp.route("/status", methods=["GET"])
@@ -987,6 +993,8 @@ def edit_file(file_id):
         "modified": f.modified.isoformat(),
     }
 
+    files_edited_total.inc()
+
     extract_file_metadata.delay(file_info)
     generate_ai_metadata.delay(file_info)
     generate_thumbnail.delay(file_info)
@@ -1066,6 +1074,8 @@ def serve_file(file_id):
     if not os.path.isfile(file_record.file_path):
         return jsonify({"error": "File no longer exists on disk"}), 404
 
+    files_served_total.inc()
+
     if file_record.mime_type in ("image/heic", "image/heif"):
         jpeg_data = _convert_heic_to_jpeg(file_record.file_path)
         if not jpeg_data:
@@ -1108,6 +1118,8 @@ def download_file(file_id):
     if not os.path.isfile(file_record.file_path):
         return jsonify({"error": "File no longer exists on disk"}), 404
 
+    files_downloaded_total.inc()
+
     if file_record.mime_type in ("image/heic", "image/heif"):
         jpeg_data = _convert_heic_to_jpeg(file_record.file_path)
         if not jpeg_data:
@@ -1142,6 +1154,7 @@ def delete_file(file_id):
         db.session.delete(meta)
 
     DetectedFace.query.filter_by(file_id=file_id).delete()
+    files_deleted_total.inc()
     session = ImportSession.query.get(file_record.session_id)
     db.session.delete(file_record)
     if session:
@@ -1300,6 +1313,8 @@ def upload_files():
             continue
 
         stat = os.stat(save_path)
+        uploads_total.inc()
+        upload_bytes_total.inc(stat.st_size)
         rel_path = os.path.join(subdir, safe) if subdir else safe
 
         file_record = ImportedFile(
@@ -2230,6 +2245,8 @@ def export_file(file_id):
     if pil_fmt == "JPEG":
         img = img.convert("RGB")
 
+    files_exported_total.labels(format=fmt).inc()
+
     save_kwargs = {"format": pil_fmt}
     if pil_fmt in ("JPEG", "WebP"):
         save_kwargs["quality"] = quality
@@ -2269,9 +2286,11 @@ def reverse_geocode():
         r = _get_redis()
         cached = r.get(cache_key)
         if cached:
+            geocode_requests_total.labels(cache="hit").inc()
             return jsonify(json.loads(cached))
     except Exception:
         pass
+    geocode_requests_total.labels(cache="miss").inc()
 
     global _geocode_last_call
     now = time.time()
@@ -2328,6 +2347,8 @@ def export_video(file_id):
     }
     if fmt not in fmt_map:
         return jsonify({"error": f"Unsupported format: {fmt}"}), 400
+
+    files_exported_total.labels(format=fmt).inc()
 
     ext, mime, codec_args = fmt_map[fmt]
     tmp = tempfile.NamedTemporaryFile(suffix=ext, delete=False)
@@ -2522,6 +2543,7 @@ def explorer_browse():
 
 @api_bp.route("/explorer/rename", methods=["POST"])
 def explorer_rename():
+    explorer_operations_total.labels(operation="rename").inc()
     data = request.get_json(silent=True) or {}
     path = data.get("path", "").strip().strip("/")
     new_name = data.get("new_name", "").strip().strip("/")
@@ -2595,6 +2617,7 @@ def explorer_rename():
 
 @api_bp.route("/explorer/move", methods=["POST"])
 def explorer_move():
+    explorer_operations_total.labels(operation="move").inc()
     data = request.get_json(silent=True) or {}
     paths = data.get("paths", [])
     target = data.get("target", "").strip().strip("/")
@@ -2675,6 +2698,7 @@ def explorer_move():
 
 @api_bp.route("/explorer/copy", methods=["POST"])
 def explorer_copy():
+    explorer_operations_total.labels(operation="copy").inc()
     data = request.get_json(silent=True) or {}
     paths = data.get("paths", [])
     target = data.get("target", "").strip().strip("/")
@@ -2723,6 +2747,7 @@ def explorer_copy():
 
 @api_bp.route("/explorer/delete", methods=["POST"])
 def explorer_delete():
+    explorer_operations_total.labels(operation="delete").inc()
     data = request.get_json(silent=True) or {}
     paths = data.get("paths", [])
     if not paths:

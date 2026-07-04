@@ -12,6 +12,7 @@ from app.models.person import Person
 from app.models.detected_face import DetectedFace
 from app.models.file_metadata import FileMetadata
 from app.tasks import detect_faces
+from app.metrics import face_scans_total, persons_created_total
 
 
 @api_bp.route("/persons", methods=["GET"])
@@ -150,6 +151,7 @@ def list_person_files(person_id):
 
 @api_bp.route("/persons/scan", methods=["POST"])
 def scan_all_faces():
+    face_scans_total.inc()
     subq = db.session.query(DetectedFace.file_id).distinct().subquery()
     files = ImportedFile.query.filter(
         ImportedFile.deleted != True,
@@ -201,6 +203,7 @@ def update_face(face_id):
 
     person = Person.query.filter_by(name=name).first()
     if not person:
+        persons_created_total.inc()
         person = Person(name=name, face_count=1)
         from app.utility.face_utility import compute_average_encoding
         if face.encoding:

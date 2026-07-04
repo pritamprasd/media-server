@@ -6,7 +6,10 @@ services:
       dockerfile: backend/Dockerfile
     ports:
       - "15020:5000"
+      - "9200:9200"
     env_file: ./backend/.env
+    environment:
+      - PROMETHEUS_MULTIPROC_DIR=/tmp/prometheus_metrics
     command: sh -c "flask db upgrade && gunicorn -w 4 -b 0.0.0.0:5000 --timeout 120 run:app"
     volumes:
       - /home/pritam/media_server_files/edited:/edited
@@ -26,7 +29,12 @@ services:
       context: .
       dockerfile: backend/Dockerfile
     env_file: ./backend/.env
+    environment:
+      - PROMETHEUS_MULTIPROC_DIR=/tmp/prometheus_metrics
+      - WORKER_METRICS_PORT=9201
     command: celery -A app.tasks.celery worker -Q import_queue -l info --concurrency=1 --hostname=import@%h
+    ports:
+      - "9201:9201"
     volumes:
       - /home/pritam/media_server_files/edited:/edited
       - ${MEDIA_PATH:-/media}:/media:ro
@@ -44,7 +52,12 @@ services:
       context: .
       dockerfile: backend/Dockerfile
     env_file: ./backend/.env
+    environment:
+      - PROMETHEUS_MULTIPROC_DIR=/tmp/prometheus_metrics
+      - WORKER_METRICS_PORT=9202
     command: celery -A app.tasks.celery worker -Q metadata -l info --concurrency=3 --hostname=metadata@%h
+    ports:
+      - "9202:9202"
     volumes:
       - /home/pritam/media_server_files/edited:/edited
       - ${MEDIA_PATH:-/media}:/media:ro
@@ -62,7 +75,12 @@ services:
       context: .
       dockerfile: backend/Dockerfile
     env_file: ./backend/.env
+    environment:
+      - PROMETHEUS_MULTIPROC_DIR=/tmp/prometheus_metrics
+      - WORKER_METRICS_PORT=9203
     command: celery -A app.tasks.celery worker -Q ai_metadata -l info --concurrency=1 --hostname=ai@%h
+    ports:
+      - "9203:9203"
     volumes:
       - /home/pritam/media_server_files/edited:/edited
       - ${MEDIA_PATH:-/media}:/media:ro
@@ -80,7 +98,12 @@ services:
       context: .
       dockerfile: backend/Dockerfile
     env_file: ./backend/.env
+    environment:
+      - PROMETHEUS_MULTIPROC_DIR=/tmp/prometheus_metrics
+      - WORKER_METRICS_PORT=9204
     command: celery -A app.tasks.celery worker -Q thumbnail -l info --concurrency=3 --hostname=thumbnail@%h
+    ports:
+      - "9204:9204"
     volumes:
       - /home/pritam/media_server_files/edited:/edited
       - ${MEDIA_PATH:-/media}:/media:ro
@@ -102,7 +125,11 @@ services:
       - FACE_PROVIDERS=CPUExecutionProvider
       - FACE_MATCH_THRESHOLD=0.4
       - FACE_DET_THRESH=0.3
+      - PROMETHEUS_MULTIPROC_DIR=/tmp/prometheus_metrics
+      - WORKER_METRICS_PORT=9205
     command: celery -A app.tasks.celery worker -Q face_detection -l info --concurrency=1 --hostname=face@%h
+    ports:
+      - "9205:9205"
     volumes:
       - /home/pritam/media_server_files/edited:/edited
       - ${MEDIA_PATH:-/media}:/media:ro

@@ -14,6 +14,11 @@ from app.utility.mime_utility import expand_mime_groups, guess_mime
 from app.utility.tags_utility import extract_folder_tags
 from app.utility.hash_utility import compute_file_hash, compute_dhash, dhash_to_bands
 from app.utility.video_utility import extract_video_metadata, extract_video_frames, generate_video_thumbnail
+from app.metrics import (
+    files_imported_total, metadata_extracted_total, metadata_failed_total,
+    thumbnails_generated_total, ai_descriptions_total, ai_failed_total,
+    faces_detected_total,
+)
 import logging
 
 logger = logging.getLogger(__name__)
@@ -120,6 +125,8 @@ def process_import_folder(self, folder_path, groups):
         ).delete(synchronize_session="fetch")
     db.session.commit()
 
+    files_imported_total.inc(new_file_count)
+
     for file_info in file_infos:
         extract_file_metadata.delay(file_info)
         generate_thumbnail.delay(file_info)
@@ -160,8 +167,10 @@ def extract_file_metadata(self, file_info):
         elif mime.startswith("video/"):
             extract_video_metadata(file_path, meta)
         meta.metadata_status = "extracted"
+        metadata_extracted_total.inc()
     except Exception as exc:
         meta.metadata_status = "failed"
+        metadata_failed_total.inc()
         db.session.commit()
         raise self.retry(exc=exc, countdown=60)
 
@@ -256,9 +265,11 @@ def generate_ai_metadata(self, file_info):
         meta.tags = merged
         meta.search_words = ", ".join(metadata.search_words) if metadata.search_words else ""
         meta.metadata_status = "completed"
+        ai_descriptions_total.inc()
 
     except Exception as exc:
         meta.metadata_status = "failed"
+        ai_failed_total.inc()
         db.session.commit()
         raise self.retry(exc=exc, countdown=60)
 
@@ -282,6 +293,8 @@ def generate_thumbnail(self, file_info):
         elif mime.startswith("video/"):
             generate_video_thumbnail(file_path, meta)
         meta.thumbnail_status = "completed" if meta.thumbnail else "failed"
+        if meta.thumbnail_status == "completed":
+            thumbnails_generated_total.inc()
     except Exception as exc:
         meta.thumbnail_status = "failed"
         db.session.commit()
@@ -321,6 +334,7 @@ def detect_faces(self, file_info):
 
     persons = Person.query.all()
     person_encodings = {}
+    new_persons_count = 0
 
     for face_data in results:
         encoding = face_data.get("encoding", [])
@@ -330,6 +344,7 @@ def detect_faces(self, file_info):
         best_person, _ = find_best_person_match(encoding, persons)
 
         if best_person is None:
+            new_persons_count += 1
             person = Person(
                 thumbnail=face_data.get("thumbnail"),
                 face_count=1,
@@ -371,6 +386,10 @@ def detect_faces(self, file_info):
         p.avg_encoding = compute_average_encoding(all_encs)
 
     db.session.commit()
+    faces_detected_total.inc(len(results))
+    if new_persons_count:
+        from app.metrics import persons_created_total
+        persons_created_total.inc(new_persons_count)
     return {"file_id": file_id, "faces": len(results)}
 
 

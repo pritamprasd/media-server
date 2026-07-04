@@ -43,6 +43,9 @@ def create_app(testing=False):
     init_celery(application)
     application.extensions["celery"] = True
 
+    from app.metrics import init_flask_metrics
+    init_flask_metrics(application)
+
     @application.route("/health")
     def health():
         return {"status": "ok"}

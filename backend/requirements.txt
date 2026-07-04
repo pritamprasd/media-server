@@ -18,3 +18,4 @@ opencv-python-headless==4.11.0.86
 pydantic==2.13.4
 filetype==1.2.0
 beautifulsoup4==4.15.0
+prometheus-client==0.21.1

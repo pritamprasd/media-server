@@ -153,6 +153,7 @@ A scalable, semantic-searchable media viewer for your home media collection. Fea
 - **HTTPS** — self-signed certificate generated at build time; nginx reverse proxy with HTTP/2 and secure ciphers
 - **Workers** — separate concurrency settings per queue (import=1, metadata=3, ai=1, thumbnail=3, face=1)
 - **Face worker** — InsightFace model volume-mounted from host; `FACE_DET_THRESH=0.3`, `FACE_MATCH_THRESHOLD=0.4`; DNS fallback `8.8.8.8`
+- **Monitoring** — every service exposes a Prometheus `/metrics` endpoint (backend:9200, workers:9201-9205); `grafana-dashboard.json` provides a pre-built Grafana dashboard
 
 ## Architecture
 
@@ -188,6 +189,7 @@ media-server/
 │   │   ├── models/                 # 10 SQLAlchemy models
 │   │   ├── utility/                # 11 utility modules
 │   │   ├── tasks.py                # 5 Celery task definitions
+│   │   ├── metrics.py              # Prometheus metrics (basic + product-specific)
 │   │   ├── config.py               # App configuration
 │   │   └── __init__.py             # App factory
 │   ├── migrations/                 # 10 Alembic migrations
@@ -211,8 +213,10 @@ media-server/
 │   ├── index.html                  # Loading animation
 │   ├── nginx.conf                  # HTTPS reverse proxy
 │   └── Dockerfile
-├── docker-compose.yml              # 7 application services
+├── docker-compose.yml              # 7 application services (metrics ports 9200-9205)
 ├── docker-compose.infra.yml        # PostgreSQL + Redis
+├── docker-compose.workers.yml      # Combined-worker variant (metrics ports 9200-9201)
+├── grafana-dashboard.json          # Prometheus/Grafana dashboard
 ├── Makefile                        # 20+ targets
 └── README.md
 ```
@@ -240,6 +244,13 @@ python run.py
 
 ```bash
 celery -A app.tasks.celery worker -Q import_queue,metadata,ai_metadata,thumbnail,face_detection -l info
+```
+
+Or use Docker with separate or combined workers (metrics ports auto-exposed):
+
+```bash
+docker compose up -d                                    # separate workers (9200-9205)
+docker compose -f docker-compose.workers.yml up -d      # combined worker (9200-9201)
 ```
 
 ### Frontend
@@ -318,6 +329,66 @@ Run `make db-upgrade` to apply new indexes after pulling.
 | `FACE_MATCH_THRESHOLD` | `0.4` | Face match cosine distance threshold |
 | `VITE_MAP_NEARBY_KM` | `10` | Map nearby-files query radius |
 | `VITE_MAP_THUMBS_PER_PAGE` | `32` | Map thumbnail gallery page size |
+| `PROMETHEUS_MULTIPROC_DIR` | — | Enable Prometheus multiprocess mode (set to writable dir) |
+| `WORKER_METRICS_PORT` | `9201` | Celery worker Prometheus HTTP server port |
+
+## Monitoring
+
+The backend and all workers expose Prometheus metrics at `/metrics` for real-time observability. A Grafana dashboard is included at `grafana-dashboard.json` covering all metrics.
+
+### Metrics Endpoints
+
+| Service | Container | Port | URL |
+|---------|-----------|------|-----|
+| Backend (Flask) | `media_server_be` | 9200 | `/metrics` |
+| Worker Import | `media_server_w_import` | 9201 | `/metrics` |
+| Worker Metadata | `media_server_w_metadata` | 9202 | `/metrics` |
+| Worker AI | `media_server_w_ai` | 9203 | `/metrics` |
+| Worker Thumbnail | `media_server_w_thumb` | 9204 | `/metrics` |
+| Worker Face | `media_server_w_face` | 9205 | `/metrics` |
+
+### Metrics Collected
+
+**HTTP** — request rate, duration (p50/p95/p99), error rate (4xx/5xx), in-flight requests per method.
+
+**Celery Tasks** — task rate, duration, success/failure count, retry rate per task type (import, metadata, AI, thumbnail, face).
+
+**File Operations** — import, delete, serve, download, edit, export (by format: jpeg/png/webp/heic/pdf/ascii/mp4/webm/avi/mkv/mov).
+
+**Processing Pipeline** — metadata extraction (success/failure), thumbnail generation, AI description (success/failure), face detection (faces detected + new persons created).
+
+**Upload & Explorer** — upload file rate, upload byte rate, explorer operations (rename/move/copy/delete), geocode cache hit/miss rate.
+
+**Library Statistics** — total files, library size in bytes, total sessions, total unique tags, tagged file count, database connection pool size.
+
+### Adding to Prometheus
+
+```yaml
+scrape_configs:
+  - job_name: 'media-server'
+    static_configs:
+      - targets:
+        - 'media_server_be:9200'
+        - 'media_server_w_import:9201'
+        - 'media_server_w_metadata:9202'
+        - 'media_server_w_ai:9203'
+        - 'media_server_w_thumb:9204'
+        - 'media_server_w_face:9205'
+```
+
+### Grafana Dashboard
+
+Import `grafana-dashboard.json` into your Grafana instance. The dashboard contains 23 panels across 7 rows:
+
+| Row | Panels |
+|-----|--------|
+| HTTP Overview | Request rate, duration (p50/p95/p99), active requests, top endpoints by rate |
+| Celery Tasks | Task rate by type, duration (p50/p95), success vs failure, retry rate |
+| File Operations | Import/delete rate, serve/download rate, edit rate, export rate by format |
+| Processing Pipeline | Metadata extraction rate, thumbnail generation rate, AI description rate, face detection rate |
+| Upload & Explorer | Upload file rate, upload byte rate, explorer operations rate, geocode cache rate |
+| Library Statistics | Total files, library size, sessions, tags, tagged files, DB pool size |
+| Process Resources | Resident memory, virtual memory, CPU usage, open file descriptors |
 
 ## Writing a New Tool (LLM Prompt)
 
