@@ -8,6 +8,8 @@ from prometheus_client import (
 )
 
 _mp_dir = os.environ.get("PROMETHEUS_MULTIPROC_DIR")
+if _mp_dir:
+    os.makedirs(_mp_dir, exist_ok=True)
 
 _serving_registry = None
 
