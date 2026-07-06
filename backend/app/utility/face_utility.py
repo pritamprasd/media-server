@@ -6,11 +6,11 @@ import os
 from PIL import Image
 import numpy as np
 
+from app.config import Config
+
 logger = logging.getLogger(__name__)
 
 _face_app = None
-
-FACE_MATCH_THRESHOLD = float(os.environ.get("FACE_MATCH_THRESHOLD", "0.4"))
 
 
 def _get_face_app():
@@ -22,16 +22,16 @@ def _get_face_app():
         except ImportError:
             logger.error("insightface not installed. Run: pip install insightface onnxruntime")
             return None
-        providers = os.environ.get("FACE_PROVIDERS", "CPUExecutionProvider")
+        providers = [p.strip() for p in Config.FACE_PROVIDERS.split(",")]
         _face_app = FaceAnalysis(
             name="buffalo_l",
             root=os.path.join(os.path.expanduser("~"), ".insightface"),
-            providers=[providers],
+            providers=providers,
         )
         _face_app.prepare(
             ctx_id=0,
             det_size=(640, 640),
-            det_thresh=float(os.environ.get("FACE_DET_THRESH", "0.3")),
+            det_thresh=Config.FACE_DET_THRESH,
         )
         logger.info("FaceAnalysis model loaded (buffalo_l, provider=%s, det_thresh=%.2f)",
                      providers, _face_app.det_thresh)
@@ -100,7 +100,7 @@ def encoding_distance(enc_a, enc_b):
     return float(1.0 - dot / (norm_a * norm_b))
 
 
-def find_best_person_match(encoding, persons, threshold=FACE_MATCH_THRESHOLD):
+def find_best_person_match(encoding, persons, threshold=Config.FACE_MATCH_THRESHOLD):
     best_dist = threshold
     best_person = None
     for person in persons:
