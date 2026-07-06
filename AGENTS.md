@@ -41,6 +41,7 @@
 - `frontend/.env` - Frontend env vars
 - `docker-compose.yml` - All 9 services
 - `backend/.venv/` - Virtual environment, must run tests from here
+- **Config docstrings**: Every attribute in `backend/app/config.py` must have a docstring-style comment explaining what changing that value affects (e.g., what breaks, what improves, the tradeoff). One-liner section headers are not sufficient; describe the observable impact.
 
 ## Docker vs Manual Setup
 - **Docker**: `docker compose up --build -d` - All services with persistent volumes
