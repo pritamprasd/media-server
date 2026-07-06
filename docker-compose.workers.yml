@@ -12,10 +12,10 @@ services:
       - PROMETHEUS_MULTIPROC_DIR=/tmp/prometheus_metrics
     command: sh -c "flask db upgrade && gunicorn -w 4 -b 0.0.0.0:5000 --timeout 120 -c gunicorn.conf.py run:app"
     volumes:
-      - /home/pritam/media_server_files/edited:/edited
+      - ${MEDIA_FILES_PREFIX:-/home/pritam/media_server_files}/edited:/edited
       - ${MEDIA_PATH:-/media}:/media:ro
-      - /home/pritam/media_server_files:/media_files
-      - /home/pritam/media_server_files/uploads:/uploads
+      - ${MEDIA_FILES_PREFIX:-/home/pritam/media_server_files}:/media_files
+      - ${MEDIA_FILES_PREFIX:-/home/pritam/media_server_files}/uploads:/uploads
     networks:
       - default-network
     user: "${UID}:${GID}"
@@ -39,10 +39,10 @@ services:
     ports:
       - "9201:9201"
     volumes:
-      - /home/pritam/media_server_files/edited:/edited
+      - ${MEDIA_FILES_PREFIX:-/home/pritam/media_server_files}/edited:/edited
       - ${MEDIA_PATH:-/media}:/media:ro
-      - /home/pritam/media_server_files:/media_files
-      - /home/pritam/media_server_files/uploads:/uploads
+      - ${MEDIA_FILES_PREFIX:-/home/pritam/medi/home/pritam/media_server_filesa_server_files}:/media_files
+      - ${MEDIA_FILES_PREFIX:-/home/pritam/media_server_files}/uploads:/uploads
       - /home/pritam/.insightface:/root/.insightface
     networks:
       - default-network
@@ -59,7 +59,7 @@ services:
     ports:
       - "3443:443"
     volumes:
-      - /home/pritam/media_server_files/certs:/etc/nginx/certs
+      - ${MEDIA_FILES_PREFIX:-/home/pritam/media_server_files}/certs:/etc/nginx/certs
     networks:
       - default-network
     dns:
