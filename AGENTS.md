@@ -86,6 +86,14 @@
 - **IntersectionObserver over scroll events**: Infinite scroll uses IntersectionObserver with 200px root margin for simplicity and modern browser support; a Load More button remains as fallback.
 - **IndexedDB for UI-only persistence**: All user preferences and UI state (folder styles, editor tab order, navbar tab order, map zoom level) go to IndexedDB via `getPref`/`setPref` (in `frontend/src/services/db.js`). Backend persistence (database) is for data, not UI state.
 
+### Prometheus Metrics Architecture
+- **Flask app**: `/metrics` served via Flask route on port 5000 AND standalone prometheus HTTP server on `FLASK_METRICS_PORT` (default 9200). The standalone server is started by gunicorn's `when_ready` hook in `backend/gunicorn.conf.py` so it runs only once in the master process (not in each worker).
+- **Celery workers**: Each worker starts its own prometheus HTTP server on `WORKER_METRICS_PORT` via the `worker_ready` signal in `backend/app/metrics.py:188-191`.
+- **MultiProcessCollector**: Both use `PROMETHEUS_MULTIPROC_DIR` env var with `MultiProcessCollector` to aggregate metrics across gunicorn worker processes / Celery child processes. All metrics write to `.db` files in that directory.
+- **Port mapping conventions**:
+  - `backend`: API on 5000 → host `15020`, metrics on 9200 → host `9200`
+  - Docker compose: 5 separate workers on ports 9201–9205, or single worker on 9201 (`docker-compose.workers.yml`)
+
 ### Colors Tab (FileViewer)
 - **Grayscale exclusion**: Colors with RGB range (max-min) ≤ 15 are filtered out from the top 20 to avoid picking up near-white/black/near-gray values.
 - **Similar-color merging**: Within `extractProminentColors`, shades with Euclidean distance ≤ 30 in 0–255 RGB space are merged by weighted average (weighted by pixel count).

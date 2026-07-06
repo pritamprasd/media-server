@@ -1,15 +1,21 @@
 import os
 import time
 import atexit
+import logging
 
 from prometheus_client import (
     Counter, Histogram, Gauge, generate_latest,
     CollectorRegistry, CONTENT_TYPE_LATEST,
 )
 
+logger = logging.getLogger(__name__)
+
 _mp_dir = os.environ.get("PROMETHEUS_MULTIPROC_DIR")
 if _mp_dir:
     os.makedirs(_mp_dir, exist_ok=True)
+    for f in os.listdir(_mp_dir):
+        if f.endswith(".db"):
+            os.remove(os.path.join(_mp_dir, f))
 
 _serving_registry = None
 
@@ -28,7 +34,11 @@ def metrics_view():
 
 def start_metrics_server(port):
     from prometheus_client import start_http_server as _start
-    _start(port, registry=_get_serving_registry())
+    try:
+        _start(port, registry=_get_serving_registry())
+        logger.info("Prometheus metrics server started on port %d", port)
+    except Exception as e:
+        logger.error("Failed to start Prometheus metrics server on port %d: %s", port, e)
 
 http_request_duration_seconds = Histogram(
     "http_request_duration_seconds", "HTTP request duration in seconds",

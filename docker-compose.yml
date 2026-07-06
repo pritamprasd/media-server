@@ -10,7 +10,7 @@ services:
     env_file: ./backend/.env
     environment:
       - PROMETHEUS_MULTIPROC_DIR=/tmp/prometheus_metrics
-    command: sh -c "flask db upgrade && gunicorn -w 4 -b 0.0.0.0:5000 --timeout 120 run:app"
+    command: sh -c "flask db upgrade && gunicorn -w 4 -b 0.0.0.0:5000 --timeout 120 -c gunicorn.conf.py run:app"
     volumes:
       - /home/pritam/media_server_files/edited:/edited
       - ${MEDIA_PATH:-/media}:/media:ro
