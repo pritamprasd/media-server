@@ -1292,6 +1292,7 @@ def upload_files():
 
     saved = []
     errors = []
+    face_batch = []
 
     for f in files:
         if not f.filename:
@@ -1350,9 +1351,15 @@ def upload_files():
         generate_ai_metadata.delay(file_info)
         generate_thumbnail.delay(file_info)
         if mime.startswith("image/"):
-            detect_faces.delay(file_info)
+            face_batch.append(file_info)
+            if len(face_batch) >= get_config().FACE_BATCH_SIZE:
+                detect_faces.delay(face_batch)
+                face_batch = []
 
         saved.append(file_record.to_dict())
+
+    if face_batch:
+        detect_faces.delay(face_batch)
 
     return jsonify({"saved": saved, "errors": errors}), 201
 

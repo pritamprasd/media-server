@@ -158,16 +158,23 @@ def scan_all_faces():
         ImportedFile.mime_type.like("image/%"),
         ~ImportedFile.id.in_(db.session.query(subq.c.file_id)),
     ).all()
+    from app.config import Config
     print(f"Total files for scan all faces: {len(files)}")
     count = 0
+    face_batch = []
     for f in files:
-        detect_faces.delay({
+        face_batch.append({
             "id": f.id,
             "file_path": f.file_path,
             "mime_type": f.mime_type,
             "filename": f.filename,
         })
         count += 1
+        if len(face_batch) >= Config.FACE_BATCH_SIZE:
+            detect_faces.delay(face_batch)
+            face_batch = []
+    if face_batch:
+        detect_faces.delay(face_batch)
     return jsonify({"message": f"Face detection queued for {count} files"}), 202
 
 
