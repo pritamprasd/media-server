@@ -142,6 +142,105 @@ tags_total = Gauge(
 tagged_files_total = Gauge(
     "tagged_files_total", "Total files with at least one tag",
 )
+files_by_mime_category = Gauge(
+    "files_by_mime_category", "Files grouped by broad mime category",
+    ["category"],
+)
+unprocessed_files_total = Gauge(
+    "unprocessed_files_total", "Files pending each processing step",
+    ["step"],
+)
+persons_total = Gauge(
+    "persons_total", "Total person records in the library",
+)
+detected_faces_total = Gauge(
+    "detected_faces_total", "Total detected face records in the library",
+)
+face_detection_duration_seconds = Histogram(
+    "face_detection_duration_seconds", "Face detection duration per file in seconds",
+    ["queue"],
+)
+
+
+def update_library_stats():
+    from app.models.imported_file import ImportedFile
+    from app.models.import_session import ImportSession
+    from app.models.file_metadata import FileMetadata
+    from app.models.person import Person
+    from app.models.detected_face import DetectedFace
+    from app import db
+    from sqlalchemy import func
+
+    active = ImportedFile.query.filter(ImportedFile.deleted != True)
+    total_active = active.count()
+    total_size = db.session.query(func.sum(ImportedFile.size)).filter(
+        ImportedFile.deleted != True
+    ).scalar() or 0
+    total_deleted = ImportedFile.query.filter(ImportedFile.deleted == True).count()
+
+    library_files_total.labels(status="active").set(total_active)
+    library_files_total.labels(status="deleted").set(total_deleted)
+    library_size_bytes.set(total_size)
+    library_sessions_total.set(ImportSession.query.count())
+
+    tagged = FileMetadata.query.filter(
+        FileMetadata.tags.isnot(None),
+        FileMetadata.tags != '[]',
+        FileMetadata.tags != 'null',
+    ).count()
+    tagged_files_total.set(tagged)
+
+    all_tag_rows = FileMetadata.query.with_entities(FileMetadata.tags).filter(
+        FileMetadata.tags.isnot(None),
+        FileMetadata.tags != '[]',
+        FileMetadata.tags != 'null',
+    ).all()
+    unique_tags = set()
+    for row in all_tag_rows:
+        if row.tags and isinstance(row.tags, list):
+            unique_tags.update(t.strip().lower() for t in row.tags if isinstance(t, str))
+    tags_total.set(len(unique_tags))
+
+    db_connection_pool_size.set(10)
+
+    for category in ("image", "video", "audio", "document"):
+        if category == "document":
+            count = ImportedFile.query.filter(
+                ImportedFile.deleted != True,
+                ImportedFile.mime_type.notlike("image/%"),
+                ImportedFile.mime_type.notlike("video/%"),
+                ImportedFile.mime_type.notlike("audio/%"),
+            ).count()
+        else:
+            count = ImportedFile.query.filter(
+                ImportedFile.deleted != True,
+                ImportedFile.mime_type.like(f"{category}/%"),
+            ).count()
+        files_by_mime_category.labels(category=category).set(count)
+
+    meta_base = FileMetadata.query
+    unprocessed_files_total.labels(step="metadata").set(
+        meta_base.filter(
+            FileMetadata.metadata_status.in_(["pending", "extracting"])
+        ).count()
+    )
+    unprocessed_files_total.labels(step="thumbnail").set(
+        meta_base.filter(
+            FileMetadata.thumbnail_status.in_(["pending", "generating"])
+        ).count()
+    )
+
+    persons_total.set(Person.query.count())
+
+    from sqlalchemy import exists
+    face_subq = db.session.query(DetectedFace.file_id).distinct().subquery()
+    no_faces = ImportedFile.query.filter(
+        ImportedFile.deleted != True,
+        ImportedFile.mime_type.like("image/%"),
+        ~ImportedFile.id.in_(db.session.query(face_subq.c.file_id)),
+    ).count()
+    unprocessed_files_total.labels(step="face_detection").set(no_faces)
+
 
 def init_flask_metrics(app):
     from flask import request

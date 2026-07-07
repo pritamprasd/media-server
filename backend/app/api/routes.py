@@ -53,6 +53,13 @@ def status():
     return jsonify({"message": "API is running"}), 200
 
 
+@api_bp.route("/stats/refresh", methods=["POST"])
+def refresh_stats():
+    from app.metrics import update_library_stats
+    update_library_stats()
+    return jsonify({"message": "Library stats refreshed"}), 200
+
+
 @api_bp.route("/directories", methods=["GET"])
 def list_directories():
     dirs = ImportedDirectory.query.filter(
@@ -1168,6 +1175,9 @@ def delete_file(file_id):
         except OSError:
             pass
 
+    from app.metrics import update_library_stats
+    update_library_stats()
+
     return jsonify({"message": "File deleted"}), 200
 
 
@@ -1360,6 +1370,10 @@ def upload_files():
 
     if face_batch:
         detect_faces.delay(face_batch)
+
+    if saved:
+        from app.metrics import update_library_stats
+        update_library_stats()
 
     return jsonify({"saved": saved, "errors": errors}), 201
 
@@ -2759,6 +2773,7 @@ def explorer_delete():
     paths = data.get("paths", [])
     if not paths:
         return jsonify({"error": "paths is required"}), 400
+    deleted_count = 0
     for src_path in paths:
         src_path = src_path.strip().strip("/")
         files = ImportedFile.query.filter(
@@ -2771,6 +2786,7 @@ def explorer_delete():
                 DHashBand.query.filter_by(metadata_id=meta.id).delete()
                 db.session.delete(meta)
             db.session.delete(f)
+            deleted_count += 1
             session = ImportSession.query.get(f.session_id)
             if session:
                 session.total_files = max(0, (session.total_files or 0) - 1)
@@ -2790,6 +2806,7 @@ def explorer_delete():
                 ).all()
                 for cf in child_files:
                     DetectedFace.query.filter_by(file_id=cf.id).delete()
+                    deleted_count += 1
                     session = ImportSession.query.get(cf.session_id)
                     if session:
                         session.total_files = max(0, (session.total_files or 0) - 1)
@@ -2805,6 +2822,7 @@ def explorer_delete():
             ).all()
             for cf in child_files:
                 DetectedFace.query.filter_by(file_id=cf.id).delete()
+                deleted_count += 1
                 session = ImportSession.query.get(cf.session_id)
                 if session:
                     session.total_files = max(0, (session.total_files or 0) - 1)
@@ -2815,6 +2833,10 @@ def explorer_delete():
                 db.session.delete(cf)
             db.session.delete(d)
     db.session.commit()
+    if deleted_count:
+        files_deleted_total.inc(deleted_count)
+        from app.metrics import update_library_stats
+        update_library_stats()
     return jsonify({"message": "Items deleted"}), 200
 
 

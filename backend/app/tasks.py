@@ -127,6 +127,10 @@ def process_import_folder(self, folder_path, groups):
 
     files_imported_total.inc(new_file_count)
 
+    if new_file_count:
+        from app.metrics import update_library_stats
+        update_library_stats()
+
     from app.config import Config
     face_batch = []
     for file_info in file_infos:
