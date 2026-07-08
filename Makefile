@@ -47,6 +47,10 @@ help:
 	@echo '  build          Build frontend for production'
 	@echo '  preview        Preview production frontend build'
 	@echo ''
+	@echo 'Docker'
+	@echo '  restart        Rebuild and restart a single Docker service'
+	@echo '  logs           Tail live logs of a single Docker service'
+	@echo ''
 	@echo 'Utility'
 	@echo '  celery-purge   Purge all pending Celery tasks'
 
@@ -195,6 +199,22 @@ restart:
 	svc=$$(whiptail --title " Docker Services " --menu "  Select a service to rebuild and restart:" 20 60 10 "$${items[@]}" 3>&1 1>&2 2>&3); \
 	if [ -n "$$svc" ]; then \
 		scripts/docker-restart "$$svc"; \
+	else \
+		printf '\033[2mCancelled.\033[0m\n'; \
+	fi
+
+.PHONY: logs
+logs:
+	@if ! command -v whiptail &>/dev/null; then \
+		printf '\033[1;31m✘ whiptail not found. Install '\''newt'\'' package.\033[0m\n'; \
+		exit 1; \
+	fi; \
+	services=$$(docker compose config --services 2>/dev/null); \
+	items=(); \
+	for s in $$services; do items+=("$$s" ""); done; \
+	svc=$$(whiptail --title " Docker Services " --menu "  Select a service to tail logs:" 20 60 10 "$${items[@]}" 3>&1 1>&2 2>&3); \
+	if [ -n "$$svc" ]; then \
+		docker compose logs -f --tail=50 "$$svc"; \
 	else \
 		printf '\033[2mCancelled.\033[0m\n'; \
 	fi

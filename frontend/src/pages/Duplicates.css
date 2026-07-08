@@ -86,7 +86,7 @@
 
 .duplicates__grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
   gap: 0.75rem;
 }
 
@@ -111,7 +111,7 @@
 
 .duplicates__pair-files {
   display: flex;
-  align-items: center;
+  align-items: stretch;
   gap: 1rem;
 }
 
@@ -119,6 +119,7 @@
   font-size: 1.25rem;
   color: var(--color-text-muted);
   flex-shrink: 0;
+  align-self: center;
 }
 
 .duplicates__card {
@@ -130,6 +131,8 @@
   transition: all 0.15s;
   flex: 1;
   min-width: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 .duplicates__card:hover {
@@ -168,9 +171,11 @@
 
 .duplicates__info {
   display: flex;
-  align-items: center;
-  gap: 0.375rem;
+  flex-direction: column;
+  gap: 0.125rem;
   padding: 0.375rem 0.5rem;
+  flex: 1;
+  min-width: 0;
 }
 
 .duplicates__filename {
@@ -179,8 +184,27 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  flex: 1;
   min-width: 0;
+}
+
+.duplicates__path {
+  font-size: 0.625rem;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.duplicates__info-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: auto;
+  gap: 0.375rem;
 }
 
 .duplicates__size {

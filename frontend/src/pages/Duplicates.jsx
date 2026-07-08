@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { CopyCheck, Shuffle, CheckCheck, Trash2, X, Image, Video } from "lucide-react";
+import { CopyCheck, Shuffle, CheckCheck, X, Image, Video, FolderOpen } from "lucide-react";
 import { listDuplicates, deleteFile } from "../services/api";
 import FileViewer from "../components/FileViewer";
 import Spinner from "../components/Spinner";
@@ -70,6 +70,9 @@ function Duplicates() {
         }))
         .filter((g) => g.files.length > 1)
     );
+    setPairs((prev) =>
+      prev.filter((p) => p.file_a.file_id !== fileId && p.file_b.file_id !== fileId)
+    );
   };
 
   const handleKeepOne = async (groupId, keepId) => {
@@ -82,6 +85,41 @@ function Duplicates() {
     }
     setGroups((prev) => prev.filter((g) => g.hash !== groupId));
   };
+
+  const renderCard = (f, onRemove) => (
+    <div key={f.file_id} className="duplicates__card">
+      <div className="duplicates__thumb-wrap" onClick={() => {
+        openViewer({ ...f, id: f.file_id, is_favorite: false });
+      }}>
+        {f.thumbnail ? (
+          <img className="duplicates__thumb" src={f.thumbnail} alt={f.filename} />
+        ) : (
+          <div className="duplicates__thumb-placeholder">
+            {f.mime_type?.startsWith("video/") ? <Video size={24} /> : <Image size={24} />}
+          </div>
+        )}
+      </div>
+      <div className="duplicates__info">
+        <span className="duplicates__filename" title={f.filename}>{f.filename}</span>
+        <span className="duplicates__path" title={f.relative_path}>
+          <FolderOpen size={10} />
+          {f.relative_path}
+        </span>
+        <div className="duplicates__info-row">
+          <span className="duplicates__size">{(f.size / 1024).toFixed(0)} KB</span>
+          {onRemove && (
+            <button
+              className="duplicates__remove"
+              onClick={() => onRemove(f.file_id)}
+              title="Remove from library"
+            >
+              <X size={14} />
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
 
   return (
     <div className="duplicates">
@@ -127,32 +165,7 @@ function Duplicates() {
                 </button>
               </div>
               <div className="duplicates__grid">
-                {g.files.map((f) => (
-                  <div key={f.file_id} className="duplicates__card">
-                    <div className="duplicates__thumb-wrap" onClick={() => {
-                      openViewer({ ...f, id: f.file_id, is_favorite: false });
-                    }}>
-                      {f.thumbnail ? (
-                        <img className="duplicates__thumb" src={f.thumbnail} alt={f.filename} />
-                      ) : (
-                        <div className="duplicates__thumb-placeholder">
-                          {f.mime_type?.startsWith("video/") ? <Video size={24} /> : <Image size={24} />}
-                        </div>
-                      )}
-                    </div>
-                    <div className="duplicates__info">
-                      <span className="duplicates__filename">{f.filename}</span>
-                      <span className="duplicates__size">{(f.size / 1024).toFixed(0)} KB</span>
-                      <button
-                        className="duplicates__remove"
-                        onClick={() => handleRemove(f.file_id)}
-                        title="Remove from library"
-                      >
-                        <X size={14} />
-                      </button>
-                    </div>
-                  </div>
-                ))}
+                {g.files.map((f) => renderCard(f, handleRemove))}
               </div>
             </div>
           ))}
@@ -165,19 +178,9 @@ function Duplicates() {
             <div key={i} className="duplicates__pair">
               <div className="duplicates__pair-distance">Distance: {p.distance}</div>
               <div className="duplicates__pair-files">
-                <div className="duplicates__card" onClick={() => {
-                  openViewer({ ...p.file_a, id: p.file_a.file_id, is_favorite: false });
-                }}>
-                  <img className="duplicates__thumb" src={p.file_a.thumbnail} alt={p.file_a.filename} />
-                  <span className="duplicates__filename">{p.file_a.filename}</span>
-                </div>
+                {renderCard(p.file_a, handleRemove)}
                 <div className="duplicates__pair-vs">≈</div>
-                <div className="duplicates__card" onClick={() => {
-                  openViewer({ ...p.file_b, id: p.file_b.file_id, is_favorite: false });
-                }}>
-                  <img className="duplicates__thumb" src={p.file_b.thumbnail} alt={p.file_b.filename} />
-                  <span className="duplicates__filename">{p.file_b.filename}</span>
-                </div>
+                {renderCard(p.file_b, handleRemove)}
               </div>
             </div>
           ))}
@@ -199,6 +202,9 @@ function Duplicates() {
                   .filter((g) => g.files.length > 1)
               );
             }
+            setPairs((prev) =>
+              prev.filter((p) => p.file_a.file_id !== fileId && p.file_b.file_id !== fileId)
+            );
             closeViewer();
           }}
         />

@@ -378,6 +378,7 @@ def list_duplicates():
                 group.append({
                     "file_id": f.id,
                     "filename": f.filename,
+                    "relative_path": f.relative_path,
                     "size": f.size,
                     "mime_type": f.mime_type,
                     "file_hash": m.file_hash,
@@ -418,11 +419,17 @@ def list_duplicates():
                             "file_a": {
                                 "file_id": m1.file_id,
                                 "filename": m1.file.filename,
+                                "relative_path": m1.file.relative_path,
+                                "size": m1.file.size,
+                                "mime_type": m1.file.mime_type,
                                 "thumbnail": m1.thumbnail,
                             },
                             "file_b": {
                                 "file_id": m2.file_id,
                                 "filename": m2.file.filename,
+                                "relative_path": m2.file.relative_path,
+                                "size": m2.file.size,
+                                "mime_type": m2.file.mime_type,
                                 "thumbnail": m2.thumbnail,
                             },
                         })
