@@ -373,7 +373,7 @@ def detect_faces(self, file_infos):
                     avg_encoding=encoding,
                 )
                 db.session.add(person)
-                db.session.flush()
+                db.session.flush([person])
                 persons.append(person)
                 person_encodings[person.id] = [encoding]
             else:
