@@ -5,7 +5,7 @@ const CACHES = {
   tiles: "media-server-tiles-v1",
 };
 
-const SHELL_URLS = ["/", "/index.html"];
+const SHELL_URLS = ["/", "/index.html", "/icon-192.png", "/icon-512.png"];
 
 // Don't cache files larger than this (50 MB for media)
 const MEDIA_SIZE_LIMIT = 50 * 1024 * 1024;
@@ -201,6 +201,12 @@ self.addEventListener("fetch", (e) => {
 
   // Never cache the SW itself, manifest, or icon
   if (pathname === "/sw.js" || pathname === "/manifest.json" || pathname === "/icon.svg") {
+    return;
+  }
+
+  // Cache-first for PWA icons
+  if (pathname === "/icon-192.png" || pathname === "/icon-512.png") {
+    e.respondWith(cacheFirst(request, CACHES.shell));
     return;
   }
 
