@@ -337,15 +337,16 @@ def detect_faces(self, file_infos):
             batch_results.append({"file_id": file_id, "faces": 0, "error": "Not an image"})
             continue
 
-        file_exists = ImportedFile.query.get(file_id)
-        if not file_exists:
-            batch_results.append({"file_id": file_id, "faces": 0, "error": "File not found"})
-            continue
+        with db.session.no_autoflush:
+            file_exists = ImportedFile.query.get(file_id)
+            if not file_exists:
+                batch_results.append({"file_id": file_id, "faces": 0, "error": "File not found"})
+                continue
 
-        existing = DetectedFace.query.filter_by(file_id=file_id).first()
-        if existing:
-            batch_results.append({"file_id": file_id, "faces": 0, "error": "Already detected"})
-            continue
+            existing = DetectedFace.query.filter_by(file_id=file_id).first()
+            if existing:
+                batch_results.append({"file_id": file_id, "faces": 0, "error": "Already detected"})
+                continue
 
         try:
             results = run_detection(file_path)
@@ -411,6 +412,13 @@ def detect_faces(self, file_infos):
             persons_created_total.inc(new_persons_count)
 
         batch_results.append({"file_id": file_id, "faces": len(results)})
+
+    # Flush person updates in ID order to prevent PostgreSQL deadlocks
+    # when multiple concurrent tasks update overlapping persons
+    dirty_persons = [p for p in db.session.dirty if isinstance(p, Person)]
+    dirty_persons.sort(key=lambda p: p.id)
+    for p in dirty_persons:
+        db.session.flush([p])
 
     db.session.commit()
     return batch_results
