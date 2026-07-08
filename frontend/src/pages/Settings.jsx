@@ -200,8 +200,8 @@ function Settings() {
       return;
     }
     try {
-      const { getStatus } = await import("../services/api");
-      await getStatus();
+      const { verifyHiddenPin } = await import("../services/api");
+      await verifyHiddenPin(pin);
       sessionStorage.setItem("hidden_pin", pin);
       sessionStorage.setItem("hidden_pin_unlocked", "true");
       setHiddenUnlocked(true);
@@ -209,12 +209,7 @@ function Settings() {
       setHiddenPinInput("");
       window.dispatchEvent(new Event("hidden-pin-changed"));
     } catch {
-      sessionStorage.setItem("hidden_pin", pin);
-      sessionStorage.setItem("hidden_pin_unlocked", "true");
-      setHiddenUnlocked(true);
-      setHiddenPinError(false);
-      setHiddenPinInput("");
-      window.dispatchEvent(new Event("hidden-pin-changed"));
+      setHiddenPinError(true);
     }
   };
 

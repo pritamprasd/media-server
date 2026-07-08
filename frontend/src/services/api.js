@@ -402,6 +402,13 @@ export async function listHiddenFiles(page = 1, perPage = 50, filters = {}, pin,
   return data;
 }
 
+export async function verifyHiddenPin(pin) {
+  const { data } = await client.post("/files/verify-hidden-pin", {}, {
+    headers: { "X-Hidden-Pin": pin },
+  });
+  return data;
+}
+
 export async function unhideFiles(fileIds, pin) {
   const { data } = await client.post("/files/unhide", { file_ids: fileIds }, {
     headers: { "X-Hidden-Pin": pin },

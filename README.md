@@ -107,6 +107,14 @@ A scalable, semantic-searchable media viewer for your home media collection. Fea
 - **Toggle** — favorite/unfavorite from the grid or viewer; heart icon with fill animation
 - **Filtered view** — dedicated Favorites page with unfavorite inline
 
+### 👁️ Hidden Files
+- **PIN-protected access** — 6-digit PIN set via `HIDDEN_FILES_PIN` in backend `.env` (default `"000000"`); unlock in Settings to reveal the Hidden Files tab in the navbar
+- **Hide from any view** — EyeOff button on Home thumbnails, Explorer tiles, and FileViewer (both header bar and float actions); hides using a boolean `is_hidden` database flag — no file movement
+- **Hidden page** — dedicated `/hidden` page mirrors Home layout (grid, search, sort, mime filters, infinite scroll); requires the PIN header (`X-Hidden-Pin`) for all requests
+- **Unhide** — unhide from the Hidden page or FileViewer; also PIN-guarded
+- **Excluded from all listings** — hidden files filtered out from `/files`, `/explorer/browse`, `/favorites`, `/duplicates`, `/files/with-gps`, and stats
+- **Session state** — unlock status stored in `sessionStorage`; tab disappears on tab close
+
 ### ⚙️ Settings
 - **Theme** — dark/light toggle with smooth transition
 - **Accent color** — 8 preset accent colors; applied via CSS custom property `--color-primary`
@@ -192,7 +200,7 @@ media-server/
 │   │   ├── metrics.py              # Prometheus metrics (basic + product-specific)
 │   │   ├── config.py               # App configuration
 │   │   └── __init__.py             # App factory
-│   ├── migrations/                 # 10 Alembic migrations
+│   ├── migrations/                 # 11 Alembic migrations
 │   ├── scripts/
 │   │   └── regenerate_heic_thumbnails.py
 │   ├── tests/
@@ -201,7 +209,7 @@ media-server/
 │   └── requirements.txt
 ├── frontend/
 │   ├── src/
-│   │   ├── pages/                  # 11 pages
+│   │   ├── pages/                  # 12 pages
 │   │   ├── components/             # 4 components
 │   │   ├── services/               # API client, IndexedDB store
 │   │   ├── contexts/               # ThemeContext
@@ -300,6 +308,7 @@ The following indexes are defined across 9 tables to support the most frequent q
 | `imported_files` | `is_favorite` | Single | Favorites listing |
 | `imported_files` | `nickname` | Single | Upload nickname filtering |
 | `imported_files` | `deleted` | Single | Trash filtering |
+| `imported_files` | `is_hidden` | Single | Hidden files filtering |
 | `file_metadata` | `file_hash` | Single | Duplicate detection |
 | `file_metadata` | `latitude + longitude` | Composite | GIS range queries (saved locations) |
 | `file_metadata` | `metadata_status` | Single | Metadata status stats |
@@ -327,6 +336,7 @@ Run `make db-upgrade` to apply new indexes after pulling.
 | `OLLAMA_MODEL` | `llava` | Ollama vision model |
 | `FACE_DET_THRESH` | `0.3` | Face detection confidence threshold |
 | `FACE_MATCH_THRESHOLD` | `0.4` | Face match cosine distance threshold |
+| `HIDDEN_FILES_PIN` | `"000000"` | 6-digit PIN for hidden files access |
 | `VITE_MAP_NEARBY_KM` | `10` | Map nearby-files query radius |
 | `VITE_MAP_THUMBS_PER_PAGE` | `32` | Map thumbnail gallery page size |
 | `PROMETHEUS_MULTIPROC_DIR` | — | Enable Prometheus multiprocess mode (set to writable dir) |
@@ -504,6 +514,10 @@ To use: copy the block above, replace `[DESCRIBE YOUR IDEA HERE]` with your tool
 | Method | Path | Description |
 | ------ | ---- | ----------- |
 | GET | `/api/files` | Paginated file list with filters (search, directory, mime, dimensions, tag, sort) |
+| GET | `/api/files/hidden` | PIN-guarded hidden files list |
+| PATCH | `/api/files/<id>/toggle-hidden` | Toggle file hidden status |
+| POST | `/api/files/unhide` | PIN-guarded bulk unhide |
+| POST | `/api/files/verify-hidden-pin` | Validate hidden files PIN |
 | GET | `/api/files/<id>/serve` | Serve file (image/video/HEIC converted to JPEG) |
 | GET | `/api/files/<id>/metadata` | Full metadata (EXIF, GPS, AI, tags, thumbnail) |
 | GET | `/api/files/<id>/thumbnail` | Base64 thumbnail |

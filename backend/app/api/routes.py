@@ -442,6 +442,14 @@ def toggle_hidden(file_id):
     return jsonify({"is_hidden": f.is_hidden, "id": f.id}), 200
 
 
+@api_bp.route("/files/verify-hidden-pin", methods=["POST"])
+def verify_hidden_pin():
+    pin = request.headers.get("X-Hidden-Pin", "")
+    if pin != current_app.config["HIDDEN_FILES_PIN"]:
+        return jsonify({"error": "Invalid PIN"}), 403
+    return jsonify({"valid": True}), 200
+
+
 @api_bp.route("/files/unhide", methods=["POST"])
 def unhide_files():
     pin = request.headers.get("X-Hidden-Pin", "")
@@ -1202,11 +1210,22 @@ def _resize_image_bytes(data, source_size=None):
 def serve_file(file_id):
     file_record = db.session.get(ImportedFile, file_id)
     if not file_record:
+        current_app.logger.warning("serve_file id=%s not found in DB", file_id)
         return jsonify({"error": "File not found"}), 404
     if not os.path.isfile(file_record.file_path):
+        current_app.logger.warning(
+            "serve_file id=%s file_path=%s deleted=%s is_hidden=%s is_favorite=%s session_id=%s filename=%s — not on disk",
+            file_id, file_record.file_path, file_record.deleted, file_record.is_hidden,
+            file_record.is_favorite, file_record.session_id, file_record.filename,
+        )
         return jsonify({"error": "File no longer exists on disk"}), 404
 
     files_served_total.inc()
+    current_app.logger.info(
+        "serve_file id=%s file_path=%s deleted=%s is_hidden=%s filename=%s session_id=%s — serving",
+        file_id, file_record.file_path, file_record.deleted, file_record.is_hidden,
+        file_record.filename, file_record.session_id,
+    )
 
     if file_record.mime_type in ("image/heic", "image/heif"):
         jpeg_data = _convert_heic_to_jpeg(file_record.file_path)
