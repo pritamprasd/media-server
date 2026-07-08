@@ -35,3 +35,10 @@ docker compose exec backend python scripts/regenerate_heic_thumbnails.py
 ```sh
 celery -A app.tasks.celery flower
 ```
+
+```
+PWA install on Mobile:
+
+chrome://flags -> Insecure origins treated as secure -> Enabled.
+https://sever.local:3443 -> Add host
+```

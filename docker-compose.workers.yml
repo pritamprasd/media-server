@@ -29,7 +29,7 @@ services:
       context: .
       dockerfile: backend/Dockerfile
     env_file: ./backend/.env
-    environment:8
+    environment:
       - FACE_PROVIDERS=CPUExecutionProvider
       - FACE_MATCH_THRESHOLD=0.4
       - FACE_DET_THRESH=0.3
