@@ -185,15 +185,15 @@ def update_library_stats():
 
     tagged = FileMetadata.query.filter(
         FileMetadata.tags.isnot(None),
-        FileMetadata.tags != '[]',
-        FileMetadata.tags != 'null',
+        db.cast(FileMetadata.tags, db.String) != '[]',
+        db.cast(FileMetadata.tags, db.String) != 'null',
     ).count()
     tagged_files_total.set(tagged)
 
     all_tag_rows = FileMetadata.query.with_entities(FileMetadata.tags).filter(
         FileMetadata.tags.isnot(None),
-        FileMetadata.tags != '[]',
-        FileMetadata.tags != 'null',
+        db.cast(FileMetadata.tags, db.String) != '[]',
+        db.cast(FileMetadata.tags, db.String) != 'null',
     ).all()
     unique_tags = set()
     for row in all_tag_rows:
