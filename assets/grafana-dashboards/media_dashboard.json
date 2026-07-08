@@ -36,6 +36,15 @@
         "allValue": ".*",
         "datasource": "Prometheus",
         "definition": "label_values(http_requests_total{endpoint=~\"$endpoint\"}, method)"
+      },
+      {
+        "name": "quantile",
+        "type": "custom",
+        "query": "p50,p95,p99,p999",
+        "refresh": 2,
+        "includeAll": true,
+        "multi": true,
+        "allValue": ".*"
       }
     ]
   },
@@ -218,19 +227,19 @@
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 7 },
       "targets": [
         {
-          "expr": "topk(8, histogram_quantile(0.999, sum(rate(http_request_duration_seconds_bucket{}[$__rate_interval])) by (le, endpoint)))",
+          "expr": "topk(8, label_replace(histogram_quantile(0.999, sum(rate(http_request_duration_seconds_bucket{}[$__rate_interval])) by (le, endpoint)), \"quantile_filter\", \"p999\", \"\", \"\")) and on(quantile_filter) (label_replace(up, \"quantile_filter\", \"p999\", \"\", \"\") and on(quantile_filter) {quantile_filter=~\"$quantile\"})",
           "legendFormat": "p999 {{endpoint}}"
         },
         {
-          "expr": "topk(8, histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket{}[$__rate_interval])) by (le, endpoint)))",
+          "expr": "topk(8, label_replace(histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket{}[$__rate_interval])) by (le, endpoint)), \"quantile_filter\", \"p99\", \"\", \"\")) and on(quantile_filter) (label_replace(up, \"quantile_filter\", \"p99\", \"\", \"\") and on(quantile_filter) {quantile_filter=~\"$quantile\"})",
           "legendFormat": "p99 {{endpoint}}"
         },
         {
-          "expr": "topk(8, histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{}[$__rate_interval])) by (le, endpoint)))",
+          "expr": "topk(8, label_replace(histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{}[$__rate_interval])) by (le, endpoint)), \"quantile_filter\", \"p95\", \"\", \"\")) and on(quantile_filter) (label_replace(up, \"quantile_filter\", \"p95\", \"\", \"\") and on(quantile_filter) {quantile_filter=~\"$quantile\"})",
           "legendFormat": "p95 {{endpoint}}"
         },
         {
-          "expr": "histogram_quantile(0.50, sum(rate(http_request_duration_seconds_bucket{}[$__rate_interval])) by (le))",
+          "expr": "label_replace(histogram_quantile(0.50, sum(rate(http_request_duration_seconds_bucket{}[$__rate_interval])) by (le)), \"quantile_filter\", \"p50\", \"\", \"\") and on(quantile_filter) (label_replace(up, \"quantile_filter\", \"p50\", \"\", \"\") and on(quantile_filter) {quantile_filter=~\"$quantile\"})",
           "legendFormat": "p50 Overall"
         }
       ],
@@ -330,19 +339,19 @@
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 25 },
       "targets": [
         {
-          "expr": "histogram_quantile(0.999, sum(rate(http_request_duration_seconds_bucket{endpoint=~\"$endpoint\", method=~\"$method\"}[$__rate_interval])) by (le))",
+          "expr": "label_replace(histogram_quantile(0.999, sum(rate(http_request_duration_seconds_bucket{endpoint=~\"$endpoint\", method=~\"$method\"}[$__rate_interval])) by (le)), \"quantile_filter\", \"p999\", \"\", \"\") and on(quantile_filter) (label_replace(up, \"quantile_filter\", \"p999\", \"\", \"\") and on(quantile_filter) {quantile_filter=~\"$quantile\"})",
           "legendFormat": "p999"
         },
         {
-          "expr": "histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket{endpoint=~\"$endpoint\", method=~\"$method\"}[$__rate_interval])) by (le))",
+          "expr": "label_replace(histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket{endpoint=~\"$endpoint\", method=~\"$method\"}[$__rate_interval])) by (le)), \"quantile_filter\", \"p99\", \"\", \"\") and on(quantile_filter) (label_replace(up, \"quantile_filter\", \"p99\", \"\", \"\") and on(quantile_filter) {quantile_filter=~\"$quantile\"})",
           "legendFormat": "p99"
         },
         {
-          "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{endpoint=~\"$endpoint\", method=~\"$method\"}[$__rate_interval])) by (le))",
+          "expr": "label_replace(histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{endpoint=~\"$endpoint\", method=~\"$method\"}[$__rate_interval])) by (le)), \"quantile_filter\", \"p95\", \"\", \"\") and on(quantile_filter) (label_replace(up, \"quantile_filter\", \"p95\", \"\", \"\") and on(quantile_filter) {quantile_filter=~\"$quantile\"})",
           "legendFormat": "p95"
         },
         {
-          "expr": "histogram_quantile(0.50, sum(rate(http_request_duration_seconds_bucket{endpoint=~\"$endpoint\", method=~\"$method\"}[$__rate_interval])) by (le))",
+          "expr": "label_replace(histogram_quantile(0.50, sum(rate(http_request_duration_seconds_bucket{endpoint=~\"$endpoint\", method=~\"$method\"}[$__rate_interval])) by (le)), \"quantile_filter\", \"p50\", \"\", \"\") and on(quantile_filter) (label_replace(up, \"quantile_filter\", \"p50\", \"\", \"\") and on(quantile_filter) {quantile_filter=~\"$quantile\"})",
           "legendFormat": "p50"
         }
       ],
@@ -446,19 +455,19 @@
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 43 },
       "targets": [
         {
-          "expr": "topk(5, histogram_quantile(0.999, sum(rate(celery_task_duration_seconds_bucket{}[$__rate_interval])) by (le,task)))",
+          "expr": "topk(5, label_replace(histogram_quantile(0.999, sum(rate(celery_task_duration_seconds_bucket{}[$__rate_interval])) by (le,task)), \"quantile_filter\", \"p999\", \"\", \"\")) and on(quantile_filter) (label_replace(up, \"quantile_filter\", \"p999\", \"\", \"\") and on(quantile_filter) {quantile_filter=~\"$quantile\"})",
           "legendFormat": "p999 {{task}}"
         },
         {
-          "expr": "topk(5, histogram_quantile(0.99, sum(rate(celery_task_duration_seconds_bucket{}[$__rate_interval])) by (le,task)))",
+          "expr": "topk(5, label_replace(histogram_quantile(0.99, sum(rate(celery_task_duration_seconds_bucket{}[$__rate_interval])) by (le,task)), \"quantile_filter\", \"p99\", \"\", \"\")) and on(quantile_filter) (label_replace(up, \"quantile_filter\", \"p99\", \"\", \"\") and on(quantile_filter) {quantile_filter=~\"$quantile\"})",
           "legendFormat": "p99 {{task}}"
         },
         {
-          "expr": "topk(5, histogram_quantile(0.95, sum(rate(celery_task_duration_seconds_bucket{}[$__rate_interval])) by (le,task)))",
+          "expr": "topk(5, label_replace(histogram_quantile(0.95, sum(rate(celery_task_duration_seconds_bucket{}[$__rate_interval])) by (le,task)), \"quantile_filter\", \"p95\", \"\", \"\")) and on(quantile_filter) (label_replace(up, \"quantile_filter\", \"p95\", \"\", \"\") and on(quantile_filter) {quantile_filter=~\"$quantile\"})",
           "legendFormat": "p95 {{task}}"
         },
         {
-          "expr": "histogram_quantile(0.50, sum(rate(celery_task_duration_seconds_bucket{}[$__rate_interval])) by (le))",
+          "expr": "label_replace(histogram_quantile(0.50, sum(rate(celery_task_duration_seconds_bucket{}[$__rate_interval])) by (le)), \"quantile_filter\", \"p50\", \"\", \"\") and on(quantile_filter) (label_replace(up, \"quantile_filter\", \"p50\", \"\", \"\") and on(quantile_filter) {quantile_filter=~\"$quantile\"})",
           "legendFormat": "p50 Overall"
         }
       ],
@@ -562,19 +571,19 @@
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 59 },
       "targets": [
         {
-          "expr": "histogram_quantile(0.999, sum(rate(celery_task_duration_seconds_bucket{}[$__rate_interval])) by (le,queue))",
+          "expr": "label_replace(histogram_quantile(0.999, sum(rate(celery_task_duration_seconds_bucket{}[$__rate_interval])) by (le,queue)), \"quantile_filter\", \"p999\", \"\", \"\") and on(quantile_filter) (label_replace(up, \"quantile_filter\", \"p999\", \"\", \"\") and on(quantile_filter) {quantile_filter=~\"$quantile\"})",
           "legendFormat": "p999 {{queue}}"
         },
         {
-          "expr": "histogram_quantile(0.99, sum(rate(celery_task_duration_seconds_bucket{}[$__rate_interval])) by (le,queue))",
+          "expr": "label_replace(histogram_quantile(0.99, sum(rate(celery_task_duration_seconds_bucket{}[$__rate_interval])) by (le,queue)), \"quantile_filter\", \"p99\", \"\", \"\") and on(quantile_filter) (label_replace(up, \"quantile_filter\", \"p99\", \"\", \"\") and on(quantile_filter) {quantile_filter=~\"$quantile\"})",
           "legendFormat": "p99 {{queue}}"
         },
         {
-          "expr": "histogram_quantile(0.95, sum(rate(celery_task_duration_seconds_bucket{}[$__rate_interval])) by (le,queue))",
+          "expr": "label_replace(histogram_quantile(0.95, sum(rate(celery_task_duration_seconds_bucket{}[$__rate_interval])) by (le,queue)), \"quantile_filter\", \"p95\", \"\", \"\") and on(quantile_filter) (label_replace(up, \"quantile_filter\", \"p95\", \"\", \"\") and on(quantile_filter) {quantile_filter=~\"$quantile\"})",
           "legendFormat": "p95 {{queue}}"
         },
         {
-          "expr": "histogram_quantile(0.50, sum(rate(celery_task_duration_seconds_bucket{}[$__rate_interval])) by (le,queue))",
+          "expr": "label_replace(histogram_quantile(0.50, sum(rate(celery_task_duration_seconds_bucket{}[$__rate_interval])) by (le,queue)), \"quantile_filter\", \"p50\", \"\", \"\") and on(quantile_filter) (label_replace(up, \"quantile_filter\", \"p50\", \"\", \"\") and on(quantile_filter) {quantile_filter=~\"$quantile\"})",
           "legendFormat": "p50 {{queue}}"
         }
       ],
@@ -1108,19 +1117,19 @@
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 139 },
       "targets": [
         {
-          "expr": "histogram_quantile(0.999, sum(rate(face_detection_duration_seconds_bucket{}[$__rate_interval])) by (le,queue))",
+          "expr": "label_replace(histogram_quantile(0.999, sum(rate(face_detection_duration_seconds_bucket{}[$__rate_interval])) by (le,queue)), \"quantile_filter\", \"p999\", \"\", \"\") and on(quantile_filter) (label_replace(up, \"quantile_filter\", \"p999\", \"\", \"\") and on(quantile_filter) {quantile_filter=~\"$quantile\"})",
           "legendFormat": "p999 {{queue}}"
         },
         {
-          "expr": "histogram_quantile(0.99, sum(rate(face_detection_duration_seconds_bucket{}[$__rate_interval])) by (le,queue))",
+          "expr": "label_replace(histogram_quantile(0.99, sum(rate(face_detection_duration_seconds_bucket{}[$__rate_interval])) by (le,queue)), \"quantile_filter\", \"p99\", \"\", \"\") and on(quantile_filter) (label_replace(up, \"quantile_filter\", \"p99\", \"\", \"\") and on(quantile_filter) {quantile_filter=~\"$quantile\"})",
           "legendFormat": "p99 {{queue}}"
         },
         {
-          "expr": "histogram_quantile(0.95, sum(rate(face_detection_duration_seconds_bucket{}[$__rate_interval])) by (le,queue))",
+          "expr": "label_replace(histogram_quantile(0.95, sum(rate(face_detection_duration_seconds_bucket{}[$__rate_interval])) by (le,queue)), \"quantile_filter\", \"p95\", \"\", \"\") and on(quantile_filter) (label_replace(up, \"quantile_filter\", \"p95\", \"\", \"\") and on(quantile_filter) {quantile_filter=~\"$quantile\"})",
           "legendFormat": "p95 {{queue}}"
         },
         {
-          "expr": "histogram_quantile(0.50, sum(rate(face_detection_duration_seconds_bucket{}[$__rate_interval])) by (le,queue))",
+          "expr": "label_replace(histogram_quantile(0.50, sum(rate(face_detection_duration_seconds_bucket{}[$__rate_interval])) by (le,queue)), \"quantile_filter\", \"p50\", \"\", \"\") and on(quantile_filter) (label_replace(up, \"quantile_filter\", \"p50\", \"\", \"\") and on(quantile_filter) {quantile_filter=~\"$quantile\"})",
           "legendFormat": "p50 {{queue}}"
         }
       ],
