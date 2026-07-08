@@ -59,7 +59,11 @@ celery_tasks_total = Counter(
 )
 celery_task_duration_seconds = Histogram(
     "celery_task_duration_seconds", "Celery task duration in seconds",
-    ["task"],
+    ["task", "queue"],
+)
+celery_active_tasks = Gauge(
+    "celery_active_tasks", "Currently running Celery tasks",
+    ["task", "queue"],
 )
 celery_task_retries_total = Counter(
     "celery_task_retries_total", "Total Celery task retries",
@@ -231,6 +235,7 @@ def update_library_stats():
     )
 
     persons_total.set(Person.query.count())
+    detected_faces_total.set(DetectedFace.query.count())
 
     from sqlalchemy import exists
     face_subq = db.session.query(DetectedFace.file_id).distinct().subquery()
@@ -274,13 +279,17 @@ def instrument_celery(celery_app):
     @signals.task_prerun.connect(weak=False)
     def _on_task_prerun(task_id, task, **kwargs):
         _task_start_times[task_id] = time.time()
+        queue = task.request.get("queue", "default")
+        celery_active_tasks.labels(task=task.name, queue=queue).inc()
 
     @signals.task_postrun.connect(weak=False)
     def _on_task_postrun(task_id, task, **kwargs):
         start = _task_start_times.pop(task_id, None)
+        queue = task.request.get("queue", "default")
         if start:
             duration = time.time() - start
-            celery_task_duration_seconds.labels(task=task.name).observe(duration)
+            celery_task_duration_seconds.labels(task=task.name, queue=queue).observe(duration)
+        celery_active_tasks.labels(task=task.name, queue=queue).dec()
 
     @signals.task_success.connect(weak=False)
     def _on_task_success(sender, **kwargs):

@@ -13,32 +13,198 @@
   "tags": ["media-server", "prometheus"],
   "schemaVersion": 39,
   "style": "dark",
+  "templating": {
+    "list": [
+      {
+        "name": "endpoint",
+        "type": "query",
+        "query": "label_values(http_requests_total, endpoint)",
+        "refresh": 2,
+        "includeAll": true,
+        "multi": true,
+        "allValue": ".*",
+        "datasource": "Prometheus",
+        "definition": "label_values(http_requests_total, endpoint)"
+      },
+      {
+        "name": "method",
+        "type": "query",
+        "query": "label_values(http_requests_total{endpoint=~\"$endpoint\"}, method)",
+        "refresh": 2,
+        "includeAll": true,
+        "multi": true,
+        "allValue": ".*",
+        "datasource": "Prometheus",
+        "definition": "label_values(http_requests_total{endpoint=~\"$endpoint\"}, method)"
+      }
+    ]
+  },
   "panels": [
     {
-      "title": "HTTP Overview",
+      "title": "System Summary",
       "type": "row",
       "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
       "collapsed": false,
       "panels": []
     },
     {
-      "title": "Request Rate",
-      "type": "timeseries",
-      "gridPos": { "h": 8, "w": 6, "x": 0, "y": 1 },
+      "title": "Total Files",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 3, "x": 0, "y": 1 },
       "targets": [
         {
-          "expr": "sum(rate(http_requests_total{}[$__rate_interval]))",
-          "legendFormat": "All"
+          "expr": "max(sum(library_files_total{}) by (status))",
+          "legendFormat": "Total"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": { "mode": "fixed", "fixedColor": "green" }
+        }
+      }
+    },
+    {
+      "title": "Active Files",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 3, "x": 3, "y": 1 },
+      "targets": [
+        {
+          "expr": "max(library_files_total{status=\"active\"})",
+          "legendFormat": "Active"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": { "mode": "fixed", "fixedColor": "green" }
+        }
+      }
+    },
+    {
+      "title": "Library Size",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 3, "x": 6, "y": 1 },
+      "targets": [
+        {
+          "expr": "max(library_size_bytes{})",
+          "legendFormat": "Size"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "bytes" }
+      }
+    },
+    {
+      "title": "Total Sessions",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 3, "x": 9, "y": 1 },
+      "targets": [
+        {
+          "expr": "max(library_sessions_total{})",
+          "legendFormat": "Sessions"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "short" } }
+    },
+    {
+      "title": "Total Tags",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 3, "x": 12, "y": 1 },
+      "targets": [
+        {
+          "expr": "max(tags_total{})",
+          "legendFormat": "Tags"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "short" } }
+    },
+    {
+      "title": "Persons",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 3, "x": 15, "y": 1 },
+      "targets": [
+        {
+          "expr": "max(persons_total{})",
+          "legendFormat": "Persons"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "short" } }
+    },
+    {
+      "title": "Detected Faces",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 3, "x": 18, "y": 1 },
+      "targets": [
+        {
+          "expr": "max(detected_faces_total{})",
+          "legendFormat": "Faces"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "short" } }
+    },
+    {
+      "title": "DB Pool Size",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 3, "x": 21, "y": 1 },
+      "targets": [
+        {
+          "expr": "max(db_connection_pool_size{})",
+          "legendFormat": "Pool"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "orange", "value": 5 },
+              { "color": "green", "value": 10 }
+            ]
+          },
+          "color": { "mode": "thresholds" }
+        }
+      }
+    },
+    {
+      "title": "HTTP Overview",
+      "type": "row",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 6 },
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "title": "Request Rate by Endpoint",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 7 },
+      "targets": [
+        {
+          "expr": "topk(8, sum(rate(http_requests_total{}[$__rate_interval])) by (endpoint))",
+          "legendFormat": "{{endpoint}}"
         },
         {
           "expr": "sum(rate(http_requests_total{status=~\"5..\"}[$__rate_interval]))",
-          "legendFormat": "5xx"
+          "legendFormat": "5xx Total"
         },
         {
           "expr": "sum(rate(http_requests_total{status=~\"4..\"}[$__rate_interval]))",
-          "legendFormat": "4xx"
+          "legendFormat": "4xx Total"
         }
       ],
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true,
+          "calcs": ["last", "max", "mean"]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
       "fieldConfig": {
         "defaults": {
           "unit": "rps",
@@ -47,23 +213,31 @@
       }
     },
     {
-      "title": "Request Duration (p99)",
+      "title": "Response Time by Endpoint",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 6, "x": 6, "y": 1 },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 7 },
       "targets": [
         {
-          "expr": "histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket{}[$__rate_interval])) by (le))",
-          "legendFormat": "p99"
-        },
-        {
-          "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{}[$__rate_interval])) by (le))",
-          "legendFormat": "p95"
+          "expr": "topk(8, histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{}[$__rate_interval])) by (le, endpoint)))",
+          "legendFormat": "p95 {{endpoint}}"
         },
         {
           "expr": "histogram_quantile(0.50, sum(rate(http_request_duration_seconds_bucket{}[$__rate_interval])) by (le))",
-          "legendFormat": "p50"
+          "legendFormat": "p50 Overall"
         }
       ],
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true,
+          "calcs": ["last", "max", "mean"]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
       "fieldConfig": {
         "defaults": { "unit": "s" }
       }
@@ -71,56 +245,193 @@
     {
       "title": "Active Requests",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 4, "x": 12, "y": 1 },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 15 },
       "targets": [
         {
           "expr": "sum(http_requests_in_flight{})",
           "legendFormat": "Active"
         }
       ],
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
       "fieldConfig": {}
     },
     {
-      "title": "Top Endpoints by Rate",
+      "title": "Endpoint & Method Stats",
       "type": "table",
-      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 1 },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 15 },
       "targets": [
         {
-          "expr": "topk(10, sum(rate(http_requests_total{}[$__rate_interval])) by (endpoint))",
+          "expr": "topk(20, sum(rate(http_requests_total{}[$__rate_interval])) by (method, endpoint))",
           "format": "table",
           "instant": true
         }
       ],
       "transformations": [
-        { "id": "organize", "options": { "excludeByName": {}, "indexByName": {}, "renameByName": { "Value": "Rate" } } }
+        { "id": "organize", "options": { "excludeByName": {}, "indexByName": {}, "renameByName": { "method": "Method", "endpoint": "Endpoint", "Value": "Rate" } } }
       ],
       "fieldConfig": {
         "defaults": { "unit": "rps" }
       }
     },
     {
+      "title": "API Endpoint Details",
+      "type": "row",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 24 },
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "title": "Request Rate by Status",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 25 },
+      "targets": [
+        {
+          "expr": "sum(rate(http_requests_total{endpoint=~\"$endpoint\", method=~\"$method\"}[$__rate_interval])) by (status)",
+          "legendFormat": "{{status}}"
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true,
+          "calcs": ["last", "max", "mean"]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "fieldConfig": {
+        "defaults": { "unit": "rps" }
+      }
+    },
+    {
+      "title": "Response Time",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 25 },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket{endpoint=~\"$endpoint\", method=~\"$method\"}[$__rate_interval])) by (le))",
+          "legendFormat": "p99"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{endpoint=~\"$endpoint\", method=~\"$method\"}[$__rate_interval])) by (le))",
+          "legendFormat": "p95"
+        },
+        {
+          "expr": "histogram_quantile(0.50, sum(rate(http_request_duration_seconds_bucket{endpoint=~\"$endpoint\", method=~\"$method\"}[$__rate_interval])) by (le))",
+          "legendFormat": "p50"
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true,
+          "calcs": ["last", "max", "mean"]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "fieldConfig": {
+        "defaults": { "unit": "s" }
+      }
+    },
+    {
+      "title": "Status Code Distribution",
+      "type": "table",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 33 },
+      "targets": [
+        {
+          "expr": "topk(10, sum(rate(http_requests_total{endpoint=~\"$endpoint\", method=~\"$method\"}[$__rate_interval])) by (status))",
+          "format": "table",
+          "instant": true
+        }
+      ],
+      "transformations": [
+        { "id": "organize", "options": { "excludeByName": {}, "indexByName": {}, "renameByName": { "status": "Status", "Value": "Rate" } } }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "rps" }
+      }
+    },
+    {
+      "title": "API Summary",
+      "type": "stat",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 33 },
+      "targets": [
+        {
+          "expr": "sum(rate(http_requests_total{endpoint=~\"$endpoint\", method=~\"$method\"}[$__rate_interval]))",
+          "legendFormat": "Total Rate"
+        },
+        {
+          "expr": "sum(rate(http_requests_total{endpoint=~\"$endpoint\", method=~\"$method\", status=~\"5..\"}[$__rate_interval]))",
+          "legendFormat": "Error Rate"
+        },
+        {
+          "expr": "sum(rate(http_requests_total{endpoint=~\"$endpoint\", method=~\"$method\", status=~\"2..\"}[$__rate_interval]))",
+          "legendFormat": "Success Rate"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{endpoint=~\"$endpoint\", method=~\"$method\"}[$__rate_interval])) by (le))",
+          "legendFormat": "p95 Latency"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "rps",
+          "color": { "mode": "palette-classic" }
+        }
+      }
+    },
+    {
       "title": "Celery Tasks",
       "type": "row",
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 9 },
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 42 },
       "collapsed": false,
       "panels": []
     },
     {
       "title": "Task Rate by Type",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 6, "x": 0, "y": 10 },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 43 },
       "targets": [
         {
           "expr": "topk(10, sum(rate(celery_tasks_total{state=\"success\"}[$__rate_interval])) by (task))",
           "legendFormat": "{{task}}"
         }
       ],
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true,
+          "calcs": ["last", "max", "mean"]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
       "fieldConfig": { "defaults": { "unit": "rps" } }
     },
     {
       "title": "Task Duration (p50/p95)",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 6, "x": 6, "y": 10 },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 43 },
       "targets": [
         {
           "expr": "histogram_quantile(0.95, sum(rate(celery_task_duration_seconds_bucket{}[$__rate_interval])) by (le,task))",
@@ -131,12 +442,48 @@
           "legendFormat": "p50 {{task}}"
         }
       ],
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true,
+          "calcs": ["last", "max", "mean"]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
       "fieldConfig": { "defaults": { "unit": "s" } }
     },
     {
-      "title": "Task Success vs Failure",
+      "title": "Active Tasks by Queue",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 6, "x": 12, "y": 10 },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 51 },
+      "targets": [
+        {
+          "expr": "sum(celery_active_tasks{}) by (queue)",
+          "legendFormat": "{{queue}}"
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true,
+          "calcs": ["last", "max", "mean"]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "fieldConfig": { "defaults": { "unit": "short" } }
+    },
+    {
+      "title": "Task Outcomes",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 51 },
       "targets": [
         {
           "expr": "sum(rate(celery_tasks_total{state=\"success\"}[$__rate_interval]))",
@@ -145,33 +492,89 @@
         {
           "expr": "sum(rate(celery_tasks_total{state=\"failure\"}[$__rate_interval]))",
           "legendFormat": "Failure"
+        },
+        {
+          "expr": "sum(rate(celery_task_retries_total{}[$__rate_interval]))",
+          "legendFormat": "Retries"
         }
       ],
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true,
+          "calcs": ["last", "max", "mean"]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
       "fieldConfig": { "defaults": { "unit": "rps" } }
     },
     {
       "title": "Task Retry Rate",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 6, "x": 18, "y": 10 },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 59 },
       "targets": [
         {
           "expr": "sum(rate(celery_task_retries_total{}[$__rate_interval])) by (task)",
           "legendFormat": "{{task}}"
         }
       ],
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true,
+          "calcs": ["last", "max", "mean"]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
       "fieldConfig": { "defaults": { "unit": "rps" } }
+    },
+    {
+      "title": "Task Duration by Queue",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 59 },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(celery_task_duration_seconds_bucket{}[$__rate_interval])) by (le,queue))",
+          "legendFormat": "p95 {{queue}}"
+        },
+        {
+          "expr": "histogram_quantile(0.50, sum(rate(celery_task_duration_seconds_bucket{}[$__rate_interval])) by (le,queue))",
+          "legendFormat": "p50 {{queue}}"
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true,
+          "calcs": ["last", "max", "mean"]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "fieldConfig": { "defaults": { "unit": "s" } }
     },
     {
       "title": "File Operations",
       "type": "row",
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 18 },
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 68 },
       "collapsed": false,
       "panels": []
     },
     {
       "title": "File Import / Delete Rate",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 6, "x": 0, "y": 19 },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 69 },
       "targets": [
         {
           "expr": "rate(files_imported_total{}[$__rate_interval])",
@@ -182,12 +585,24 @@
           "legendFormat": "Deletes"
         }
       ],
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true,
+          "calcs": ["last", "max", "mean"]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
       "fieldConfig": { "defaults": { "unit": "rps" } }
     },
     {
       "title": "File Serve / Download Rate",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 6, "x": 6, "y": 19 },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 69 },
       "targets": [
         {
           "expr": "rate(files_served_total{}[$__rate_interval])",
@@ -198,43 +613,79 @@
           "legendFormat": "Downloads"
         }
       ],
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true,
+          "calcs": ["last", "max", "mean"]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
       "fieldConfig": { "defaults": { "unit": "rps" } }
     },
     {
       "title": "File Edit Rate",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 6, "x": 12, "y": 19 },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 77 },
       "targets": [
         {
           "expr": "rate(files_edited_total{}[$__rate_interval])",
           "legendFormat": "Edits"
         }
       ],
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true,
+          "calcs": ["last", "max", "mean"]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
       "fieldConfig": { "defaults": { "unit": "rps" } }
     },
     {
       "title": "File Export Rate by Format",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 6, "x": 18, "y": 19 },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 77 },
       "targets": [
         {
           "expr": "sum(rate(files_exported_total{}[$__rate_interval])) by (format)",
           "legendFormat": "{{format}}"
         }
       ],
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true,
+          "calcs": ["last", "max", "mean"]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
       "fieldConfig": { "defaults": { "unit": "rps" } }
     },
     {
       "title": "Processing Pipeline",
       "type": "row",
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 27 },
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 86 },
       "collapsed": false,
       "panels": []
     },
     {
       "title": "Metadata Extraction Rate",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 6, "x": 0, "y": 28 },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 87 },
       "targets": [
         {
           "expr": "rate(metadata_extracted_total{}[$__rate_interval])",
@@ -245,24 +696,48 @@
           "legendFormat": "Failed"
         }
       ],
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true,
+          "calcs": ["last", "max", "mean"]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
       "fieldConfig": { "defaults": { "unit": "rps" } }
     },
     {
       "title": "Thumbnail Generation Rate",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 6, "x": 6, "y": 28 },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 87 },
       "targets": [
         {
           "expr": "rate(thumbnails_generated_total{}[$__rate_interval])",
           "legendFormat": "Thumbnails"
         }
       ],
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true,
+          "calcs": ["last", "max", "mean"]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
       "fieldConfig": { "defaults": { "unit": "rps" } }
     },
     {
       "title": "AI Description Rate",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 6, "x": 12, "y": 28 },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 95 },
       "targets": [
         {
           "expr": "rate(ai_descriptions_total{}[$__rate_interval])",
@@ -273,12 +748,24 @@
           "legendFormat": "Failed"
         }
       ],
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true,
+          "calcs": ["last", "max", "mean"]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
       "fieldConfig": { "defaults": { "unit": "rps" } }
     },
     {
       "title": "Face Detection Rate",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 6, "x": 18, "y": 28 },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 95 },
       "targets": [
         {
           "expr": "rate(faces_detected_total{}[$__rate_interval])",
@@ -289,55 +776,103 @@
           "legendFormat": "New Persons"
         }
       ],
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true,
+          "calcs": ["last", "max", "mean"]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
       "fieldConfig": { "defaults": { "unit": "rps" } }
     },
     {
       "title": "Upload & Explorer",
       "type": "row",
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 36 },
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 104 },
       "collapsed": false,
       "panels": []
     },
     {
       "title": "Upload Rate (Files)",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 6, "x": 0, "y": 37 },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 105 },
       "targets": [
         {
           "expr": "rate(uploads_total{}[$__rate_interval])",
           "legendFormat": "Files/s"
         }
       ],
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true,
+          "calcs": ["last", "max", "mean"]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
       "fieldConfig": { "defaults": { "unit": "rps" } }
     },
     {
       "title": "Upload Rate (Bytes)",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 6, "x": 6, "y": 37 },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 105 },
       "targets": [
         {
           "expr": "rate(upload_bytes_total{}[$__rate_interval])",
           "legendFormat": "Bytes/s"
         }
       ],
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true,
+          "calcs": ["last", "max", "mean"]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
       "fieldConfig": { "defaults": { "unit": "Bps" } }
     },
     {
       "title": "Explorer Operations Rate",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 6, "x": 12, "y": 37 },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 113 },
       "targets": [
         {
           "expr": "sum(rate(explorer_operations_total{}[$__rate_interval])) by (operation)",
           "legendFormat": "{{operation}}"
         }
       ],
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true,
+          "calcs": ["last", "max", "mean"]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
       "fieldConfig": { "defaults": { "unit": "rps" } }
     },
     {
       "title": "Geocode Requests",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 6, "x": 18, "y": 37 },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 113 },
       "targets": [
         {
           "expr": "rate(geocode_requests_total{cache=\"hit\"}[$__rate_interval])",
@@ -348,34 +883,46 @@
           "legendFormat": "Cache Miss"
         }
       ],
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true,
+          "calcs": ["last", "max", "mean"]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
       "fieldConfig": { "defaults": { "unit": "rps" } }
     },
     {
       "title": "Library Composition",
       "type": "row",
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 45 },
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 122 },
       "collapsed": false,
       "panels": []
     },
     {
       "title": "Files by MIME Category",
       "type": "bargauge",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 46 },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 123 },
       "targets": [
         {
-          "expr": "files_by_mime_category{category=\"image\"}",
+          "expr": "max(files_by_mime_category{category=\"image\"})",
           "legendFormat": "Image"
         },
         {
-          "expr": "files_by_mime_category{category=\"video\"}",
+          "expr": "max(files_by_mime_category{category=\"video\"})",
           "legendFormat": "Video"
         },
         {
-          "expr": "files_by_mime_category{category=\"audio\"}",
+          "expr": "max(files_by_mime_category{category=\"audio\"})",
           "legendFormat": "Audio"
         },
         {
-          "expr": "files_by_mime_category{category=\"document\"}",
+          "expr": "max(files_by_mime_category{category=\"document\"})",
           "legendFormat": "Document"
         }
       ],
@@ -389,18 +936,18 @@
     {
       "title": "Unprocessed Files by Step",
       "type": "bargauge",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 46 },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 123 },
       "targets": [
         {
-          "expr": "unprocessed_files_total{step=\"metadata\"}",
+          "expr": "max(unprocessed_files_total{step=\"metadata\"})",
           "legendFormat": "Metadata"
         },
         {
-          "expr": "unprocessed_files_total{step=\"thumbnail\"}",
+          "expr": "max(unprocessed_files_total{step=\"thumbnail\"})",
           "legendFormat": "Thumbnail"
         },
         {
-          "expr": "unprocessed_files_total{step=\"face_detection\"}",
+          "expr": "max(unprocessed_files_total{step=\"face_detection\"})",
           "legendFormat": "Face Detection"
         }
       ],
@@ -414,17 +961,17 @@
     {
       "title": "Library Statistics",
       "type": "row",
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 54 },
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 131 },
       "collapsed": false,
       "panels": []
     },
     {
       "title": "Total Files by Status",
       "type": "stat",
-      "gridPos": { "h": 6, "w": 3, "x": 0, "y": 55 },
+      "gridPos": { "h": 6, "w": 3, "x": 0, "y": 132 },
       "targets": [
         {
-          "expr": "sum(library_files_total{})",
+          "expr": "max(sum(library_files_total{}) by (status))",
           "legendFormat": "Total"
         }
       ],
@@ -437,10 +984,10 @@
     {
       "title": "Library Size",
       "type": "stat",
-      "gridPos": { "h": 6, "w": 3, "x": 3, "y": 55 },
+      "gridPos": { "h": 6, "w": 3, "x": 3, "y": 132 },
       "targets": [
         {
-          "expr": "library_size_bytes{}",
+          "expr": "max(library_size_bytes{})",
           "legendFormat": "Size"
         }
       ],
@@ -451,10 +998,10 @@
     {
       "title": "Total Sessions",
       "type": "stat",
-      "gridPos": { "h": 6, "w": 3, "x": 6, "y": 55 },
+      "gridPos": { "h": 6, "w": 3, "x": 6, "y": 132 },
       "targets": [
         {
-          "expr": "library_sessions_total{}",
+          "expr": "max(library_sessions_total{})",
           "legendFormat": "Sessions"
         }
       ],
@@ -463,10 +1010,10 @@
     {
       "title": "Total Tags",
       "type": "stat",
-      "gridPos": { "h": 6, "w": 3, "x": 9, "y": 55 },
+      "gridPos": { "h": 6, "w": 3, "x": 9, "y": 132 },
       "targets": [
         {
-          "expr": "tags_total{}",
+          "expr": "max(tags_total{})",
           "legendFormat": "Tags"
         }
       ],
@@ -475,10 +1022,10 @@
     {
       "title": "Tagged Files",
       "type": "stat",
-      "gridPos": { "h": 6, "w": 3, "x": 12, "y": 55 },
+      "gridPos": { "h": 6, "w": 3, "x": 12, "y": 132 },
       "targets": [
         {
-          "expr": "tagged_files_total{}",
+          "expr": "max(tagged_files_total{})",
           "legendFormat": "Files"
         }
       ],
@@ -487,10 +1034,10 @@
     {
       "title": "DB Pool Size",
       "type": "stat",
-      "gridPos": { "h": 6, "w": 3, "x": 15, "y": 55 },
+      "gridPos": { "h": 6, "w": 3, "x": 15, "y": 132 },
       "targets": [
         {
-          "expr": "db_connection_pool_size{}",
+          "expr": "max(db_connection_pool_size{})",
           "legendFormat": "Pool"
         }
       ],
@@ -499,10 +1046,10 @@
     {
       "title": "Persons",
       "type": "stat",
-      "gridPos": { "h": 6, "w": 3, "x": 18, "y": 55 },
+      "gridPos": { "h": 6, "w": 3, "x": 18, "y": 132 },
       "targets": [
         {
-          "expr": "persons_total{}",
+          "expr": "max(persons_total{})",
           "legendFormat": "Persons"
         }
       ],
@@ -511,10 +1058,10 @@
     {
       "title": "Detected Faces",
       "type": "stat",
-      "gridPos": { "h": 6, "w": 3, "x": 21, "y": 55 },
+      "gridPos": { "h": 6, "w": 3, "x": 21, "y": 132 },
       "targets": [
         {
-          "expr": "detected_faces_total{}",
+          "expr": "max(detected_faces_total{})",
           "legendFormat": "Faces"
         }
       ],
@@ -523,14 +1070,14 @@
     {
       "title": "Face Processing",
       "type": "row",
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 61 },
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 138 },
       "collapsed": false,
       "panels": []
     },
     {
       "title": "Face Detection Duration",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 62 },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 139 },
       "targets": [
         {
           "expr": "histogram_quantile(0.95, sum(rate(face_detection_duration_seconds_bucket{}[$__rate_interval])) by (le,queue))",
@@ -541,73 +1088,145 @@
           "legendFormat": "p50 {{queue}}"
         }
       ],
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true,
+          "calcs": ["last", "max", "mean"]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
       "fieldConfig": { "defaults": { "unit": "s" } }
     },
     {
       "title": "Face Scan Rate",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 62 },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 139 },
       "targets": [
         {
           "expr": "rate(face_scans_total{}[$__rate_interval])",
           "legendFormat": "Scan Ops"
         }
       ],
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true,
+          "calcs": ["last", "max", "mean"]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
       "fieldConfig": { "defaults": { "unit": "rps" } }
     },
     {
       "title": "Process Resources",
       "type": "row",
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 70 },
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 147 },
       "collapsed": false,
       "panels": []
     },
     {
       "title": "Memory Usage (Resident)",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 71 },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 148 },
       "targets": [
         {
           "expr": "process_resident_memory_bytes{job=~\"media.*\"}",
           "legendFormat": "{{job}} {{instance}}"
         }
       ],
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true,
+          "calcs": ["last", "max", "mean"]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
       "fieldConfig": { "defaults": { "unit": "bytes" } }
     },
     {
       "title": "Virtual Memory",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 71 },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 148 },
       "targets": [
         {
           "expr": "process_virtual_memory_bytes{job=~\"media.*\"}",
           "legendFormat": "{{job}} {{instance}}"
         }
       ],
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true,
+          "calcs": ["last", "max", "mean"]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
       "fieldConfig": { "defaults": { "unit": "bytes" } }
     },
     {
       "title": "CPU Usage",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 79 },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 156 },
       "targets": [
         {
           "expr": "rate(process_cpu_seconds_total{job=~\"media.*\"}[$__rate_interval])",
           "legendFormat": "{{job}} {{instance}}"
         }
       ],
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true,
+          "calcs": ["last", "max", "mean"]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
       "fieldConfig": { "defaults": { "unit": "cps" } }
     },
     {
       "title": "Open FDs",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 79 },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 156 },
       "targets": [
         {
           "expr": "process_open_fds{job=~\"media.*\"}",
           "legendFormat": "{{job}} {{instance}}"
         }
       ],
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true,
+          "calcs": ["last", "max", "mean"]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
       "fieldConfig": { "defaults": { "unit": "short" } }
     }
   ]
