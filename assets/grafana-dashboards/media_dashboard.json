@@ -218,6 +218,14 @@
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 7 },
       "targets": [
         {
+          "expr": "topk(8, histogram_quantile(0.999, sum(rate(http_request_duration_seconds_bucket{}[$__rate_interval])) by (le, endpoint)))",
+          "legendFormat": "p999 {{endpoint}}"
+        },
+        {
+          "expr": "topk(8, histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket{}[$__rate_interval])) by (le, endpoint)))",
+          "legendFormat": "p99 {{endpoint}}"
+        },
+        {
           "expr": "topk(8, histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{}[$__rate_interval])) by (le, endpoint)))",
           "legendFormat": "p95 {{endpoint}}"
         },
@@ -321,6 +329,10 @@
       "type": "timeseries",
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 25 },
       "targets": [
+        {
+          "expr": "histogram_quantile(0.999, sum(rate(http_request_duration_seconds_bucket{endpoint=~\"$endpoint\", method=~\"$method\"}[$__rate_interval])) by (le))",
+          "legendFormat": "p999"
+        },
         {
           "expr": "histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket{endpoint=~\"$endpoint\", method=~\"$method\"}[$__rate_interval])) by (le))",
           "legendFormat": "p99"
@@ -429,17 +441,25 @@
       "fieldConfig": { "defaults": { "unit": "rps" } }
     },
     {
-      "title": "Task Duration (p50/p95)",
+      "title": "Task Duration (p50/p95/p99/p999)",
       "type": "timeseries",
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 43 },
       "targets": [
         {
-          "expr": "histogram_quantile(0.95, sum(rate(celery_task_duration_seconds_bucket{}[$__rate_interval])) by (le,task))",
+          "expr": "topk(5, histogram_quantile(0.999, sum(rate(celery_task_duration_seconds_bucket{}[$__rate_interval])) by (le,task)))",
+          "legendFormat": "p999 {{task}}"
+        },
+        {
+          "expr": "topk(5, histogram_quantile(0.99, sum(rate(celery_task_duration_seconds_bucket{}[$__rate_interval])) by (le,task)))",
+          "legendFormat": "p99 {{task}}"
+        },
+        {
+          "expr": "topk(5, histogram_quantile(0.95, sum(rate(celery_task_duration_seconds_bucket{}[$__rate_interval])) by (le,task)))",
           "legendFormat": "p95 {{task}}"
         },
         {
-          "expr": "histogram_quantile(0.50, sum(rate(celery_task_duration_seconds_bucket{}[$__rate_interval])) by (le,task))",
-          "legendFormat": "p50 {{task}}"
+          "expr": "histogram_quantile(0.50, sum(rate(celery_task_duration_seconds_bucket{}[$__rate_interval])) by (le))",
+          "legendFormat": "p50 Overall"
         }
       ],
       "options": {
@@ -541,6 +561,14 @@
       "type": "timeseries",
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 59 },
       "targets": [
+        {
+          "expr": "histogram_quantile(0.999, sum(rate(celery_task_duration_seconds_bucket{}[$__rate_interval])) by (le,queue))",
+          "legendFormat": "p999 {{queue}}"
+        },
+        {
+          "expr": "histogram_quantile(0.99, sum(rate(celery_task_duration_seconds_bucket{}[$__rate_interval])) by (le,queue))",
+          "legendFormat": "p99 {{queue}}"
+        },
         {
           "expr": "histogram_quantile(0.95, sum(rate(celery_task_duration_seconds_bucket{}[$__rate_interval])) by (le,queue))",
           "legendFormat": "p95 {{queue}}"
@@ -1079,6 +1107,14 @@
       "type": "timeseries",
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 139 },
       "targets": [
+        {
+          "expr": "histogram_quantile(0.999, sum(rate(face_detection_duration_seconds_bucket{}[$__rate_interval])) by (le,queue))",
+          "legendFormat": "p999 {{queue}}"
+        },
+        {
+          "expr": "histogram_quantile(0.99, sum(rate(face_detection_duration_seconds_bucket{}[$__rate_interval])) by (le,queue))",
+          "legendFormat": "p99 {{queue}}"
+        },
         {
           "expr": "histogram_quantile(0.95, sum(rate(face_detection_duration_seconds_bucket{}[$__rate_interval])) by (le,queue))",
           "legendFormat": "p95 {{queue}}"

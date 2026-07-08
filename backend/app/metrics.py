@@ -43,6 +43,7 @@ def start_metrics_server(port):
 http_request_duration_seconds = Histogram(
     "http_request_duration_seconds", "HTTP request duration in seconds",
     ["method", "endpoint", "status"],
+    buckets=[0.005, 0.01, 0.025, 0.05, 0.075, 0.1, 0.25, 0.5, 0.75, 1, 2.5, 5, 7.5, 10, 30, 60],
 )
 http_requests_total = Counter(
     "http_requests_total", "Total HTTP requests",
@@ -60,6 +61,7 @@ celery_tasks_total = Counter(
 celery_task_duration_seconds = Histogram(
     "celery_task_duration_seconds", "Celery task duration in seconds",
     ["task", "queue"],
+    buckets=[0.01, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60, 120, 300, 600],
 )
 celery_active_tasks = Gauge(
     "celery_active_tasks", "Currently running Celery tasks",
@@ -163,6 +165,7 @@ detected_faces_total = Gauge(
 face_detection_duration_seconds = Histogram(
     "face_detection_duration_seconds", "Face detection duration per file in seconds",
     ["queue"],
+    buckets=[0.01, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60, 120],
 )
 
 
