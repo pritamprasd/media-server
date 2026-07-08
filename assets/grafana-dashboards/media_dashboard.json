@@ -1,0 +1,614 @@
+{
+  "__inputs": [],
+  "__requires": [],
+  "title": "Media Dashboard",
+  "uid": "media-dashboard",
+  "version": 1,
+  "timezone": "browser",
+  "editable": true,
+  "gnetId": null,
+  "graphTooltip": 0,
+  "time": { "from": "now-1h", "to": "now" },
+  "timepicker": {},
+  "tags": ["media-server", "prometheus"],
+  "schemaVersion": 39,
+  "style": "dark",
+  "panels": [
+    {
+      "title": "HTTP Overview",
+      "type": "row",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "title": "Request Rate",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 6, "x": 0, "y": 1 },
+      "targets": [
+        {
+          "expr": "sum(rate(http_requests_total{}[$__rate_interval]))",
+          "legendFormat": "All"
+        },
+        {
+          "expr": "sum(rate(http_requests_total{status=~\"5..\"}[$__rate_interval]))",
+          "legendFormat": "5xx"
+        },
+        {
+          "expr": "sum(rate(http_requests_total{status=~\"4..\"}[$__rate_interval]))",
+          "legendFormat": "4xx"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "rps",
+          "custom": { "displayMode": "table" }
+        }
+      }
+    },
+    {
+      "title": "Request Duration (p99)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 6, "x": 6, "y": 1 },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket{}[$__rate_interval])) by (le))",
+          "legendFormat": "p99"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{}[$__rate_interval])) by (le))",
+          "legendFormat": "p95"
+        },
+        {
+          "expr": "histogram_quantile(0.50, sum(rate(http_request_duration_seconds_bucket{}[$__rate_interval])) by (le))",
+          "legendFormat": "p50"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "s" }
+      }
+    },
+    {
+      "title": "Active Requests",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 4, "x": 12, "y": 1 },
+      "targets": [
+        {
+          "expr": "sum(http_requests_in_flight{})",
+          "legendFormat": "Active"
+        }
+      ],
+      "fieldConfig": {}
+    },
+    {
+      "title": "Top Endpoints by Rate",
+      "type": "table",
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 1 },
+      "targets": [
+        {
+          "expr": "topk(10, sum(rate(http_requests_total{}[$__rate_interval])) by (endpoint))",
+          "format": "table",
+          "instant": true
+        }
+      ],
+      "transformations": [
+        { "id": "organize", "options": { "excludeByName": {}, "indexByName": {}, "renameByName": { "Value": "Rate" } } }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "rps" }
+      }
+    },
+    {
+      "title": "Celery Tasks",
+      "type": "row",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 9 },
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "title": "Task Rate by Type",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 6, "x": 0, "y": 10 },
+      "targets": [
+        {
+          "expr": "topk(10, sum(rate(celery_tasks_total{state=\"success\"}[$__rate_interval])) by (task))",
+          "legendFormat": "{{task}}"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "rps" } }
+    },
+    {
+      "title": "Task Duration (p50/p95)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 6, "x": 6, "y": 10 },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(celery_task_duration_seconds_bucket{}[$__rate_interval])) by (le,task))",
+          "legendFormat": "p95 {{task}}"
+        },
+        {
+          "expr": "histogram_quantile(0.50, sum(rate(celery_task_duration_seconds_bucket{}[$__rate_interval])) by (le,task))",
+          "legendFormat": "p50 {{task}}"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "s" } }
+    },
+    {
+      "title": "Task Success vs Failure",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 6, "x": 12, "y": 10 },
+      "targets": [
+        {
+          "expr": "sum(rate(celery_tasks_total{state=\"success\"}[$__rate_interval]))",
+          "legendFormat": "Success"
+        },
+        {
+          "expr": "sum(rate(celery_tasks_total{state=\"failure\"}[$__rate_interval]))",
+          "legendFormat": "Failure"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "rps" } }
+    },
+    {
+      "title": "Task Retry Rate",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 6, "x": 18, "y": 10 },
+      "targets": [
+        {
+          "expr": "sum(rate(celery_task_retries_total{}[$__rate_interval])) by (task)",
+          "legendFormat": "{{task}}"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "rps" } }
+    },
+    {
+      "title": "File Operations",
+      "type": "row",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 18 },
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "title": "File Import / Delete Rate",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 6, "x": 0, "y": 19 },
+      "targets": [
+        {
+          "expr": "rate(files_imported_total{}[$__rate_interval])",
+          "legendFormat": "Imports"
+        },
+        {
+          "expr": "rate(files_deleted_total{}[$__rate_interval])",
+          "legendFormat": "Deletes"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "rps" } }
+    },
+    {
+      "title": "File Serve / Download Rate",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 6, "x": 6, "y": 19 },
+      "targets": [
+        {
+          "expr": "rate(files_served_total{}[$__rate_interval])",
+          "legendFormat": "Serves"
+        },
+        {
+          "expr": "rate(files_downloaded_total{}[$__rate_interval])",
+          "legendFormat": "Downloads"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "rps" } }
+    },
+    {
+      "title": "File Edit Rate",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 6, "x": 12, "y": 19 },
+      "targets": [
+        {
+          "expr": "rate(files_edited_total{}[$__rate_interval])",
+          "legendFormat": "Edits"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "rps" } }
+    },
+    {
+      "title": "File Export Rate by Format",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 6, "x": 18, "y": 19 },
+      "targets": [
+        {
+          "expr": "sum(rate(files_exported_total{}[$__rate_interval])) by (format)",
+          "legendFormat": "{{format}}"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "rps" } }
+    },
+    {
+      "title": "Processing Pipeline",
+      "type": "row",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 27 },
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "title": "Metadata Extraction Rate",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 6, "x": 0, "y": 28 },
+      "targets": [
+        {
+          "expr": "rate(metadata_extracted_total{}[$__rate_interval])",
+          "legendFormat": "Extracted"
+        },
+        {
+          "expr": "rate(metadata_failed_total{}[$__rate_interval])",
+          "legendFormat": "Failed"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "rps" } }
+    },
+    {
+      "title": "Thumbnail Generation Rate",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 6, "x": 6, "y": 28 },
+      "targets": [
+        {
+          "expr": "rate(thumbnails_generated_total{}[$__rate_interval])",
+          "legendFormat": "Thumbnails"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "rps" } }
+    },
+    {
+      "title": "AI Description Rate",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 6, "x": 12, "y": 28 },
+      "targets": [
+        {
+          "expr": "rate(ai_descriptions_total{}[$__rate_interval])",
+          "legendFormat": "Success"
+        },
+        {
+          "expr": "rate(ai_failed_total{}[$__rate_interval])",
+          "legendFormat": "Failed"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "rps" } }
+    },
+    {
+      "title": "Face Detection Rate",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 6, "x": 18, "y": 28 },
+      "targets": [
+        {
+          "expr": "rate(faces_detected_total{}[$__rate_interval])",
+          "legendFormat": "Faces"
+        },
+        {
+          "expr": "rate(persons_created_total{}[$__rate_interval])",
+          "legendFormat": "New Persons"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "rps" } }
+    },
+    {
+      "title": "Upload & Explorer",
+      "type": "row",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 36 },
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "title": "Upload Rate (Files)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 6, "x": 0, "y": 37 },
+      "targets": [
+        {
+          "expr": "rate(uploads_total{}[$__rate_interval])",
+          "legendFormat": "Files/s"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "rps" } }
+    },
+    {
+      "title": "Upload Rate (Bytes)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 6, "x": 6, "y": 37 },
+      "targets": [
+        {
+          "expr": "rate(upload_bytes_total{}[$__rate_interval])",
+          "legendFormat": "Bytes/s"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "Bps" } }
+    },
+    {
+      "title": "Explorer Operations Rate",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 6, "x": 12, "y": 37 },
+      "targets": [
+        {
+          "expr": "sum(rate(explorer_operations_total{}[$__rate_interval])) by (operation)",
+          "legendFormat": "{{operation}}"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "rps" } }
+    },
+    {
+      "title": "Geocode Requests",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 6, "x": 18, "y": 37 },
+      "targets": [
+        {
+          "expr": "rate(geocode_requests_total{cache=\"hit\"}[$__rate_interval])",
+          "legendFormat": "Cache Hit"
+        },
+        {
+          "expr": "rate(geocode_requests_total{cache=\"miss\"}[$__rate_interval])",
+          "legendFormat": "Cache Miss"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "rps" } }
+    },
+    {
+      "title": "Library Composition",
+      "type": "row",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 45 },
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "title": "Files by MIME Category",
+      "type": "bargauge",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 46 },
+      "targets": [
+        {
+          "expr": "files_by_mime_category{category=\"image\"}",
+          "legendFormat": "Image"
+        },
+        {
+          "expr": "files_by_mime_category{category=\"video\"}",
+          "legendFormat": "Video"
+        },
+        {
+          "expr": "files_by_mime_category{category=\"audio\"}",
+          "legendFormat": "Audio"
+        },
+        {
+          "expr": "files_by_mime_category{category=\"document\"}",
+          "legendFormat": "Document"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0
+        }
+      }
+    },
+    {
+      "title": "Unprocessed Files by Step",
+      "type": "bargauge",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 46 },
+      "targets": [
+        {
+          "expr": "unprocessed_files_total{step=\"metadata\"}",
+          "legendFormat": "Metadata"
+        },
+        {
+          "expr": "unprocessed_files_total{step=\"thumbnail\"}",
+          "legendFormat": "Thumbnail"
+        },
+        {
+          "expr": "unprocessed_files_total{step=\"face_detection\"}",
+          "legendFormat": "Face Detection"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0
+        }
+      }
+    },
+    {
+      "title": "Library Statistics",
+      "type": "row",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 54 },
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "title": "Total Files by Status",
+      "type": "stat",
+      "gridPos": { "h": 6, "w": 3, "x": 0, "y": 55 },
+      "targets": [
+        {
+          "expr": "sum(library_files_total{})",
+          "legendFormat": "Total"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        }
+      }
+    },
+    {
+      "title": "Library Size",
+      "type": "stat",
+      "gridPos": { "h": 6, "w": 3, "x": 3, "y": 55 },
+      "targets": [
+        {
+          "expr": "library_size_bytes{}",
+          "legendFormat": "Size"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "bytes" }
+      }
+    },
+    {
+      "title": "Total Sessions",
+      "type": "stat",
+      "gridPos": { "h": 6, "w": 3, "x": 6, "y": 55 },
+      "targets": [
+        {
+          "expr": "library_sessions_total{}",
+          "legendFormat": "Sessions"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "short" } }
+    },
+    {
+      "title": "Total Tags",
+      "type": "stat",
+      "gridPos": { "h": 6, "w": 3, "x": 9, "y": 55 },
+      "targets": [
+        {
+          "expr": "tags_total{}",
+          "legendFormat": "Tags"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "short" } }
+    },
+    {
+      "title": "Tagged Files",
+      "type": "stat",
+      "gridPos": { "h": 6, "w": 3, "x": 12, "y": 55 },
+      "targets": [
+        {
+          "expr": "tagged_files_total{}",
+          "legendFormat": "Files"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "short" } }
+    },
+    {
+      "title": "DB Pool Size",
+      "type": "stat",
+      "gridPos": { "h": 6, "w": 3, "x": 15, "y": 55 },
+      "targets": [
+        {
+          "expr": "db_connection_pool_size{}",
+          "legendFormat": "Pool"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "short" } }
+    },
+    {
+      "title": "Persons",
+      "type": "stat",
+      "gridPos": { "h": 6, "w": 3, "x": 18, "y": 55 },
+      "targets": [
+        {
+          "expr": "persons_total{}",
+          "legendFormat": "Persons"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "short" } }
+    },
+    {
+      "title": "Detected Faces",
+      "type": "stat",
+      "gridPos": { "h": 6, "w": 3, "x": 21, "y": 55 },
+      "targets": [
+        {
+          "expr": "detected_faces_total{}",
+          "legendFormat": "Faces"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "short" } }
+    },
+    {
+      "title": "Face Processing",
+      "type": "row",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 61 },
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "title": "Face Detection Duration",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 62 },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(face_detection_duration_seconds_bucket{}[$__rate_interval])) by (le,queue))",
+          "legendFormat": "p95 {{queue}}"
+        },
+        {
+          "expr": "histogram_quantile(0.50, sum(rate(face_detection_duration_seconds_bucket{}[$__rate_interval])) by (le,queue))",
+          "legendFormat": "p50 {{queue}}"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "s" } }
+    },
+    {
+      "title": "Face Scan Rate",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 62 },
+      "targets": [
+        {
+          "expr": "rate(face_scans_total{}[$__rate_interval])",
+          "legendFormat": "Scan Ops"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "rps" } }
+    },
+    {
+      "title": "Process Resources",
+      "type": "row",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 70 },
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "title": "Memory Usage (Resident)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 71 },
+      "targets": [
+        {
+          "expr": "process_resident_memory_bytes{job=~\"media.*\"}",
+          "legendFormat": "{{job}} {{instance}}"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "bytes" } }
+    },
+    {
+      "title": "Virtual Memory",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 71 },
+      "targets": [
+        {
+          "expr": "process_virtual_memory_bytes{job=~\"media.*\"}",
+          "legendFormat": "{{job}} {{instance}}"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "bytes" } }
+    },
+    {
+      "title": "CPU Usage",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 79 },
+      "targets": [
+        {
+          "expr": "rate(process_cpu_seconds_total{job=~\"media.*\"}[$__rate_interval])",
+          "legendFormat": "{{job}} {{instance}}"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "cps" } }
+    },
+    {
+      "title": "Open FDs",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 79 },
+      "targets": [
+        {
+          "expr": "process_open_fds{job=~\"media.*\"}",
+          "legendFormat": "{{job}} {{instance}}"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "short" } }
+    }
+  ]
+}

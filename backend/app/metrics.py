@@ -271,30 +271,30 @@ def instrument_celery(celery_app):
 
     _task_start_times = {}
 
-    @signals.task_prerun.connect
+    @signals.task_prerun.connect(weak=False)
     def _on_task_prerun(task_id, task, **kwargs):
         _task_start_times[task_id] = time.time()
 
-    @signals.task_postrun.connect
+    @signals.task_postrun.connect(weak=False)
     def _on_task_postrun(task_id, task, **kwargs):
         start = _task_start_times.pop(task_id, None)
         if start:
             duration = time.time() - start
             celery_task_duration_seconds.labels(task=task.name).observe(duration)
 
-    @signals.task_success.connect
+    @signals.task_success.connect(weak=False)
     def _on_task_success(sender, **kwargs):
         celery_tasks_total.labels(task=sender.name, state="success").inc()
 
-    @signals.task_failure.connect
+    @signals.task_failure.connect(weak=False)
     def _on_task_failure(sender, **kwargs):
         celery_tasks_total.labels(task=sender.name, state="failure").inc()
 
-    @signals.task_retry.connect
+    @signals.task_retry.connect(weak=False)
     def _on_task_retry(sender, **kwargs):
         celery_task_retries_total.labels(task=sender.name).inc()
 
-    @signals.worker_ready.connect
+    @signals.worker_ready.connect(weak=False)
     def _on_worker_ready(**kwargs):
         port = int(os.environ.get("WORKER_METRICS_PORT", 9201))
         start_metrics_server(port)
