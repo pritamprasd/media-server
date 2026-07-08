@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useLocation } from "react-router-dom";
-import { Search, List, Image, Video, Sparkles, FolderTree, Folder, FolderOpen, ChevronDown, X, Hash, Columns2, Heart, ArrowUpDown, ArrowUp } from "lucide-react";
-import { listFiles, listDirectories, toggleFavorite as toggleFavApi, listTags } from "../services/api";
+import { Search, List, Image, Video, Sparkles, FolderTree, Folder, FolderOpen, ChevronDown, X, Hash, Columns2, Heart, ArrowUpDown, ArrowUp, EyeOff } from "lucide-react";
+import { listFiles, listDirectories, toggleFavorite as toggleFavApi, listTags, toggleHidden } from "../services/api";
 import { getPref, setPref } from "../services/db";
 import FileViewer from "../components/FileViewer";
 import Spinner from "../components/Spinner";
@@ -367,6 +367,15 @@ function Home() {
     }
   };
 
+  const handleToggleHidden = async (fileId) => {
+    try {
+      await toggleHidden(fileId);
+      setFiles((prev) => prev.filter((f) => f.id !== fileId));
+      setTotalCount((prev) => Math.max(0, prev - 1));
+    } catch {
+    }
+  };
+
   return (
     <div className="home">
       <div className={`home__layout${columns === "auto" ? " home__layout--auto" : ""}`}>
@@ -634,6 +643,16 @@ function Home() {
                       title={file.is_favorite ? "Remove from favorites" : "Add to favorites"}
                     >
                       {file.is_favorite ? <Heart size={14} fill="currentColor" /> : <Heart size={14} />}
+                    </button>
+                    <button
+                      className="home__fav"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleToggleHidden(file.id);
+                      }}
+                      title="Hide file"
+                    >
+                      <EyeOff size={14} />
                     </button>
                   </div>
                 </div>

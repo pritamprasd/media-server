@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import {
   Settings as SettingsIcon, ArrowRight, Palette, Save, Trash2,
   ArrowUp, ArrowDown, RotateCcw, Check, Wifi, WifiOff,
+  Eye, EyeOff, Lock, Unlock,
 } from "lucide-react";
 import { getPref, setPref, clearAllPrefs } from "../services/db";
 import { setAirplaneMode } from "../services/api";
@@ -59,6 +60,9 @@ function Settings() {
   const [mapZoomLevel, setMapZoomLevel] = useState(18);
   const [facesPerPage, setFacesPerPage] = useState(15);
   const [facesPerPageSaved, setFacesPerPageSaved] = useState(false);
+  const [hiddenPinInput, setHiddenPinInput] = useState("");
+  const [hiddenUnlocked, setHiddenUnlocked] = useState(false);
+  const [hiddenPinError, setHiddenPinError] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -77,6 +81,8 @@ function Settings() {
       setAirplaneModeState(v);
       setAirplaneMode(v);
     });
+    const saved = sessionStorage.getItem("hidden_pin_unlocked");
+    setHiddenUnlocked(saved === "true");
   }, []);
 
   const handleMoveTab = (type, idx, dir) => {
@@ -187,6 +193,39 @@ function Settings() {
     return () => navigator.serviceWorker.removeEventListener("message", onMsg);
   }, []);
 
+  const handleHiddenPinUnlock = async () => {
+    const pin = hiddenPinInput.trim();
+    if (pin.length !== 6) {
+      setHiddenPinError(true);
+      return;
+    }
+    try {
+      const { getStatus } = await import("../services/api");
+      await getStatus();
+      sessionStorage.setItem("hidden_pin", pin);
+      sessionStorage.setItem("hidden_pin_unlocked", "true");
+      setHiddenUnlocked(true);
+      setHiddenPinError(false);
+      setHiddenPinInput("");
+      window.dispatchEvent(new Event("hidden-pin-changed"));
+    } catch {
+      sessionStorage.setItem("hidden_pin", pin);
+      sessionStorage.setItem("hidden_pin_unlocked", "true");
+      setHiddenUnlocked(true);
+      setHiddenPinError(false);
+      setHiddenPinInput("");
+      window.dispatchEvent(new Event("hidden-pin-changed"));
+    }
+  };
+
+  const handleHiddenPinLock = () => {
+    sessionStorage.removeItem("hidden_pin");
+    sessionStorage.removeItem("hidden_pin_unlocked");
+    setHiddenUnlocked(false);
+    setHiddenPinInput("");
+    window.dispatchEvent(new Event("hidden-pin-changed"));
+  };
+
   return (
     <div className="settings">
       <h2 className="settings__title"><SettingsIcon size={20} /> Settings</h2>
@@ -235,6 +274,44 @@ function Settings() {
           {airplaneModeState ? <WifiOff size={16} /> : <Wifi size={16} />}
           {airplaneModeState ? "Airplane Mode ON" : "Airplane Mode OFF"}
         </button>
+      </div>
+
+      <div className="settings__card">
+        <h3 className="settings__label">Hidden Files</h3>
+        <p className="settings__desc">
+          Enter the 6-digit PIN to unlock the Hidden Files tab. The PIN is set in the backend configuration.
+        </p>
+        <div className="settings__nickname-row">
+          <input
+            className="settings__input"
+            type="password"
+            maxLength={6}
+            placeholder="Enter 6-digit PIN"
+            value={hiddenPinInput}
+            onChange={(e) => { setHiddenPinInput(e.target.value); setHiddenPinError(false); }}
+            onKeyDown={(e) => { if (e.key === "Enter") handleHiddenPinUnlock(); }}
+            style={{ width: "160px", letterSpacing: "0.25em", fontSize: "1.1rem" }}
+          />
+          {hiddenUnlocked ? (
+            <button className="settings__btn" onClick={handleHiddenPinLock}>
+              <Lock size={14} /> Lock
+            </button>
+          ) : (
+            <button className="settings__btn" onClick={handleHiddenPinUnlock}>
+              <Unlock size={14} /> Unlock
+            </button>
+          )}
+        </div>
+        {hiddenPinError && (
+          <p style={{ color: "var(--color-danger, #e74c3c)", fontSize: "0.8125rem", marginTop: "0.25rem" }}>
+            Invalid PIN. Check the backend HIDDEN_FILES_PIN setting.
+          </p>
+        )}
+        {hiddenUnlocked && (
+          <p style={{ color: "var(--color-success, #2ecc71)", fontSize: "0.8125rem", marginTop: "0.25rem" }}>
+            <Check size={12} style={{ verticalAlign: "middle" }} /> Hidden Files tab is now visible in the navbar.
+          </p>
+        )}
       </div>
 
       <div className="settings__card">

@@ -242,7 +242,7 @@ def list_files():
         FileMetadata.width, FileMetadata.height, FileMetadata.tags
     ).outerjoin(
         FileMetadata, ImportedFile.id == FileMetadata.file_id
-    ).filter(ImportedFile.deleted != True)
+    ).filter(ImportedFile.deleted != True, ImportedFile.is_hidden != True)
 
     if directory_id is not None and directory_id > 0:
         dir_record = db.session.get(ImportedDirectory, directory_id)
@@ -346,6 +346,122 @@ def list_files():
     }), 200
 
 
+@api_bp.route("/files/hidden", methods=["GET"])
+def list_hidden_files():
+    pin = request.headers.get("X-Hidden-Pin", "")
+    if pin != current_app.config["HIDDEN_FILES_PIN"]:
+        return jsonify({"error": "Invalid PIN"}), 403
+
+    page = request.args.get("page", 1, type=int)
+    per_page = request.args.get("per_page", 50, type=int)
+    per_page = min(per_page, 200)
+    mime_group = request.args.get("mime_group")
+    q = request.args.get("q", "").strip()
+    sort_by = request.args.get("sort_by", "created_at")
+    sort_dir = request.args.get("sort_dir", "desc")
+
+    query = db.session.query(
+        ImportedFile, FileMetadata.thumbnail, FileMetadata.thumbnail_status,
+        FileMetadata.width, FileMetadata.height, FileMetadata.tags
+    ).outerjoin(
+        FileMetadata, ImportedFile.id == FileMetadata.file_id
+    ).filter(ImportedFile.deleted != True, ImportedFile.is_hidden == True)
+
+    if mime_group == "image":
+        query = query.filter(ImportedFile.mime_type.like("image/%"))
+    elif mime_group == "video":
+        query = query.filter(ImportedFile.mime_type.like("video/%"))
+
+    if q:
+        from app.models.detected_face import DetectedFace
+        from app.models.person import Person
+        words = q.split()
+        word_conditions = []
+        for word in words:
+            like = f"%{word}%"
+            person_file_ids = db.session.query(DetectedFace.file_id).join(
+                Person, Person.id == DetectedFace.person_id
+            ).filter(Person.name.ilike(like)).distinct().subquery()
+            word_conditions.append(
+                db.or_(
+                    db.cast(FileMetadata.tags, db.String).ilike(like),
+                    FileMetadata.description.ilike(like),
+                    FileMetadata.search_words.ilike(like),
+                    ImportedFile.filename.ilike(like),
+                    ImportedFile.id.in_(db.session.query(person_file_ids.c.file_id)),
+                )
+            )
+        query = query.filter(db.and_(*word_conditions))
+
+    tag = request.args.get("tag", "").strip().lower()
+    if tag:
+        query = query.filter(FileMetadata.tags.cast(db.String).contains(f'"{tag}"'))
+
+    sort_map = {
+        "created_at": ImportedFile.created_at,
+        "filename": ImportedFile.filename,
+        "size": ImportedFile.size,
+    }
+    sort_col = sort_map.get(sort_by, ImportedFile.created_at)
+    sort_fn = sort_col.desc if sort_dir == "desc" else sort_col.asc
+
+    pagination = query.order_by(
+        sort_fn()
+    ).paginate(
+        page=page, per_page=per_page, error_out=False
+    )
+
+    files = []
+    for f, thumb, thumb_status, w, h, tags in pagination.items:
+        d = f.to_dict()
+        d["thumbnail"] = thumb
+        d["thumbnail_status"] = thumb_status or "pending"
+        d["width"] = w
+        d["height"] = h
+        d["tags"] = tags
+        d["created_at"] = f.created_at.isoformat() if f.created_at else None
+        files.append(d)
+
+    return jsonify({
+        "files": files,
+        "page": page,
+        "per_page": per_page,
+        "total": pagination.total,
+        "pages": pagination.pages,
+    }), 200
+
+
+@api_bp.route("/files/<int:file_id>/toggle-hidden", methods=["PATCH"])
+def toggle_hidden(file_id):
+    f = db.session.get(ImportedFile, file_id)
+    if not f or f.deleted:
+        return jsonify({"error": "File not found"}), 404
+
+    f.is_hidden = not f.is_hidden
+    db.session.commit()
+    return jsonify({"is_hidden": f.is_hidden, "id": f.id}), 200
+
+
+@api_bp.route("/files/unhide", methods=["POST"])
+def unhide_files():
+    pin = request.headers.get("X-Hidden-Pin", "")
+    if pin != current_app.config["HIDDEN_FILES_PIN"]:
+        return jsonify({"error": "Invalid PIN"}), 403
+
+    data = request.get_json(silent=True) or {}
+    file_ids = data.get("file_ids", [])
+    if not file_ids:
+        return jsonify({"error": "No file IDs provided"}), 400
+
+    ImportedFile.query.filter(
+        ImportedFile.id.in_(file_ids),
+        ImportedFile.deleted != True,
+    ).update({"is_hidden": False}, synchronize_session="fetch")
+
+    db.session.commit()
+    return jsonify({"unhidden": len(file_ids)}), 200
+
+
 @api_bp.route("/duplicates", methods=["GET"])
 def list_duplicates():
     type_ = request.args.get("type", "exact")
@@ -366,14 +482,14 @@ def list_duplicates():
             metas = (
                 FileMetadata.query.filter_by(file_hash=h)
                 .join(ImportedFile)
-                .filter(ImportedFile.deleted != True)
+                .filter(ImportedFile.deleted != True, ImportedFile.is_hidden != True)
                 .order_by(ImportedFile.filename)
                 .all()
             )
             group = []
             for m in metas:
                 f = m.file
-                if f.deleted:
+                if f.deleted or f.is_hidden:
                     continue
                 group.append({
                     "file_id": f.id,
@@ -393,6 +509,7 @@ def list_duplicates():
             ImportedFile, FileMetadata.file_id == ImportedFile.id
         ).filter(
             ImportedFile.deleted != True,
+            ImportedFile.is_hidden != True,
             FileMetadata.dhash.isnot(None),
         ).all()
         pairs = []
@@ -479,6 +596,7 @@ def get_near_duplicates(file_id):
 def list_favorites():
     files = ImportedFile.query.filter(
         ImportedFile.deleted != True,
+        ImportedFile.is_hidden != True,
         ImportedFile.is_favorite == True,
     ).order_by(ImportedFile.filename).all()
     return jsonify([f.to_dict() for f in files]), 200
@@ -1791,7 +1909,7 @@ def list_all_tags():
 
 @api_bp.route("/stats", methods=["GET"])
 def get_statistics():
-    total_files = ImportedFile.query.filter(ImportedFile.deleted != True).count()
+    total_files = ImportedFile.query.filter(ImportedFile.deleted != True, ImportedFile.is_hidden != True).count()
     total_favorites = ImportedFile.query.filter(
         ImportedFile.deleted != True, ImportedFile.is_favorite == True
     ).count()
@@ -2096,6 +2214,7 @@ def list_files_with_gps():
         db.contains_eager(ImportedFile.metadata)
     ).filter(
         ImportedFile.deleted != True,
+        ImportedFile.is_hidden != True,
         FileMetadata.latitude.isnot(None),
         FileMetadata.longitude.isnot(None),
     ).order_by(ImportedFile.created_at.desc())
@@ -2436,7 +2555,7 @@ def explorer_browse():
     db_dirs = db_dirs.order_by(ImportedDirectory.name).all()
 
     # Files — use directory_id FK for strict hierarchy
-    base_q = ImportedFile.query.filter(ImportedFile.deleted != True)
+    base_q = ImportedFile.query.filter(ImportedFile.deleted != True, ImportedFile.is_hidden != True)
     if synthetic_session_id is not None:
         root_dir = ImportedDirectory.query.filter(
             ImportedDirectory.deleted != True,

@@ -70,6 +70,10 @@ class Config:
     # invocation, reducing per-image overhead. Higher values use more memory.
     FACE_BATCH_SIZE = int(os.environ.get("FACE_BATCH_SIZE", "5"))
 
+    # 6-digit PIN required to access the Hidden Files tab. Set in .env during
+    # deployment. Default is 000000 which should be changed in production.
+    HIDDEN_FILES_PIN = os.environ.get("HIDDEN_FILES_PIN", "000000")
+
 
 
 class DevelopmentConfig(Config):

@@ -4,12 +4,12 @@ import {
   Folder, FolderOpen, FolderHeart, FolderTree, File, Image, Video, Search, X,
   Grid3X3, List, ChevronDown, Plus, FileUp, Eye,
   MoreVertical, Scissors, Copy, ClipboardPaste, Pencil, ArrowRight,
-  ArrowLeft, ArrowUp, Loader2, Star, Heart, Home, Camera, Music, Globe, Bookmark,
+  ArrowLeft, ArrowUp, Loader2, Star, Heart, Home, Camera, Music, Globe, Bookmark, EyeOff,
 } from "lucide-react";
 import {
   explorerBrowse, explorerRename, explorerMove, explorerCopy, explorerDelete,
   explorerListFavorites, explorerAddFavorite, explorerRemoveFavorite,
-  uploadFiles, listNicknames, createUploadDir,
+  uploadFiles, listNicknames, createUploadDir, toggleHidden,
 } from "../services/api";
 import { getPref, setPref } from "../services/db";
 import FileViewer from "../components/FileViewer";
@@ -212,6 +212,16 @@ function MediaExplorer() {
       setError("Failed to delete items");
     }
     setPasteLoading(false);
+  };
+
+  const handleFileHide = async (fileId) => {
+    try {
+      await toggleHidden(fileId);
+      setSelectedIds(new Set());
+      await refreshItems(currentPrefix);
+    } catch {
+      setError("Failed to hide file");
+    }
   };
 
   const getSelectedPaths = () => {
@@ -716,6 +726,9 @@ function MediaExplorer() {
                 onClick={(e) => { e.stopPropagation(); toggleSelect(id, e); }}>
                 <Check size={12} />
               </div>
+              <button className="explorer__tile-actions" onClick={(e) => { e.stopPropagation(); handleFileHide(it.id); }} title="Hide file">
+                <EyeOff size={14} />
+              </button>
               <button className="explorer__tile-actions" onClick={(e) => handleShowActions(e, it)} title="Actions">
                 <MoreVertical size={14} />
               </button>

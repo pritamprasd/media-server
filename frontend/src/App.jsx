@@ -5,6 +5,7 @@ import { getPref } from "./services/db";
 import Navbar from "./components/Navbar";
 import Spinner from "./components/Spinner";
 import Home from "./pages/Home";
+import Hidden from "./pages/Hidden";
 import Importer from "./pages/Importer";
 import Gallery from "./pages/Gallery";
 import Favorites from "./pages/Favorites";
@@ -78,6 +79,7 @@ function App() {
             path="/"
             element={defaultTab !== "/" ? <Navigate to={defaultTab} replace /> : <Home />}
           />
+          <Route path="/hidden" element={<Hidden />} />
           <Route path="/import" element={<Importer />} />
           <Route path="/gallery" element={<Gallery />} />
           <Route path="/favorites" element={<Favorites />} />

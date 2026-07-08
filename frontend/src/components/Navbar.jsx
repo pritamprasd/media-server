@@ -1,13 +1,15 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { NavLink } from "react-router-dom";
 import { useTheme } from "../contexts/ThemeContext";
 import {
   House, FileUp, FolderOpen, Heart, Upload, Compass,
   CopyCheck, BarChart3, Settings, MapPin, MapPinned,
-  Scan, Info, Puzzle, Clock, Sun, Moon, Menu, X, GripVertical,
+  Scan, Info, Puzzle, Clock, Sun, Moon, Menu, X, GripVertical, Eye,
 } from "lucide-react";
 import { getPref, setPref } from "../services/db";
 import "./Navbar.css";
+
+const HIDDEN_LINK = { to: "/hidden", label: "Hidden", icon: Eye };
 
 const DEFAULT_LINKS = [
   { to: "/", label: "Home", icon: House, end: true },
@@ -31,26 +33,40 @@ function Navbar() {
   const { theme, toggleTheme } = useTheme();
   const [menuOpen, setMenuOpen] = useState(false);
   const [links, setLinks] = useState(DEFAULT_LINKS);
+  const [showHidden, setShowHidden] = useState(sessionStorage.getItem("hidden_pin_unlocked") === "true");
   const [dragIdx, setDragIdx] = useState(null);
   const [dropIdx, setDropIdx] = useState(null);
   const menuRef = useRef(null);
 
   useEffect(() => {
+    const handler = () => {
+      setShowHidden(sessionStorage.getItem("hidden_pin_unlocked") === "true");
+    };
+    window.addEventListener("hidden-pin-changed", handler);
+    return () => window.removeEventListener("hidden-pin-changed", handler);
+  }, []);
+
+  const allLinks = useMemo(() => {
+    const base = showHidden ? [...DEFAULT_LINKS, HIDDEN_LINK] : DEFAULT_LINKS;
+    return base;
+  }, [showHidden]);
+
+  useEffect(() => {
     getPref("navbarTabOrder", null).then((order) => {
       if (order && Array.isArray(order) && order.length > 0) {
         const orderMap = {};
-        DEFAULT_LINKS.forEach((l, i) => { orderMap[l.to] = i; });
-        const sorted = [...DEFAULT_LINKS].sort((a, b) => {
+        allLinks.forEach((l, i) => { orderMap[l.to] = i; });
+        const sorted = [...allLinks].sort((a, b) => {
           const ai = order.indexOf(a.to);
           const bi = order.indexOf(b.to);
           return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi);
         });
         setLinks(sorted);
       } else {
-        setLinks(DEFAULT_LINKS);
+        setLinks(allLinks);
       }
     });
-  }, []);
+  }, [allLinks]);
 
   useEffect(() => {
     if (!menuOpen) return;

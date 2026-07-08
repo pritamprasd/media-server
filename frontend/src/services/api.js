@@ -383,4 +383,30 @@ export async function explorerRemoveFavorite(path) {
   return data;
 }
 
+export async function toggleHidden(fileId) {
+  const { data } = await client.patch(`/files/${fileId}/toggle-hidden`);
+  return data;
+}
+
+export async function listHiddenFiles(page = 1, perPage = 50, filters = {}, pin, signal) {
+  const params = { page, per_page: perPage };
+  if (filters.mimeGroup) params.mime_group = filters.mimeGroup;
+  if (filters.q) params.q = filters.q;
+  if (filters.sortBy) params.sort_by = filters.sortBy;
+  if (filters.sortDir) params.sort_dir = filters.sortDir;
+  const { data } = await client.get("/files/hidden", {
+    params,
+    headers: { "X-Hidden-Pin": pin },
+    signal,
+  });
+  return data;
+}
+
+export async function unhideFiles(fileIds, pin) {
+  const { data } = await client.post("/files/unhide", { file_ids: fileIds }, {
+    headers: { "X-Hidden-Pin": pin },
+  });
+  return data;
+}
+
 export default client;

@@ -6,7 +6,7 @@ import {
   Hash, Tag, AlignLeft, Clock, Maximize2, Camera,
   Save, Filter, SlidersHorizontal, Sun, ZoomOut,
   Sparkles, Undo2, Paintbrush, FlipHorizontal, Search, IdCard, FolderOpen,
-  ChevronLeft, ChevronRight, Scissors, Palette, Droplets, Eye,
+  ChevronLeft, ChevronRight, Scissors, Palette, Droplets, Eye, EyeOff,
   Grid3X3, Sigma, ChevronDown, FileImage, Drama, Volume2,
   Gauge, Rewind, VolumeX, Type, Info, ExternalLink, Share2, Copy,
   Wifi, Database, Pencil,
@@ -22,6 +22,8 @@ import {
   listPersons,
   listTags,
   updateFileMetadata,
+  toggleHidden,
+  unhideFiles,
 } from "../services/api";
 import Spinner from "./Spinner";
 import { getPref, setPref } from "../services/db";
@@ -136,9 +138,10 @@ function FaceNameTag({ face, onNameChange }) {
   );
 }
 
-function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete, onNavigatePrev, onNavigateNext }) {
+function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete, onNavigatePrev, onNavigateNext, hiddenPin }) {
   const navigate = useNavigate();
   const [isFav, setIsFav] = useState(file.is_favorite);
+  const [isHidden, setIsHidden] = useState(file.is_hidden || false);
   const [meta, setMeta] = useState(null);
   const [fileRecord, setFileRecord] = useState(null);
   const [metaLoading, setMetaLoading] = useState(true);
@@ -452,6 +455,22 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete, onN
       const updated = await toggleFavApi(file.id);
       setIsFav(updated.is_favorite);
       if (onToggleFavorite) onToggleFavorite(file.id, updated.is_favorite);
+    } catch {}
+  };
+
+  const handleToggleHide = async () => {
+    try {
+      if (isHidden && hiddenPin) {
+        await unhideFiles([file.id], hiddenPin);
+        setIsHidden(false);
+        if (onDelete) onDelete(file.id);
+        onClose();
+      } else {
+        const updated = await toggleHidden(file.id);
+        setIsHidden(updated.is_hidden);
+        if (updated.is_hidden && onDelete) onDelete(file.id);
+        if (updated.is_hidden) onClose();
+      }
     } catch {}
   };
 
@@ -1160,6 +1179,9 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete, onN
                 </div>
                 <a className="viewer-btn viewer-btn--download" href={downloadUrl} download title="Download file"><Download size={15} /></a>
                 <button className="viewer-btn" onClick={handleShare} title="Copy share link">{shareCopied ? <span style={{fontSize:"0.65rem"}}>Copied!</span> : <Share2 size={15} />}</button>
+                <button className="viewer-btn viewer-btn--delete" onClick={handleToggleHide} title={isHidden ? "Unhide file" : "Hide file"}>
+                  {isHidden ? <Eye size={15} /> : <EyeOff size={15} />}
+                </button>
                 <button className="viewer-btn viewer-btn--delete" onClick={handleDeleteClick} title="Delete file"><Trash2 size={15} /></button>
                 <button className={`viewer-fav ${isFav ? "viewer-fav--active" : ""}`} onClick={handleToggleFav} title={isFav ? "Remove from favorites" : "Add to favorites"}>
                   <Heart size={15} fill={isFav ? "currentColor" : "none"} />
@@ -1217,6 +1239,9 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete, onN
                 )}
                 <a className="viewer-float-btn" href={downloadUrl} download title="Download"><Download size={16} /></a>
                 <button className="viewer-float-btn" onClick={handleShare} title="Copy share link"><Share2 size={16} /></button>
+                <button className="viewer-float-btn" onClick={handleToggleHide} title={isHidden ? "Unhide file" : "Hide file"}>
+                  {isHidden ? <Eye size={16} /> : <EyeOff size={16} />}
+                </button>
                 <button className="viewer-float-btn" onClick={handleDeleteClick} title="Delete"><Trash2 size={16} /></button>
                 <button className={`viewer-float-btn ${isFav ? "viewer-float-btn--active" : ""}`} onClick={handleToggleFav} title={isFav ? "Remove from favorites" : "Add to favorites"}>
                   <Heart size={16} fill={isFav ? "currentColor" : "none"} />

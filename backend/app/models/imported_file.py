@@ -18,6 +18,7 @@ class ImportedFile(db.Model):
     size = db.Column(db.BigInteger, nullable=False)
     modified = db.Column(db.DateTime, nullable=False)
     is_favorite = db.Column(db.Boolean, default=False, nullable=False)
+    is_hidden = db.Column(db.Boolean, default=False, nullable=False)
     nickname = db.Column(db.Text, nullable=True)
     deleted = db.Column(db.Boolean, default=False, nullable=False)
     created_at = db.Column(db.DateTime, server_default=db.func.now())
@@ -37,6 +38,7 @@ class ImportedFile(db.Model):
             "size": self.size,
             "modified": self.modified.isoformat() if self.modified else None,
             "is_favorite": self.is_favorite,
+            "is_hidden": self.is_hidden,
             "nickname": self.nickname,
             "deleted": self.deleted,
         }
