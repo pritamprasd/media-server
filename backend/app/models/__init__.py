@@ -19,3 +19,4 @@ from app.models.person import Person  # noqa: E402, F401
 from app.models.detected_face import DetectedFace  # noqa: E402, F401
 from app.models.favorite_folder import FavoriteFolder  # noqa: E402, F401
 from app.models.collection import Collection, collection_files  # noqa: E402, F401
+from app.models.user_memory import UserMemory  # noqa: E402, F401

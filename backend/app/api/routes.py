@@ -271,6 +271,7 @@ def list_files():
     if q:
         from app.models.detected_face import DetectedFace
         from app.models.person import Person
+        from app.models.user_memory import UserMemory
         words = q.split()
         word_conditions = []
         for word in words:
@@ -278,6 +279,9 @@ def list_files():
             person_file_ids = db.session.query(DetectedFace.file_id).join(
                 Person, Person.id == DetectedFace.person_id
             ).filter(Person.name.ilike(like)).distinct().subquery()
+            memory_file_ids = db.session.query(UserMemory.file_id).filter(
+                UserMemory.content.ilike(like)
+            ).distinct().subquery()
             word_conditions.append(
                 db.or_(
                     db.cast(FileMetadata.tags, db.String).ilike(like),
@@ -285,6 +289,7 @@ def list_files():
                     FileMetadata.search_words.ilike(like),
                     ImportedFile.filename.ilike(like),
                     ImportedFile.id.in_(db.session.query(person_file_ids.c.file_id)),
+                    ImportedFile.id.in_(db.session.query(memory_file_ids.c.file_id)),
                 )
             )
         query = query.filter(db.and_(*word_conditions))
@@ -375,6 +380,7 @@ def list_hidden_files():
     if q:
         from app.models.detected_face import DetectedFace
         from app.models.person import Person
+        from app.models.user_memory import UserMemory
         words = q.split()
         word_conditions = []
         for word in words:
@@ -382,6 +388,9 @@ def list_hidden_files():
             person_file_ids = db.session.query(DetectedFace.file_id).join(
                 Person, Person.id == DetectedFace.person_id
             ).filter(Person.name.ilike(like)).distinct().subquery()
+            memory_file_ids = db.session.query(UserMemory.file_id).filter(
+                UserMemory.content.ilike(like)
+            ).distinct().subquery()
             word_conditions.append(
                 db.or_(
                     db.cast(FileMetadata.tags, db.String).ilike(like),
@@ -389,6 +398,7 @@ def list_hidden_files():
                     FileMetadata.search_words.ilike(like),
                     ImportedFile.filename.ilike(like),
                     ImportedFile.id.in_(db.session.query(person_file_ids.c.file_id)),
+                    ImportedFile.id.in_(db.session.query(memory_file_ids.c.file_id)),
                 )
             )
         query = query.filter(db.and_(*word_conditions))

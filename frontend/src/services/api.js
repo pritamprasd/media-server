@@ -453,4 +453,24 @@ export async function removeFilesFromCollection(id, fileIds) {
   return data;
 }
 
+export async function listMemories(fileId) {
+  const { data } = await client.get(`/files/${fileId}/memories`);
+  return data;
+}
+
+export async function createMemory(fileId, content, tags) {
+  const { data } = await client.post(`/files/${fileId}/memories`, { content, tags });
+  return data;
+}
+
+export async function updateMemory(memoryId, payload) {
+  const { data } = await client.put(`/memories/${memoryId}`, payload);
+  return data;
+}
+
+export async function deleteMemory(memoryId) {
+  const { data } = await client.delete(`/memories/${memoryId}`);
+  return data;
+}
+
 export default client;

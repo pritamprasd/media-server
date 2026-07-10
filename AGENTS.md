@@ -152,6 +152,14 @@
 - **FileViewer integration**: `FolderPlus` icon button in both header toolbar and floating overlay toolbar. Opens a popover listing all collections with checkmarks for membership. Toggle via `addFilesToCollection`/`removeFilesFromCollection` API calls.
 - **Collection detail page**: `/collections/:id` route. Shows file grid with remove (X) buttons. "Add Media" modal with search-as-you-type. "Download ZIP" as direct `<a href>` link.
 
+### User Memories (My Notes)
+- **One-to-many relationship**: `UserMemory` model FK to `imported_files.id` with `ondelete="CASCADE"`. A file can have many user memories.
+- **Fields**: `content` (Text, required), `tags` (JSON list, optional), timestamps.
+- **Backend API**: `GET/POST /api/files/<id>/memories`, `PUT/DELETE /api/memories/<id>`. Tags accepted as JSON array or comma-separated string.
+- **Search integration**: User memory content is included in the ILIKE search alongside `description`, `search_words`, `tags`, `filename`, and person names — both in `GET /api/files` and `GET /api/files/hidden`.
+- **FileViewer UI**: "My Notes" section appears above the AI Description in the sidebar. Supports inline add, edit, and delete. Tags render as small pill badges. Uses `StickyNote` icon from lucide-react.
+- **CSS classes**: `.viewer-mem-*` namespace in `FileViewer.css` — all use neumorphic variables for theme consistency.
+
 ## Production Deployment
 - Nginx reverse proxy with HTTPS, HTTP/2 support
 - Auto-generated SSL certificates at build time

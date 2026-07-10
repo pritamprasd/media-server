@@ -316,7 +316,7 @@
 
 .home__loading-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
   gap: 0.75rem;
   width: 100%;
 }
@@ -336,7 +336,7 @@
 
 .home__grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
   gap: 0.75rem;
   width: 100%;
 }
