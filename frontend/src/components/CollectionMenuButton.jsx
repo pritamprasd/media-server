@@ -12,6 +12,7 @@ function CollectionMenuButton({ fileId, className = "" }) {
   const [loading, setLoading] = useState(false);
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState("");
+  const [dropUp, setDropUp] = useState(true);
   const wrapRef = useRef(null);
 
   const load = useCallback(async () => {
@@ -30,6 +31,11 @@ function CollectionMenuButton({ fileId, className = "" }) {
 
   useEffect(() => {
     if (!open) return;
+    if (wrapRef.current) {
+      const rect = wrapRef.current.getBoundingClientRect();
+      const spaceAbove = rect.top;
+      setDropUp(spaceAbove > 280);
+    }
     const handler = (e) => {
       if (wrapRef.current && !wrapRef.current.contains(e.target)) {
         setOpen(false);
@@ -73,7 +79,7 @@ function CollectionMenuButton({ fileId, className = "" }) {
         <FolderPlus size={14} />
       </button>
       {open && (
-        <div className="cmb-menu" onClick={(e) => e.stopPropagation()}>
+        <div className={`cmb-menu ${dropUp ? "" : "cmb-menu--drop-down"}`} onClick={(e) => e.stopPropagation()}>
           <div className="cmb-menu__title">Collections</div>
           {loading ? (
             <div className="cmb-menu__status"><Spinner size={12} /></div>
