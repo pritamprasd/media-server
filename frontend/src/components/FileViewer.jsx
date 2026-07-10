@@ -9,7 +9,7 @@ import {
   ChevronLeft, ChevronRight, Scissors, Palette, Droplets, Eye, EyeOff,
   Grid3X3, Sigma, ChevronDown, FileImage, Drama, Volume2,
   Gauge, Rewind, VolumeX, Type, Info, ExternalLink, Share2, Copy,
-  Wifi, Database, Pencil,
+  Wifi, Database, Pencil, FolderPlus,
 } from "lucide-react";
 import {
   toggleFavorite as toggleFavApi, getFile, getFileMetadata, editFile, deleteFile, updateTags,
@@ -24,6 +24,7 @@ import {
   updateFileMetadata,
   toggleHidden,
   unhideFiles,
+  listCollections, addFilesToCollection, removeFilesFromCollection,
 } from "../services/api";
 import Spinner from "./Spinner";
 import { getPref, setPref } from "../services/db";
@@ -202,6 +203,11 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete, onN
   const [locationName, setLocationName] = useState(null);
   const [shareCopied, setShareCopied] = useState(false);
   const [allTags, setAllTags] = useState([]);
+  const [showCollectionMenu, setShowCollectionMenu] = useState(false);
+  const [collectionList, setCollectionList] = useState([]);
+  const [fileCollections, setFileCollections] = useState([]);
+  const [loadingCollections, setLoadingCollections] = useState(false);
+  const collectionRef = useRef(null);
   const originalBtnRef = useRef(null);
   const videoRef = useRef(null);
   const exportRef = useRef(null);
@@ -235,6 +241,41 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete, onN
       }
     }, 200);
   }, [fileUrl]);
+
+  const loadCollections = useCallback(async () => {
+    setLoadingCollections(true);
+    try {
+      const all = await listCollections();
+      setCollectionList(all);
+      setFileCollections(all.filter((c) => {
+        const ids = c.files?.map?.((f) => f.id) || [];
+        return ids.includes(file.id);
+      }).map((c) => c.id));
+    } catch { /* ignored */ } finally {
+      setLoadingCollections(false);
+    }
+  }, [file.id]);
+
+  const handleToggleCollection = useCallback(async (collectionId) => {
+    const isMember = fileCollections.includes(collectionId);
+    try {
+      if (isMember) {
+        await removeFilesFromCollection(collectionId, [file.id]);
+        setFileCollections((prev) => prev.filter((id) => id !== collectionId));
+        setCollectionList((prev) => prev.map((c) => c.id === collectionId ? { ...c, file_count: (c.file_count || 1) - 1 } : c));
+      } else {
+        await addFilesToCollection(collectionId, [file.id]);
+        setFileCollections((prev) => [...prev, collectionId]);
+        setCollectionList((prev) => prev.map((c) => c.id === collectionId ? { ...c, file_count: (c.file_count || 0) + 1 } : c));
+      }
+    } catch { /* ignored */ } finally {
+      setLoadingCollections(false);
+    }
+  }, [fileCollections, file.id]);
+
+  useEffect(() => {
+    if (showCollectionMenu) loadCollections();
+  }, [showCollectionMenu, loadCollections]);
 
   const ASPECT_RATIOS = [
     { label: "Free", value: "free" },
@@ -1186,6 +1227,33 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete, onN
                 <button className={`viewer-fav ${isFav ? "viewer-fav--active" : ""}`} onClick={handleToggleFav} title={isFav ? "Remove from favorites" : "Add to favorites"}>
                   <Heart size={15} fill={isFav ? "currentColor" : "none"} />
                 </button>
+                <div className="viewer-collection-wrap" ref={collectionRef}>
+                  <button className="viewer-btn" onClick={() => setShowCollectionMenu((p) => !p)} title="Add to collection">
+                    <FolderPlus size={15} />
+                  </button>
+                  {showCollectionMenu && (
+                    <div className="viewer-collection-menu">
+                      <div className="viewer-collection-menu__title">Collections</div>
+                      {loadingCollections ? (
+                        <div className="viewer-collection-menu__loading"><Spinner size={14} /></div>
+                      ) : collectionList.length === 0 ? (
+                        <div className="viewer-collection-menu__empty">No collections yet</div>
+                      ) : (
+                        collectionList.map((c) => (
+                          <button
+                            key={c.id}
+                            className={`viewer-collection-item ${fileCollections.includes(c.id) ? "viewer-collection-item--active" : ""}`}
+                            onClick={() => handleToggleCollection(c.id)}
+                          >
+                            <span className="viewer-collection-item__check">{fileCollections.includes(c.id) ? "\u2713" : ""}</span>
+                            <span className="viewer-collection-item__name">{c.name}</span>
+                            <span className="viewer-collection-item__count">{c.file_count}</span>
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  )}
+                </div>
                 {cacheStatus && (
                   <span className={`viewer-cache-badge viewer-cache-badge--${cacheStatus}`} title={cacheStatus === "cache" ? "Served from cache" : "Served live from server"}>
                     {cacheStatus === "cache" ? <Database size={12} /> : <Wifi size={12} />}
@@ -1246,6 +1314,7 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete, onN
                 <button className={`viewer-float-btn ${isFav ? "viewer-float-btn--active" : ""}`} onClick={handleToggleFav} title={isFav ? "Remove from favorites" : "Add to favorites"}>
                   <Heart size={16} fill={isFav ? "currentColor" : "none"} />
                 </button>
+                <button className="viewer-float-btn" onClick={() => setShowCollectionMenu((p) => !p)} title="Add to collection"><FolderPlus size={16} /></button>
                 <button className="viewer-float-btn viewer-float-btn--close" onClick={onClose} title="Close"><X size={18} /></button>
               </div>
             )}

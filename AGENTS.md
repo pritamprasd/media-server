@@ -145,6 +145,13 @@
 - **3 nutrition-based analyses**: `nutrition_breakdown` (per-serving energy/macros), `daily_values` (%DV estimates on 2000 kcal diet), `nutrient_density` (beneficial-to-concerning nutrient ratio). All require `nutritionData` with at least one `per100g` value to activate.
 - **Nutrition panel in results**: Renders a CSS grid table with 3 columns (Nutrient / Per serving / Per 100g) between the ingredient list and analysis cards. Only shows rows for detected nutrients.
 
+### Collections
+- **Many-to-many relationship**: `Collection` model via `collection_files` join table. A file can belong to multiple collections. Deleting a collection only removes the join rows, not the files.
+- **Cover image**: Optional `cover_file_id` FK on Collection. Frontend resolves to thumbnail URL via `/api/files/{id}/thumbnail`. Falls back to first file's thumbnail if no cover set.
+- **Zip download**: On-the-fly streaming via `zipfile.ZipFile` in a generator. Handles duplicate filenames by appending `_N` suffix. Skips files missing from disk.
+- **FileViewer integration**: `FolderPlus` icon button in both header toolbar and floating overlay toolbar. Opens a popover listing all collections with checkmarks for membership. Toggle via `addFilesToCollection`/`removeFilesFromCollection` API calls.
+- **Collection detail page**: `/collections/:id` route. Shows file grid with remove (X) buttons. "Add Media" modal with search-as-you-type. "Download ZIP" as direct `<a href>` link.
+
 ## Production Deployment
 - Nginx reverse proxy with HTTPS, HTTP/2 support
 - Auto-generated SSL certificates at build time

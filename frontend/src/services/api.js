@@ -416,4 +416,39 @@ export async function unhideFiles(fileIds, pin) {
   return data;
 }
 
+export async function listCollections() {
+  const { data } = await client.get("/collections");
+  return data;
+}
+
+export async function getCollection(id) {
+  const { data } = await client.get(`/collections/${id}`);
+  return data;
+}
+
+export async function createCollection(payload) {
+  const { data } = await client.post("/collections", payload);
+  return data;
+}
+
+export async function updateCollection(id, payload) {
+  const { data } = await client.put(`/collections/${id}`, payload);
+  return data;
+}
+
+export async function deleteCollection(id) {
+  const { data } = await client.delete(`/collections/${id}`);
+  return data;
+}
+
+export async function addFilesToCollection(id, fileIds) {
+  const { data } = await client.post(`/collections/${id}/files`, { file_ids: fileIds });
+  return data;
+}
+
+export async function removeFilesFromCollection(id, fileIds) {
+  const { data } = await client.delete(`/collections/${id}/files`, { data: { file_ids: fileIds } });
+  return data;
+}
+
 export default client;

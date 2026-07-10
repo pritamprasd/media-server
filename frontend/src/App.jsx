@@ -21,6 +21,8 @@ import Timeline from "./pages/Timeline";
 import ShareView from "./pages/ShareView";
 import About from "./pages/About";
 import Tools from "./pages/Tools";
+import Collections from "./pages/Collections";
+import CollectionDetail from "./pages/CollectionDetail";
 import "leaflet/dist/leaflet.css";
 import "./App.css";
 
@@ -94,6 +96,8 @@ function App() {
           <Route path="/timeline" element={<Timeline />} />
           <Route path="/about" element={<About />} />
           <Route path="/tools/*" element={<Tools />} />
+          <Route path="/collections" element={<Collections />} />
+          <Route path="/collections/:id" element={<CollectionDetail />} />
           <Route path="/view/:fileId" element={<ShareView />} />
         </Routes>
       </main>
