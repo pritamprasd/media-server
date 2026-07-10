@@ -421,6 +421,7 @@
   line-height: 1;
   border-radius: 6px;
   cursor: pointer;
+  flex-shrink: 0;
   color: var(--color-text-muted);
   flex-shrink: 0;
   box-shadow: var(--neu-flat);

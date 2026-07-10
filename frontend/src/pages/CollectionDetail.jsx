@@ -26,6 +26,7 @@ function CollectionDetail() {
   const [searching, setSearching] = useState(false);
   const [selectedIds, setSelectedIds] = useState(new Set());
   const searchTimer = useRef(null);
+  const fetchedRef = useRef(new Set());
 
   const fetchCollection = useCallback(async () => {
     setLoading(true);
@@ -33,10 +34,11 @@ function CollectionDetail() {
       const data = await getCollection(id);
       setCollection(data);
       (data.files || []).forEach((f) => {
-        if (!thumbnails[f.id]) {
+        if (!fetchedRef.current.has(f.id)) {
+          fetchedRef.current.add(f.id);
           getFileThumbnail(f.id)
             .then((t) => setThumbnails((prev) => ({ ...prev, [f.id]: t.thumbnail })))
-            .catch(() => {});
+            .catch(() => { fetchedRef.current.delete(f.id); });
         }
       });
     } catch { /* ignored */ } finally {
@@ -206,11 +208,16 @@ function CollectionDetail() {
               className="cdetail__card"
               onClick={() => openViewer(file)}
             >
-              <img
-                className="cdetail__thumb"
-                src={thumbnails[file.id] || `/api/files/${file.id}/serve`}
-                alt={file.filename}
-              />
+              <div className="cdetail__thumb-wrap">
+                <img
+                  className="cdetail__thumb"
+                  src={thumbnails[file.id] || `/api/files/${file.id}/serve`}
+                  alt={file.filename}
+                />
+                {file.mime_type && file.mime_type.startsWith("video/") && (
+                  <span className="cdetail__badge">Video</span>
+                )}
+              </div>
               <div className="cdetail__card-info">
                 <span className="cdetail__card-name">{file.filename}</span>
                 <button

@@ -1,5 +1,6 @@
 .cmb-wrap {
   position: relative;
+  flex-shrink: 0;
 }
 
 .cmb-btn {
@@ -92,6 +93,14 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.cmb-item__count {
+  font-size: 0.625rem;
+  color: var(--color-text-muted);
+  flex-shrink: 0;
+  min-width: 1rem;
+  text-align: right;
 }
 
 .cmb-create {

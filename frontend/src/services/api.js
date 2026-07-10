@@ -416,8 +416,10 @@ export async function unhideFiles(fileIds, pin) {
   return data;
 }
 
-export async function listCollections() {
-  const { data } = await client.get("/collections");
+export async function listCollections(fileId) {
+  const params = {};
+  if (fileId) params.file_id = fileId;
+  const { data } = await client.get("/collections", { params });
   return data;
 }
 

@@ -9,7 +9,6 @@ import "./CollectionMenuButton.css";
 function CollectionMenuButton({ fileId, className = "" }) {
   const [open, setOpen] = useState(false);
   const [collectionList, setCollectionList] = useState([]);
-  const [fileCollections, setFileCollections] = useState([]);
   const [loading, setLoading] = useState(false);
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState("");
@@ -18,20 +17,8 @@ function CollectionMenuButton({ fileId, className = "" }) {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const all = await listCollections();
+      const all = await listCollections(fileId);
       setCollectionList(all);
-      const memberIds = [];
-      for (const c of all) {
-        if (c.file_count > 0) {
-          try {
-            const detail = await import("../services/api").then((m) => m.getCollection(c.id));
-            if ((detail.files || []).some((f) => f.id === fileId)) {
-              memberIds.push(c.id);
-            }
-          } catch { /* ignored */ }
-        }
-      }
-      setFileCollections(memberIds);
     } catch { /* ignored */ } finally {
       setLoading(false);
     }
@@ -53,16 +40,15 @@ function CollectionMenuButton({ fileId, className = "" }) {
   }, [open]);
 
   const handleToggle = async (collectionId) => {
-    const isMember = fileCollections.includes(collectionId);
+    const c = collectionList.find((x) => x.id === collectionId);
+    const isMember = c?.is_member;
     try {
       if (isMember) {
         await removeFilesFromCollection(collectionId, [fileId]);
-        setFileCollections((prev) => prev.filter((id) => id !== collectionId));
-        setCollectionList((prev) => prev.map((c) => c.id === collectionId ? { ...c, file_count: Math.max(0, (c.file_count || 1) - 1) } : c));
+        setCollectionList((prev) => prev.map((x) => x.id === collectionId ? { ...x, is_member: false, file_count: Math.max(0, (x.file_count || 1) - 1) } : x));
       } else {
         await addFilesToCollection(collectionId, [fileId]);
-        setFileCollections((prev) => [...prev, collectionId]);
-        setCollectionList((prev) => prev.map((c) => c.id === collectionId ? { ...c, file_count: (c.file_count || 0) + 1 } : c));
+        setCollectionList((prev) => prev.map((x) => x.id === collectionId ? { ...x, is_member: true, file_count: (x.file_count || 0) + 1 } : x));
       }
     } catch { /* ignored */ }
   };
@@ -74,8 +60,7 @@ function CollectionMenuButton({ fileId, className = "" }) {
     try {
       const c = await createCollection({ name });
       await addFilesToCollection(c.id, [fileId]);
-      setCollectionList((prev) => [...prev, { ...c, file_count: 1 }]);
-      setFileCollections((prev) => [...prev, c.id]);
+      setCollectionList((prev) => [...prev, { ...c, file_count: 1, is_member: true }]);
       setNewName("");
     } catch { /* ignored */ } finally {
       setCreating(false);
@@ -98,11 +83,12 @@ function CollectionMenuButton({ fileId, className = "" }) {
             collectionList.map((c) => (
               <button
                 key={c.id}
-                className={`cmb-item ${fileCollections.includes(c.id) ? "cmb-item--active" : ""}`}
+                className={`cmb-item ${c.is_member ? "cmb-item--active" : ""}`}
                 onClick={() => handleToggle(c.id)}
               >
-                <span className="cmb-item__check">{fileCollections.includes(c.id) ? "\u2713" : ""}</span>
+                <span className="cmb-item__check">{c.is_member ? "\u2713" : ""}</span>
                 <span className="cmb-item__name">{c.name}</span>
+                <span className="cmb-item__count">{c.file_count || 0}</span>
               </button>
             ))
           )}
@@ -112,10 +98,10 @@ function CollectionMenuButton({ fileId, className = "" }) {
               type="text"
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
-              placeholder="New collection name..."
+              placeholder="New collection..."
               onKeyDown={(e) => { if (e.key === "Enter") handleCreate(); }}
             />
-            <button className="cmb-create__btn" onClick={handleCreate} disabled={creating || !newName.trim()} title="Create collection">
+            <button className="cmb-create__btn" onClick={handleCreate} disabled={creating || !newName.trim()} title="Create and add">
               {creating ? <Spinner size={10} /> : <Plus size={12} />}
             </button>
           </div>

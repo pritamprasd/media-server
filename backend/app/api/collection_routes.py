@@ -13,13 +13,22 @@ from app.models.collection import Collection, collection_files
 
 @api_bp.route("/collections", methods=["GET"])
 def list_collections():
+    file_id = request.args.get("file_id", type=int)
     collections = Collection.query.order_by(Collection.updated_at.desc()).all()
+    member_ids = set()
+    if file_id:
+        member_ids = {
+            cid for (cid,) in db.session.query(collection_files.c.collection_id)
+            .filter(collection_files.c.file_id == file_id)
+            .all()
+        }
     result = []
     for c in collections:
         d = c.to_dict()
         d["file_count"] = db.session.query(func.count()).select_from(collection_files).filter(
             collection_files.c.collection_id == c.id
         ).scalar()
+        d["is_member"] = c.id in member_ids
         if c.cover_file_id:
             d["cover_thumbnail"] = f"/api/files/{c.cover_file_id}/thumbnail"
         else:

@@ -961,8 +961,11 @@
     gap: 0.375rem;
   }
 
-  /* Always show actions button on mobile (no hover) */
+  /* Always show action buttons on mobile (no hover) */
   .explorer__tile--grid .explorer__tile-actions {
+    opacity: 1;
+  }
+  .explorer__tile--grid .explorer__tile-cmb {
     opacity: 1;
   }
 
