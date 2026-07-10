@@ -671,6 +671,26 @@
   opacity: 1;
 }
 
+/* Collection button on explorer tiles */
+.explorer__tile-cmb {
+  position: absolute;
+  bottom: 6px;
+  right: 60px;
+  opacity: 0;
+  transition: opacity 0.12s;
+  z-index: 2;
+}
+
+.explorer__tile--grid:hover .explorer__tile-cmb {
+  opacity: 1;
+}
+
+.explorer__tile--list .explorer__tile-cmb {
+  position: static;
+  opacity: 1;
+  flex-shrink: 0;
+}
+
 .explorer__tile-actions:hover {
   background: var(--color-surface-light);
   color: var(--color-text);

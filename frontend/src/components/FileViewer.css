@@ -1622,3 +1622,45 @@
   color: var(--color-text-muted);
   flex-shrink: 0;
 }
+
+.viewer-collection-create {
+  display: flex;
+  gap: 0.25rem;
+  padding: 0.375rem 0.5rem;
+  border-top: 1px solid var(--color-border);
+  margin-top: 0.25rem;
+}
+
+.viewer-collection-create__input {
+  flex: 1;
+  padding: 0.25rem 0.5rem;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  color: var(--color-text);
+  font-size: 0.6875rem;
+  outline: none;
+  min-width: 0;
+}
+
+.viewer-collection-create__input:focus {
+  border-color: var(--color-primary);
+}
+
+.viewer-collection-create__btn {
+  background: var(--color-primary);
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 0.25rem 0.375rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  transition: opacity 0.15s;
+}
+
+.viewer-collection-create__btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}

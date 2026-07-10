@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { Heart } from "lucide-react";
 import { listFavorites, toggleFavorite, getFileThumbnail } from "../services/api";
 import FileViewer from "../components/FileViewer";
+import CollectionMenuButton from "../components/CollectionMenuButton";
 import Spinner from "../components/Spinner";
 import "./Favorites.css";
 
@@ -113,6 +114,7 @@ function Favorites() {
                 >
                   <Heart size={16} fill="currentColor" />
                 </button>
+                <CollectionMenuButton fileId={file.id} />
               </div>
             </div>
           ))}

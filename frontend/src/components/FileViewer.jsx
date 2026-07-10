@@ -24,7 +24,7 @@ import {
   updateFileMetadata,
   toggleHidden,
   unhideFiles,
-  listCollections, addFilesToCollection, removeFilesFromCollection,
+  listCollections, addFilesToCollection, removeFilesFromCollection, createCollection,
 } from "../services/api";
 import Spinner from "./Spinner";
 import { getPref, setPref } from "../services/db";
@@ -207,6 +207,8 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete, onN
   const [collectionList, setCollectionList] = useState([]);
   const [fileCollections, setFileCollections] = useState([]);
   const [loadingCollections, setLoadingCollections] = useState(false);
+  const [newCollName, setNewCollName] = useState("");
+  const [creatingCollection, setCreatingCollection] = useState(false);
   const collectionRef = useRef(null);
   const originalBtnRef = useRef(null);
   const videoRef = useRef(null);
@@ -272,6 +274,21 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete, onN
       setLoadingCollections(false);
     }
   }, [fileCollections, file.id]);
+
+  const handleCreateCollection = useCallback(async () => {
+    const name = newCollName.trim();
+    if (!name) return;
+    setCreatingCollection(true);
+    try {
+      const c = await createCollection({ name });
+      await addFilesToCollection(c.id, [file.id]);
+      setCollectionList((prev) => [...prev, { ...c, file_count: 1 }]);
+      setFileCollections((prev) => [...prev, c.id]);
+      setNewCollName("");
+    } catch { /* ignored */ } finally {
+      setCreatingCollection(false);
+    }
+  }, [newCollName, file.id]);
 
   useEffect(() => {
     if (showCollectionMenu) loadCollections();
@@ -1251,6 +1268,24 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete, onN
                           </button>
                         ))
                       )}
+                      <div className="viewer-collection-create">
+                        <input
+                          className="viewer-collection-create__input"
+                          type="text"
+                          value={newCollName}
+                          onChange={(e) => setNewCollName(e.target.value)}
+                          placeholder="New collection..."
+                          onKeyDown={(e) => { if (e.key === "Enter") handleCreateCollection(); }}
+                        />
+                        <button
+                          className="viewer-collection-create__btn"
+                          onClick={handleCreateCollection}
+                          disabled={creatingCollection || !newCollName.trim()}
+                          title="Create and add"
+                        >
+                          {creatingCollection ? <Spinner size={10} /> : <FolderPlus size={12} />}
+                        </button>
+                      </div>
                     </div>
                   )}
                 </div>

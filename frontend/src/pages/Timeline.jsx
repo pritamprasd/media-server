@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { Clock, Search, Image, X, Calendar, User } from "lucide-react";
 import Spinner from "../components/Spinner";
 import FileViewer from "../components/FileViewer";
+import CollectionMenuButton from "../components/CollectionMenuButton";
 import { listPersons, getPersonTimeline } from "../services/api";
 import "./Timeline.css";
 
@@ -390,6 +391,7 @@ function Timeline() {
                     )}
                     <div className="timeline-thumb-count">{point.count}</div>
                   </div>
+                  <CollectionMenuButton fileId={point.file.id} className="timeline-cmb" />
                   <div className="timeline-item-info">
                     <span className="timeline-item-date">
                       {formatBucketLabel(point.start, timeframe)}

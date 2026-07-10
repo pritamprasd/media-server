@@ -1,0 +1,137 @@
+.cmb-wrap {
+  position: relative;
+}
+
+.cmb-btn {
+  background: var(--color-surface);
+  border: none;
+  color: var(--color-text-muted);
+  padding: 0.25rem;
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  box-shadow: var(--neu-flat);
+  transition: all 0.15s;
+  line-height: 1;
+}
+
+.cmb-btn:hover {
+  color: var(--color-primary);
+  box-shadow: var(--neu-raised-sm);
+}
+
+.cmb-btn:active {
+  box-shadow: var(--neu-inset-sm);
+}
+
+.cmb-menu {
+  position: absolute;
+  bottom: 100%;
+  right: 0;
+  margin-bottom: 0.375rem;
+  background: var(--color-surface);
+  border-radius: var(--radius);
+  box-shadow: var(--neu-raised);
+  min-width: 200px;
+  max-height: 260px;
+  overflow-y: auto;
+  z-index: 2000;
+  padding: 0.375rem 0;
+}
+
+.cmb-menu__title {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 0.25rem 0.625rem 0.125rem;
+}
+
+.cmb-menu__status,
+.cmb-menu__empty {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  padding: 0.375rem 0.625rem;
+}
+
+.cmb-item {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  width: 100%;
+  padding: 0.3125rem 0.625rem;
+  background: none;
+  border: none;
+  color: var(--color-text);
+  font-size: 0.75rem;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.1s;
+}
+
+.cmb-item:hover {
+  background: var(--neu-flat);
+}
+
+.cmb-item--active {
+  color: var(--color-primary);
+}
+
+.cmb-item__check {
+  width: 0.875rem;
+  text-align: center;
+  font-size: 0.75rem;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.cmb-item__name {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cmb-create {
+  display: flex;
+  gap: 0.25rem;
+  padding: 0.375rem 0.5rem;
+  border-top: 1px solid var(--color-border);
+  margin-top: 0.25rem;
+}
+
+.cmb-create__input {
+  flex: 1;
+  padding: 0.25rem 0.5rem;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  color: var(--color-text);
+  font-size: 0.6875rem;
+  outline: none;
+  min-width: 0;
+}
+
+.cmb-create__input:focus {
+  border-color: var(--color-primary);
+}
+
+.cmb-create__btn {
+  background: var(--color-primary);
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 0.25rem 0.375rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  transition: opacity 0.15s;
+}
+
+.cmb-create__btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}

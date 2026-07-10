@@ -147,30 +147,29 @@ def download_collection_zip(collection_id):
     if not files:
         return jsonify({"error": "Collection is empty"}), 400
 
-    def generate():
-        buf = io.BytesIO()
-        with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
-            name_counts = {}
-            for f in files:
-                if not os.path.isfile(f.file_path):
-                    continue
-                arcname = f.filename
-                if arcname in name_counts:
-                    name_counts[arcname] += 1
-                    base, ext = os.path.splitext(arcname)
-                    arcname = f"{base}_{name_counts[arcname]}{ext}"
-                else:
-                    name_counts[arcname] = 0
-                zf.write(f.file_path, arcname)
-            buf.seek(0)
-            yield buf.read()
-        buf.close()
+    zip_buf = io.BytesIO()
+    with zipfile.ZipFile(zip_buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        name_counts = {}
+        for f in files:
+            if not os.path.isfile(f.file_path):
+                continue
+            arcname = f.filename
+            if arcname in name_counts:
+                name_counts[arcname] += 1
+                base, ext = os.path.splitext(arcname)
+                arcname = f"{base}_{name_counts[arcname]}{ext}"
+            else:
+                name_counts[arcname] = 0
+            zf.write(f.file_path, arcname)
+    zip_data = zip_buf.getvalue()
+    zip_buf.close()
 
     safe_name = "".join(c if c.isalnum() or c in ("-", "_") else "_" for c in collection.name)
     return Response(
-        generate(),
+        zip_data,
         mimetype="application/zip",
         headers={
             "Content-Disposition": f'attachment; filename="{safe_name}.zip"',
+            "Content-Length": str(len(zip_data)),
         },
     )

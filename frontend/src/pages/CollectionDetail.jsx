@@ -18,6 +18,7 @@ function CollectionDetail() {
   const [loading, setLoading] = useState(true);
   const [thumbnails, setThumbnails] = useState({});
   const [viewerFile, setViewerFile] = useState(null);
+  const [viewerIndex, setViewerIndex] = useState(-1);
   const viewerOpenRef = useRef(false);
   const [showAddMedia, setShowAddMedia] = useState(false);
   const [addSearch, setAddSearch] = useState("");
@@ -62,14 +63,35 @@ function CollectionDetail() {
       window.history.pushState({ viewer: true }, "");
     }
     setViewerFile(file);
-  }, []);
+    const idx = (collection?.files || []).findIndex((f) => f.id === file.id);
+    setViewerIndex(idx);
+  }, [collection]);
 
   const closeViewer = useCallback(() => {
     if (viewerOpenRef.current) {
       viewerOpenRef.current = false;
       setViewerFile(null);
+      setViewerIndex(-1);
     }
   }, []);
+
+  const navigatePrev = useCallback(() => {
+    const files = collection?.files || [];
+    if (viewerIndex > 0) {
+      const prev = files[viewerIndex - 1];
+      setViewerFile(prev);
+      setViewerIndex(viewerIndex - 1);
+    }
+  }, [collection, viewerIndex]);
+
+  const navigateNext = useCallback(() => {
+    const files = collection?.files || [];
+    if (viewerIndex < files.length - 1) {
+      const next = files[viewerIndex + 1];
+      setViewerFile(next);
+      setViewerIndex(viewerIndex + 1);
+    }
+  }, [collection, viewerIndex]);
 
   const handleRemoveFiles = async (fileIds) => {
     await removeFilesFromCollection(id, fileIds);
@@ -268,6 +290,8 @@ function CollectionDetail() {
             handleRemoveFiles([fileId]);
             closeViewer();
           }}
+          onNavigatePrev={viewerIndex > 0 ? navigatePrev : undefined}
+          onNavigateNext={collection && viewerIndex < (collection.files || []).length - 1 ? navigateNext : undefined}
         />
       )}
     </div>

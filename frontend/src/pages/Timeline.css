@@ -647,3 +647,22 @@
     flex-direction: row;
   }
 }
+
+/* Collection button on timeline thumbnails */
+.timeline-cmb {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  z-index: 3;
+}
+
+.timeline-cmb .cmb-menu {
+  bottom: auto;
+  top: 100%;
+  margin-bottom: 0;
+  margin-top: 0.375rem;
+}
+
+.timeline-item-content {
+  position: relative;
+}

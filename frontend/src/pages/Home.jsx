@@ -4,6 +4,7 @@ import { Search, List, Image, Video, Sparkles, FolderTree, Folder, FolderOpen, C
 import { listFiles, listDirectories, toggleFavorite as toggleFavApi, listTags, toggleHidden } from "../services/api";
 import { getPref, setPref } from "../services/db";
 import FileViewer from "../components/FileViewer";
+import CollectionMenuButton from "../components/CollectionMenuButton";
 import Spinner from "../components/Spinner";
 import "./Home.css";
 
@@ -654,6 +655,7 @@ function Home() {
                     >
                       <EyeOff size={14} />
                     </button>
+                    <CollectionMenuButton fileId={file.id} />
                   </div>
                 </div>
               ))}

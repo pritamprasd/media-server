@@ -13,6 +13,7 @@ import {
 } from "../services/api";
 import { getPref, setPref } from "../services/db";
 import FileViewer from "../components/FileViewer";
+import CollectionMenuButton from "../components/CollectionMenuButton";
 import "./MediaExplorer.css";
 
 const FOLDER_ICONS = {
@@ -732,6 +733,7 @@ function MediaExplorer() {
               <button className="explorer__tile-actions" onClick={(e) => handleShowActions(e, it)} title="Actions">
                 <MoreVertical size={14} />
               </button>
+              <CollectionMenuButton fileId={it.id} className="explorer__tile-cmb" />
               {viewMode === "list" && (
                 <div className="explorer__tile-meta">
                   {formatSize(it.size)}{it.created_at ? ` · ${formatDate(it.created_at)}` : ""}{it.nickname ? ` · ${it.nickname}` : ""}
