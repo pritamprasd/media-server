@@ -139,6 +139,14 @@
 - **Adding a tool**: just create the `.js` or `.html` file in `frontend/src/tools/` and re-build. No route, import, or config changes needed.
 - **OCR preprocessing**: The Ingredient Scanner applies canvas-based preprocessing before Tesseract.js: grayscale conversion, unsharp mask (0.8 strength), binarization, and upscaling to 1200px min dimension. All in `preprocessImageForOCR` before `init`.
 
+### Photo Editor Tool
+- **FE-only image editor**: `frontend/src/tools/photo-editor.js` — upload, edit, and download images entirely in the browser with no backend processing.
+- **Architecture mirrors FileViewer.jsx editor**: Same `computePreviewFilter()` computation (brightness/contrast/saturation/vibrance/warmth/tint/clarity/dehaze/exposure/highlights/shadows/blacks/whites/grayscale/colorize), same 9 filter presets (FILTERS array), same crop coordinate system (normalized0-1), same rotate/flip operations array, same selective color algorithm (Euclidean distance in RGB space), same histogram (luminance bins with HSL-colored bars), same prominent color extraction (quantize→merge→sort).
+- **Canvas export**: Renders final image to `<canvas>` via two-pass approach: (1) temp canvas with `ctx.filter` + rotation/flip transform, (2) crop via `drawImage` source rect, then post-processing: selective color pixel manipulation, grain random noise, vignette radial gradient, colorize `globalCompositeOperation: 'color'` overlay. Exports as JPEG/PNG/WebP via `canvas.toBlob()`.
+- **No save-as**: No backend API calls. All processing in FE. Download only.
+- **7 tabs**: Filters (preset grid with thumbnail previews), Adjust (7 sliders), Light (5 sliders), Effects (vignette/grain/colorize/grayscale), Details (clarity/dehaze), Colors (selective color picker with tolerance), Crop (aspect ratios + rotate/flip + drag handles).
+- **Crop preview**: CSS `clip-path: inset()` + `box-shadow: 0 0 0 9999px` overlay dimming + 4 corner drag handles with aspect ratio locking. Same mouse event handling as FileViewer.jsx crop.
+
 ### Ingredient Scanner — Nutrition Facts
 - **Auto-detect from OCR text**: `runAnalysis()` searches for `nutrition (information|facts|label|values?|data)` in the OCR text and splits it: text before is treated as ingredients, text from the match onwards as nutrition data. Both sections parsed independently.
 - **Indian FSSAI format**: `parseNutritionFacts()` handles dual-column (per serving + per 100g) and single-column (per 100g) Indian nutrition labels. Parses 11 nutrients via regex line-by-line. kJ→kcal conversion via divide by 4.184.
