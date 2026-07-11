@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { NavLink } from "react-router-dom";
 import { useTheme } from "../contexts/ThemeContext";
 import {
-  House, FileUp, FolderOpen, Heart, Upload, Compass,
+  House, FileUp, Heart, Upload, Compass,
   CopyCheck, BarChart3, Settings, MapPin, MapPinned,
   Scan, Info, Puzzle, Clock, Sun, Moon, Menu, X, GripVertical, Eye, FolderGit2,
 } from "lucide-react";
@@ -13,8 +13,7 @@ const HIDDEN_LINK = { to: "/hidden", label: "Hidden", icon: Eye };
 
 const DEFAULT_LINKS = [
   { to: "/", label: "Home", icon: House, end: true },
-  { to: "/import", label: "Import", icon: FileUp },
-  { to: "/gallery", label: "Imported Media", icon: FolderOpen },
+  { to: "/import", label: "Import Media", icon: FileUp },
   { to: "/favorites", label: "Favorites", icon: Heart },
   { to: "/upload", label: "Upload", icon: Upload },
   { to: "/explorer", label: "Explorer", icon: Compass },

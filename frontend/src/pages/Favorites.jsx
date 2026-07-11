@@ -85,7 +85,7 @@ function Favorites() {
 
       {!loading && files.length === 0 && (
         <p className="favorites__empty">
-          No favorites yet. Open a file in the Gallery and click the Heart icon to add it.
+          No favorites yet. Open a file in the Import Media tab and click the Heart icon to add it.
         </p>
       )}
 

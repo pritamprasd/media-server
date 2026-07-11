@@ -293,6 +293,13 @@ function CollectionDetail() {
         <FileViewer
           file={viewerFile}
           onClose={closeViewer}
+          onEditSave={async (newFile) => {
+            setViewerFile(newFile);
+            try {
+              await addFilesToCollection(id, [newFile.id]);
+              fetchCollection();
+            } catch { /* ignored */ }
+          }}
           onDelete={(fileId) => {
             handleRemoveFiles([fileId]);
             closeViewer();

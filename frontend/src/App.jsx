@@ -7,7 +7,6 @@ import Spinner from "./components/Spinner";
 import Home from "./pages/Home";
 import Hidden from "./pages/Hidden";
 import Importer from "./pages/Importer";
-import Gallery from "./pages/Gallery";
 import Favorites from "./pages/Favorites";
 import Duplicates from "./pages/Duplicates";
 import Upload from "./pages/Upload";
@@ -44,11 +43,19 @@ function App() {
     };
     const onInstalled = () => setInstallAvailable(false);
 
+    const onHaptic = (e) => {
+      if (navigator.vibrate && e.target.closest("button, a, input[type='checkbox'], input[type='radio'], [role='button']")) {
+        navigator.vibrate(10);
+      }
+    };
+
     window.addEventListener("beforeinstallprompt", onBeforeInstall);
     window.addEventListener("appinstalled", onInstalled);
+    document.addEventListener("click", onHaptic);
     return () => {
       window.removeEventListener("beforeinstallprompt", onBeforeInstall);
       window.removeEventListener("appinstalled", onInstalled);
+      document.removeEventListener("click", onHaptic);
     };
   }, []);
 
@@ -83,7 +90,6 @@ function App() {
           />
           <Route path="/hidden" element={<Hidden />} />
           <Route path="/import" element={<Importer />} />
-          <Route path="/gallery" element={<Gallery />} />
           <Route path="/favorites" element={<Favorites />} />
           <Route path="/duplicates" element={<Duplicates />} />
           <Route path="/upload" element={<Upload />} />

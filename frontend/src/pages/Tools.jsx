@@ -1,13 +1,43 @@
-import { useMemo } from "react";
+import { useMemo, useState, useEffect, useCallback } from "react";
 import { useNavigate, useParams, Routes, Route } from "react-router-dom";
-import { Puzzle } from "lucide-react";
+import { Puzzle, Pin } from "lucide-react";
 import { getTools } from "../tools/index";
+import { getPref, setPref } from "../services/db";
 import ToolViewer from "../components/ToolViewer";
 import "./Tools.css";
 
+const PINNED_KEY = "pinnedTools";
+
 function ToolsGrid() {
   const navigate = useNavigate();
-  const tools = useMemo(() => getTools(), []);
+  const allTools = useMemo(() => getTools(), []);
+  const [pinned, setPinned] = useState(() => new Set());
+
+  useEffect(() => {
+    getPref(PINNED_KEY, []).then((ids) => setPinned(new Set(ids)));
+  }, []);
+
+  const togglePin = useCallback((id, e) => {
+    e.stopPropagation();
+    setPinned((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      setPref(PINNED_KEY, [...next]);
+      return next;
+    });
+  }, []);
+
+  const tools = useMemo(() => {
+    const pinnedTools = [];
+    const unpinnedTools = [];
+    for (const t of allTools) {
+      (pinned.has(t.id) ? pinnedTools : unpinnedTools).push(t);
+    }
+    pinnedTools.sort((a, b) => a.name.localeCompare(b.name));
+    unpinnedTools.sort((a, b) => a.name.localeCompare(b.name));
+    return [...pinnedTools, ...unpinnedTools];
+  }, [allTools, pinned]);
 
   return (
     <div className="tools">
@@ -22,7 +52,7 @@ function ToolsGrid() {
         {tools.map((tool) => (
           <button
             key={tool.id}
-            className="tools__tile"
+            className={`tools__tile${pinned.has(tool.id) ? " tools__tile--pinned" : ""}`}
             onClick={() => navigate(`/tools/${tool.id}`)}
           >
             <div className="tools__tile-thumb">
@@ -33,6 +63,13 @@ function ToolsGrid() {
               ) : (
                 <span className="tools__tile-type" style={{ background: "#3a1f6b" }}>JS</span>
               )}
+              <button
+                className={`tools__pin${pinned.has(tool.id) ? " tools__pin--active" : ""}`}
+                onClick={(e) => togglePin(tool.id, e)}
+                title={pinned.has(tool.id) ? "Unpin" : "Pin to top"}
+              >
+                <Pin size={14} />
+              </button>
             </div>
             <div className="tools__tile-info">
               <span className="tools__tile-name">{tool.name}</span>

@@ -11,19 +11,20 @@ import "./Settings.css";
 
 const TABS = [
   { path: "/", label: "Home" },
-  { path: "/import", label: "Import" },
-  { path: "/gallery", label: "Imported Media" },
+  { path: "/import", label: "Import Media" },
   { path: "/explorer", label: "Explorer" },
   { path: "/favorites", label: "Favorites" },
   { path: "/upload", label: "Upload" },
   { path: "/map", label: "Map" },
   { path: "/locations", label: "Locations" },
   { path: "/faces", label: "Faces" },
+  { path: "/collections", label: "Collections" },
+  { path: "/timeline", label: "Timeline" },
   { path: "/duplicates", label: "Duplicates" },
   { path: "/statistics", label: "Statistics" },
   { path: "/tools", label: "Tools" },
-  { path: "/about", label: "About" },
   { path: "/settings", label: "Settings" },
+  { path: "/about", label: "About" },
 ];
 
 const DEFAULT_IMAGE_TABS = ["filters", "adjust", "light", "effects", "details", "colors", "info", "crop"];

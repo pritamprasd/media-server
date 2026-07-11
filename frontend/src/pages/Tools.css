@@ -57,6 +57,44 @@
   box-shadow: var(--neu-inset-sm);
 }
 
+.tools__tile--pinned {
+  border-color: var(--color-primary);
+}
+
+.tools__pin {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(0, 0, 0, 0.5);
+  color: var(--color-text-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s, background 0.15s, color 0.15s;
+  padding: 0;
+}
+
+.tools__tile:hover .tools__pin {
+  opacity: 1;
+}
+
+.tools__pin--active {
+  opacity: 1;
+  color: var(--color-primary);
+  background: rgba(0, 0, 0, 0.7);
+}
+
+.tools__pin:hover {
+  background: rgba(0, 0, 0, 0.7);
+  color: var(--color-primary);
+}
+
 .tools__tile-thumb {
   height: 100px;
   display: flex;

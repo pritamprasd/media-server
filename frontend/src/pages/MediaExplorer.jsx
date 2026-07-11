@@ -56,6 +56,7 @@ function MediaExplorer() {
   const [showScrollTop, setShowScrollTop] = useState(false);
   const [folderStyles, setFolderStyles] = useState({});
   const [iconPicker, setIconPicker] = useState(null);
+  const [thumbSize, setThumbSize] = useState(160);
   const inputRef = useRef(null);
   const fileInputRef = useRef(null);
   const folderInputRef = useRef(null);
@@ -107,6 +108,7 @@ function MediaExplorer() {
     loadFavorites();
     getPref("nickname", "").then((v) => setNickname(v));
     getPref("explorer_folder_styles", {}).then((v) => setFolderStyles(v || {}));
+    getPref("explorerThumbSize", 160).then((v) => setThumbSize(v || 160));
     listNicknames()
       .then((d) => setNicknames(d.nicknames || []))
       .catch(() => {});
@@ -120,6 +122,12 @@ function MediaExplorer() {
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, [showNewMenu]);
+
+  const handleThumbSizeChange = (e) => {
+    const val = Number(e.target.value);
+    setThumbSize(val);
+    setPref("explorerThumbSize", val);
+  };
 
   const filtered = useMemo(() => {
     const q = searchQuery.toLowerCase().trim();
@@ -558,6 +566,19 @@ function MediaExplorer() {
             title={viewMode === "grid" ? "List view" : "Grid view"}>
             {viewMode === "grid" ? <List size={16} /> : <Grid3X3 size={16} />}
           </button>
+          {viewMode === "grid" && (
+            <div className="explorer__thumb-slider" onClick={(e) => e.stopPropagation()}>
+              <input
+                type="range"
+                min={80}
+                max={300}
+                value={thumbSize}
+                onChange={handleThumbSizeChange}
+                className="explorer__thumb-range"
+                title={`Thumbnail size: ${thumbSize}px`}
+              />
+            </div>
+          )}
           <div className="explorer__new-wrap" ref={newMenuRef}>
             <button className="explorer__new-btn" onClick={(e) => { e.stopPropagation(); setShowNewMenu((v) => !v); }}>
               <Plus size={16} /> New <ChevronDown size={12} />
@@ -639,7 +660,10 @@ function MediaExplorer() {
         </div>
       )}
 
-      <div className={`explorer__items ${viewMode === "grid" ? "explorer__items--grid" : "explorer__items--list"}`}>
+      <div
+        className={`explorer__items ${viewMode === "grid" ? "explorer__items--grid" : "explorer__items--list"}`}
+        style={viewMode === "grid" ? { "--thumb-size": `${thumbSize}px` } : undefined}
+      >
         {filtered.length === 0 && (
           <div className="explorer__empty">
             {searchQuery ? `No results for "${searchQuery}"` : "This folder is empty"}
