@@ -32,6 +32,9 @@ fi
 
 cp "$CERT_DIR/ca.crt" /usr/share/nginx/html/ca.crt
 
+export SERVER_HOSTNAME
+envsubst '${SERVER_HOSTNAME}' < /etc/nginx/conf.d/default.conf.template > /etc/nginx/conf.d/default.conf
+
 echo ""
 echo "========================================================"
 echo "  To install this PWA on your phone:"
