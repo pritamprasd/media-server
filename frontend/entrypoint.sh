@@ -19,11 +19,13 @@ if [ ! -f "$CERT_DIR/ca.crt" ] || [ ! -f "$CERT_DIR/$SERVER_HOSTNAME.crt" ]; the
       -out "$CERT_DIR/$SERVER_HOSTNAME.csr" \
       -subj "/CN=$SERVER_HOSTNAME"
 
+    echo "subjectAltName=DNS:$SERVER_HOSTNAME,DNS:$SERVER_HOSTNAME.local,DNS:localhost,IP:127.0.0.1" > "$CERT_DIR/extfile.cnf"
     openssl x509 -req -in "$CERT_DIR/$SERVER_HOSTNAME.csr" \
       -CA "$CERT_DIR/ca.crt" -CAkey "$CERT_DIR/ca.key" \
       -CAcreateserial -out "$CERT_DIR/$SERVER_HOSTNAME.crt" \
       -days 3650 \
-      -extfile <(echo "subjectAltName=DNS:$SERVER_HOSTNAME,DNS:$SERVER_HOSTNAME.local,DNS:localhost,IP:127.0.0.1")
+      -extfile "$CERT_DIR/extfile.cnf"
+    rm -f "$CERT_DIR/extfile.cnf"
 
     rm -f "$CERT_DIR/$SERVER_HOSTNAME.csr"
 
