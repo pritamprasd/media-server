@@ -265,6 +265,12 @@ function Home() {
       setFiles((prev) => (p === 1 ? data.files : [...prev, ...data.files]));
       setHasMore(p < data.pages);
       if (p === 1) setTotalCount(data.total);
+      if (data.files?.length > 0 && navigator.serviceWorker?.controller) {
+        const thumbs = data.files.filter((f) => f.thumbnail).map((f) => f.thumbnail);
+        if (thumbs.length > 0) {
+          navigator.serviceWorker.controller.postMessage({ type: "PRECACHE_URLS", urls: thumbs });
+        }
+      }
     } catch {
     } finally {
       setLoading(false);

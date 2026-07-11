@@ -48,6 +48,9 @@ function Favorites() {
         try {
           const t = await getFileThumbnail(f.id);
           setThumbnails((prev) => ({ ...prev, [f.id]: t.thumbnail }));
+          if (t.thumbnail && navigator.serviceWorker?.controller) {
+            navigator.serviceWorker.controller.postMessage({ type: "PRECACHE_URLS", urls: [t.thumbnail] });
+          }
         } catch {
         }
       });

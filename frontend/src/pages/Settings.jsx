@@ -5,7 +5,7 @@ import {
   ArrowUp, ArrowDown, RotateCcw, Check, Wifi, WifiOff,
   Eye, EyeOff, Lock, Unlock,
 } from "lucide-react";
-import { getPref, setPref, clearAllPrefs } from "../services/db";
+import { getPref, setPref, clearAllPrefs, getStorageEstimate } from "../services/db";
 import { setAirplaneMode } from "../services/api";
 import "./Settings.css";
 
@@ -64,6 +64,7 @@ function Settings() {
   const [hiddenPinInput, setHiddenPinInput] = useState("");
   const [hiddenUnlocked, setHiddenUnlocked] = useState(false);
   const [hiddenPinError, setHiddenPinError] = useState(false);
+  const [storageUsed, setStorageUsed] = useState(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -82,6 +83,7 @@ function Settings() {
       setAirplaneModeState(v);
       setAirplaneMode(v);
     });
+    getStorageEstimate().then(setStorageUsed);
     const saved = sessionStorage.getItem("hidden_pin_unlocked");
     setHiddenUnlocked(saved === "true");
   }, []);
@@ -178,6 +180,8 @@ function Settings() {
       } else {
         setCacheStatus("no-sw");
       }
+      setStorageUsed(null);
+      getStorageEstimate().then(setStorageUsed);
     } catch {
       setCacheStatus("no-sw");
     }
@@ -350,8 +354,19 @@ function Settings() {
       <div className="settings__card">
         <h3 className="settings__label">Offline Cache</h3>
         <p className="settings__desc">
-          Clear all cached files and data. The app will re-fetch everything from the server on next request.
+          All browsed API data and thumbnails are cached automatically (max 5 GB).
+          Clear all cached files and data below — the app will re-fetch everything on next visit.
         </p>
+        {storageUsed && (
+          <div className="settings__cache-usage">
+            <div className="settings__cache-bar">
+              <div className="settings__cache-bar-fill" style={{ width: `${Math.min(storageUsed.percent, 100)}%` }} />
+            </div>
+            <span className="settings__cache-text">
+              {(storageUsed.used / (1024 * 1024)).toFixed(1)} MB used ({storageUsed.percent}%)
+            </span>
+          </div>
+        )}
         <div className="settings__cache-row">
           <button className="settings__btn settings__btn--danger" onClick={handleClearCache} disabled={cacheStatus === "clearing"}>
             <Trash2 size={14} /> {cacheStatus === "clearing" ? "Clearing..." : "Clear Cache"}

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
-import { ArrowDownToLine, X } from "lucide-react";
+import { ArrowDownToLine, X, WifiOff } from "lucide-react";
 import { getPref } from "./services/db";
 import Navbar from "./components/Navbar";
 import Spinner from "./components/Spinner";
@@ -29,6 +29,7 @@ function App() {
   const [defaultTab, setDefaultTab] = useState(null);
   const [installEvent, setInstallEvent] = useState(null);
   const [installAvailable, setInstallAvailable] = useState(false);
+  const [isOffline, setIsOffline] = useState(!navigator.onLine);
 
   useEffect(() => {
     getPref("defaultTab", "/").then(setDefaultTab);
@@ -52,10 +53,18 @@ function App() {
     window.addEventListener("beforeinstallprompt", onBeforeInstall);
     window.addEventListener("appinstalled", onInstalled);
     document.addEventListener("click", onHaptic);
+
+    const onOnline = () => setIsOffline(false);
+    const onOffline = () => setIsOffline(true);
+    window.addEventListener("online", onOnline);
+    window.addEventListener("offline", onOffline);
+
     return () => {
       window.removeEventListener("beforeinstallprompt", onBeforeInstall);
       window.removeEventListener("appinstalled", onInstalled);
       document.removeEventListener("click", onHaptic);
+      window.removeEventListener("online", onOnline);
+      window.removeEventListener("offline", onOffline);
     };
   }, []);
 
@@ -120,6 +129,12 @@ function App() {
           >
             <X size={16} />
           </button>
+        </div>
+      )}
+      {isOffline && (
+        <div className="app__offline-banner">
+          <WifiOff size={14} />
+          <span>You&apos;re offline &mdash; showing cached content</span>
         </div>
       )}
     </>

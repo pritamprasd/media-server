@@ -1,4 +1,5 @@
 import axios from "axios";
+import { cacheApiData, getCachedApiData, hasStorageRoom } from "./db";
 
 const client = axios.create({
   baseURL: "/api",
@@ -17,6 +18,45 @@ client.interceptors.request.use((config) => {
   }
   return config;
 });
+
+function buildCacheKey(config) {
+  const path = config.url || "";
+  const params = config.params;
+  if (!params || Object.keys(params).length === 0) return path;
+  const sorted = Object.entries(params)
+    .filter(([, v]) => v != null)
+    .sort(([a], [b]) => a.localeCompare(b));
+  return path + "?" + sorted.map(([k, v]) => `${k}=${encodeURIComponent(v)}`).join("&");
+}
+
+client.interceptors.response.use(
+  (response) => {
+    if (response.config.method === "get" && response.status === 200 && response.data != null) {
+      const key = buildCacheKey(response.config);
+      hasStorageRoom(JSON.stringify(response.data).length).then((ok) => {
+        if (ok) cacheApiData(key, response.data);
+      });
+    }
+    return response;
+  },
+  async (error) => {
+    const config = error.config;
+    if (config && config.method === "get" && !config._offlineRetry) {
+      const offline = !navigator.onLine || error.code === "ERR_NETWORK" || error.code === "ECONNABORTED" || (error.response && error.response.status === 503);
+      if (offline) {
+        config._offlineRetry = true;
+        const key = buildCacheKey(config);
+        try {
+          const cached = await getCachedApiData(key);
+          if (cached !== null) {
+            return { data: cached, status: 200, statusText: "OK (cached)", headers: {}, config };
+          }
+        } catch {}
+      }
+    }
+    return Promise.reject(error);
+  }
+);
 
 export async function getStatus() {
   const { data } = await client.get("/status");

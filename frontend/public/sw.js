@@ -63,7 +63,10 @@ async function networkFirst(request, cacheName) {
   } catch {
     const cached = await caches.match(request);
     if (cached) return cached;
-    return caches.match("/index.html");
+    return new Response(JSON.stringify({ error: "offline", message: "No network and no cached data" }), {
+      status: 503,
+      headers: { "Content-Type": "application/json" },
+    });
   }
 }
 
@@ -168,6 +171,35 @@ self.addEventListener("message", (e) => {
   }
   if (e.data.type === "SKIP_WAITING") {
     self.skipWaiting();
+  }
+  if (e.data.type === "PRECACHE_URLS") {
+    const urls = e.data.urls || [];
+    if (urls.length === 0) return;
+    caches.open(CACHES.api).then((c) => {
+      Promise.allSettled(
+        urls.map((u) =>
+          fetch(u).then((r) => {
+            if (r.ok) return c.put(u, r);
+          })
+        )
+      );
+    });
+  }
+  if (e.data.type === "GET_CACHE_STATUS") {
+    (async () => {
+      const result = {};
+      for (const [name, key] of Object.entries(CACHES)) {
+        try {
+          const cache = await caches.open(key);
+          const keys = await cache.keys();
+          result[name] = keys.length;
+        } catch {
+          result[name] = 0;
+        }
+      }
+      const clients = await self.clients.matchAll({ type: "window" });
+      clients.forEach((c) => c.postMessage({ type: "CACHE_STATUS", data: result }));
+    })();
   }
 });
 
