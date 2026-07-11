@@ -2,7 +2,7 @@
 set -e
 
 CERT_DIR=/etc/nginx/certs
-SERVER_HOSTNAME="${SERVER_HOSTNAME:-$(hostname)}"
+SERVER_HOSTNAME="machine"
 
 mkdir -p "$CERT_DIR"
 

@@ -151,7 +151,7 @@ services:
     ports:
       - "3443:443"
     environment:
-      - SERVER_HOSTNAME=${SERVER_HOSTNAME:-homeserver}
+      - SERVER_HOSTNAME=machine
     volumes:
       - /home/pritam/media_server_files/certs:/etc/nginx/certs
     networks:
