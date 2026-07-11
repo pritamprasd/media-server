@@ -173,3 +173,8 @@
 - Auto-generated SSL certificates at build time
 - Separate containers for each Celery queue for scalability
 - All edits go to edited-images directory (~/media-server-edited)
+
+
+## MUST DOs:
+1. Update README.md file on each feature addition/update.
+2. Provide a one line commit message as last line of the output.
