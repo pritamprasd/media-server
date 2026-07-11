@@ -150,6 +150,8 @@ services:
       dockerfile: frontend/Dockerfile
     ports:
       - "3443:443"
+    environment:
+      - SERVER_HOSTNAME=${SERVER_HOSTNAME:-homeserver}
     volumes:
       - /home/pritam/media_server_files/certs:/etc/nginx/certs
     networks:

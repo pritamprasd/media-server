@@ -2,11 +2,11 @@
 set -e
 
 CERT_DIR=/etc/nginx/certs
-SERVER_HOSTNAME=$(hostname -f 2>/dev/null || hostname)
+SERVER_HOSTNAME="${SERVER_HOSTNAME:-$(hostname)}"
 
 mkdir -p "$CERT_DIR"
 
-if [ ! -f "$CERT_DIR/ca.crt" ]; then
+if [ ! -f "$CERT_DIR/ca.crt" ] || [ ! -f "$CERT_DIR/$SERVER_HOSTNAME.crt" ]; then
     echo "Generating CA and server certificates..."
 
     openssl genrsa -out "$CERT_DIR/ca.key" 2048
