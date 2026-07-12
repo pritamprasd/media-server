@@ -533,8 +533,9 @@ function Settings() {
                 <div className="settings__cache-breakdown-list">
                   {[
                     ["shell", "App Shell", "HTML, CSS, JS, and icons loaded by the app", cacheBreakdown.shell],
-                    ["api", "API Responses", "Saved backend API data for offline use", cacheBreakdown.api],
-                    ["media", "Media", "Viewed photos and video thumbnails cached locally", cacheBreakdown.media],
+                    ["api", "API Calls", "Backend API responses cached for offline browsing", cacheBreakdown.api],
+                    ["thumbs", "Thumbnails", "Small image thumbnails cached for fast grid browsing", cacheBreakdown.thumbs],
+                    ["media", "Media", "Full-size photos and videos cached for offline viewing", cacheBreakdown.media],
                     ["tiles", "Map Tiles", "OpenStreetMap map tiles for the Map tab", cacheBreakdown.tiles],
                     ["mui", "MUI Fonts", "Roboto/Noto font files for Material UI theme", cacheBreakdown.mui],
                   ].map(([key, label, desc, info]) => {

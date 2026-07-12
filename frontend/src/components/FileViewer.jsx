@@ -353,6 +353,47 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete, onN
     if (showCollectionMenu) loadCollections();
   }, [showCollectionMenu, loadCollections]);
 
+  const collectionMenuEl = showCollectionMenu && (
+    <div className="viewer-collection-menu">
+      <div className="viewer-collection-menu__title">Collections</div>
+      {loadingCollections ? (
+        <div className="viewer-collection-menu__loading"><Spinner size={14} /></div>
+      ) : collectionList.length === 0 ? (
+        <div className="viewer-collection-menu__empty">No collections yet</div>
+      ) : (
+        collectionList.map((c) => (
+          <button
+            key={c.id}
+            className={`viewer-collection-item ${fileCollections.includes(c.id) ? "viewer-collection-item--active" : ""}`}
+            onClick={() => handleToggleCollection(c.id)}
+          >
+            <span className="viewer-collection-item__check">{fileCollections.includes(c.id) ? "✓" : ""}</span>
+            <span className="viewer-collection-item__name">{c.name}</span>
+            <span className="viewer-collection-item__count">{c.file_count}</span>
+          </button>
+        ))
+      )}
+      <div className="viewer-collection-create">
+        <input
+          className="viewer-collection-create__input"
+          type="text"
+          value={newCollName}
+          onChange={(e) => setNewCollName(e.target.value)}
+          placeholder="New collection..."
+          onKeyDown={(e) => { if (e.key === "Enter") handleCreateCollection(); }}
+        />
+        <button
+          className="viewer-collection-create__btn"
+          onClick={handleCreateCollection}
+          disabled={creatingCollection || !newCollName.trim()}
+          title="Create and add"
+        >
+          {creatingCollection ? <Spinner size={10} /> : <FolderPlus size={12} />}
+        </button>
+      </div>
+    </div>
+  );
+
   const ASPECT_RATIOS = [
     { label: "Free", value: "free" },
     { label: "⬜ 1:1", value: "1:1" },
@@ -1330,46 +1371,7 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete, onN
                   <button className="viewer-btn" onClick={() => setShowCollectionMenu((p) => !p)} title="Add to collection">
                     <FolderPlus size={15} />
                   </button>
-                  {showCollectionMenu && (
-                    <div className="viewer-collection-menu">
-                      <div className="viewer-collection-menu__title">Collections</div>
-                      {loadingCollections ? (
-                        <div className="viewer-collection-menu__loading"><Spinner size={14} /></div>
-                      ) : collectionList.length === 0 ? (
-                        <div className="viewer-collection-menu__empty">No collections yet</div>
-                      ) : (
-                        collectionList.map((c) => (
-                          <button
-                            key={c.id}
-                            className={`viewer-collection-item ${fileCollections.includes(c.id) ? "viewer-collection-item--active" : ""}`}
-                            onClick={() => handleToggleCollection(c.id)}
-                          >
-                            <span className="viewer-collection-item__check">{fileCollections.includes(c.id) ? "\u2713" : ""}</span>
-                            <span className="viewer-collection-item__name">{c.name}</span>
-                            <span className="viewer-collection-item__count">{c.file_count}</span>
-                          </button>
-                        ))
-                      )}
-                      <div className="viewer-collection-create">
-                        <input
-                          className="viewer-collection-create__input"
-                          type="text"
-                          value={newCollName}
-                          onChange={(e) => setNewCollName(e.target.value)}
-                          placeholder="New collection..."
-                          onKeyDown={(e) => { if (e.key === "Enter") handleCreateCollection(); }}
-                        />
-                        <button
-                          className="viewer-collection-create__btn"
-                          onClick={handleCreateCollection}
-                          disabled={creatingCollection || !newCollName.trim()}
-                          title="Create and add"
-                        >
-                          {creatingCollection ? <Spinner size={10} /> : <FolderPlus size={12} />}
-                        </button>
-                      </div>
-                    </div>
-                  )}
+                  {collectionMenuEl}
                 </div>
                 {cacheStatus && (
                   <span className={`viewer-cache-badge viewer-cache-badge--${cacheStatus}`} title={cacheStatus === "cache" ? "Served from cache" : "Served live from server"}>
@@ -1443,7 +1445,10 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete, onN
                 <button className={`viewer-float-btn ${isFav ? "viewer-float-btn--active" : ""}`} onClick={handleToggleFav} title={isFav ? "Remove from favorites" : "Add to favorites"}>
                   <Heart size={16} fill={isFav ? "currentColor" : "none"} />
                 </button>
-                <button className="viewer-float-btn" onClick={() => setShowCollectionMenu((p) => !p)} title="Add to collection"><FolderPlus size={16} /></button>
+                <div className="viewer-collection-wrap">
+                  <button className="viewer-float-btn" onClick={() => setShowCollectionMenu((p) => !p)} title="Add to collection"><FolderPlus size={16} /></button>
+                  {collectionMenuEl}
+                </div>
                 <button className="viewer-float-btn viewer-float-btn--close" onClick={onClose} title="Close"><X size={18} /></button>
               </div>
             )}

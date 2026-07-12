@@ -136,7 +136,7 @@
 - **Mobile dialog**: On screens ≤768px, dialog slides up from bottom (sheet style) instead of centering.
 - **Accent color independence**: Accent color (`--color-primary` override via `document.documentElement.style`) persists across theme style changes. User can reset to theme default via Settings.
 - **Portrait mode lock**: "Screen Orientation" setting uses `screen.orientation.lock("portrait")` API. Only effective in standalone PWA mode (installed to home screen). Preference stored in IndexedDB as `orientationLock`, applied on app load in `App.jsx`. Manifest default is `"portrait"`. Fails silently on unsupported browsers/fullscreen-only restrictions.
-- **Per-cache clearing**: Cache breakdown rows each have an individual "Clear" button that sends `CLEAR_SINGLE_CACHE` to the SW. SW deletes only the named cache and replies `SINGLE_CACHE_CLEARED`, triggering a fresh `GET_CACHE_STATUS` to update counts. Each cache has a short description (App Shell, API Responses, Media, Map Tiles, MUI Fonts). Key mapping uses SW's CACHES object keys (`shell`, `api`, `media`, `tiles`, `mui`).
+- **Per-cache clearing**: Cache breakdown rows each have an individual "Clear" button that sends `CLEAR_SINGLE_CACHE` to the SW. SW deletes only the named cache and replies `SINGLE_CACHE_CLEARED`, triggering a fresh `GET_CACHE_STATUS` to update counts. Each cache has a short description (App Shell, API Calls, Thumbnails, Media, Map Tiles, MUI Fonts). Key mapping uses SW's CACHES object keys (`shell`, `api`, `thumbs`, `media`, `tiles`, `mui`). Thumbnail requests (`/api/files/<id>/thumbnail`) are routed to the dedicated `thumbs` cache via cache-first; full media (`/api/files/<id>/serve`) stays in `media`; all other `/api/` GETs go to `api`.
 
 ### Faces Tab
 - **Case-insensitive name grouping**: `displayPersons` computed via `useMemo` groups persons by `(p.name || "").toLowerCase()`. Combined entries have `_combined: true`, `id: number[]`, `_persons: original[]`, `thumbnails: string[]`.
@@ -235,10 +235,10 @@
 
 
 ## Developer Productivity
-- Keep the **Developer Productivity** section in README.md up to date with all Makefile targets, scripts, helper files, and utility commands.
+- Keep `docs/developer-guide.md` up to date with all Makefile targets, scripts, helper files, and utility commands. The README links to it from its Documentation table.
 - When adding a new feature, check if any new Makefile targets, scripts, Docker compose changes, or developer helper files are needed and document them there.
-- See `README.md#developer-productivity` for the current reference.
+- See `docs/developer-guide.md` for the current reference.
 
 ## MUST DOs:
-1. Update README.md file on each feature addition/update — add new features to appropriate sections, update API endpoints, configuration, developer productivity, and architecture as needed.
+1. Update README.md and the relevant `docs/*.md` file on each feature addition/update — add new features to `docs/features.md`, update API endpoints in `docs/api-endpoints.md`, configuration in `docs/configuration.md`, developer productivity in `docs/developer-guide.md`, and architecture in `docs/architecture.md` as needed.
 2. Provide a one line commit message as last line of the output.

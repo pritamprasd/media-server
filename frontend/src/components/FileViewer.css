@@ -1590,6 +1590,25 @@
   .viewer-filter-label { font-size: 0.6rem; }
 
   .viewer-sliders { padding: 0.5rem; gap: 0.5rem; }
+
+  /* Collection menu on mobile: anchored to the float (top) action bar,
+     opens downward over the top of the image and stays clickable / on top
+     (the float bar uses pointer-events:none, so the menu must opt back in). */
+  .viewer-float-actions .viewer-collection-wrap {
+    pointer-events: auto;
+  }
+
+  .viewer-float-actions .viewer-collection-menu {
+    top: 100%;
+    bottom: auto;
+    left: 50%;
+    right: auto;
+    transform: translateX(-50%);
+    margin: 0.5rem 0 0;
+    max-height: 50vh;
+    z-index: 3000;
+    pointer-events: auto;
+  }
 }
 
 /* Collection menu */
