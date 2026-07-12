@@ -2,16 +2,16 @@ import io
 import os
 import zipfile
 
-from flask import current_app, jsonify, request, Response
+from flask import Blueprint, current_app, jsonify, request, Response
 from sqlalchemy import func
 
 from app import db
-from app.api import api_bp
+collection_bp = Blueprint("collection", __name__)
 from app.models.imported_file import ImportedFile
 from app.models.collection import Collection, collection_files
 
 
-@api_bp.route("/collections", methods=["GET"])
+@collection_bp.route("/collections", methods=["GET"])
 def list_collections():
     file_id = request.args.get("file_id", type=int)
     collections = Collection.query.order_by(Collection.updated_at.desc()).all()
@@ -40,7 +40,7 @@ def list_collections():
     return jsonify(result)
 
 
-@api_bp.route("/collections", methods=["POST"])
+@collection_bp.route("/collections", methods=["POST"])
 def create_collection():
     data = request.get_json(silent=True) or {}
     name = (data.get("name") or "").strip()
@@ -58,7 +58,7 @@ def create_collection():
     return jsonify(collection.to_dict()), 201
 
 
-@api_bp.route("/collections/<int:collection_id>", methods=["GET"])
+@collection_bp.route("/collections/<int:collection_id>", methods=["GET"])
 def get_collection(collection_id):
     collection = db.session.get(Collection, collection_id)
     if not collection:
@@ -76,7 +76,7 @@ def get_collection(collection_id):
     return jsonify(d)
 
 
-@api_bp.route("/collections/<int:collection_id>", methods=["PUT"])
+@collection_bp.route("/collections/<int:collection_id>", methods=["PUT"])
 def update_collection(collection_id):
     collection = db.session.get(Collection, collection_id)
     if not collection:
@@ -101,7 +101,7 @@ def update_collection(collection_id):
     return jsonify(collection.to_dict())
 
 
-@api_bp.route("/collections/<int:collection_id>", methods=["DELETE"])
+@collection_bp.route("/collections/<int:collection_id>", methods=["DELETE"])
 def delete_collection(collection_id):
     collection = db.session.get(Collection, collection_id)
     if not collection:
@@ -111,7 +111,7 @@ def delete_collection(collection_id):
     return jsonify({"ok": True})
 
 
-@api_bp.route("/collections/<int:collection_id>/files", methods=["POST"])
+@collection_bp.route("/collections/<int:collection_id>/files", methods=["POST"])
 def add_files_to_collection(collection_id):
     collection = db.session.get(Collection, collection_id)
     if not collection:
@@ -131,7 +131,7 @@ def add_files_to_collection(collection_id):
     return jsonify({"added": added, "total": len(collection.files)})
 
 
-@api_bp.route("/collections/<int:collection_id>/files", methods=["DELETE"])
+@collection_bp.route("/collections/<int:collection_id>/files", methods=["DELETE"])
 def remove_files_from_collection(collection_id):
     collection = db.session.get(Collection, collection_id)
     if not collection:
@@ -146,7 +146,7 @@ def remove_files_from_collection(collection_id):
     return jsonify({"ok": True, "total": len(collection.files)})
 
 
-@api_bp.route("/collections/<int:collection_id>/download", methods=["GET"])
+@collection_bp.route("/collections/<int:collection_id>/download", methods=["GET"])
 def download_collection_zip(collection_id):
     collection = db.session.get(Collection, collection_id)
     if not collection:

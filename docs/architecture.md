@@ -41,6 +41,17 @@ flowchart LR
 4. Media files live on disk; the API serves them resized/converted (HEIC→JPEG, auto-resize >1MB) and streams videos with Range support.
 5. A service worker (`frontend/public/sw.js`) caches the app shell, API responses, thumbnails, full media, map tiles, and the lazy-loaded MUI chunk for offline use.
 
+## Backend Layout
+
+The Flask backend is organized into four layers so route handlers stay thin and business logic is reusable and testable:
+
+- **API layer (`app/api/`)** — one Blueprint per domain, each in its own module, all registered under the `/api` prefix in `app/api/__init__.py`: `files_routes`, `upload_routes`, `explorer_routes`, `map_routes`, `tools_routes`, `filters_routes`, `sessions_routes`, `system_routes`, plus `face_routes`, `collection_routes`, `memory_routes`. Route handlers only parse requests and serialize responses; shared image-edit helpers live in `file_helpers.py`.
+- **Service layer (`app/services/`)** — domain business logic called by the routes: `explorer_service` (browse/rename/move/copy/delete + favorite folders), `duplicate_service` (exact + near duplicate detection), `file_service` (favorite/primary toggle, delete with face-cleanup, favorites). This isolates DB/filesystem transactions from HTTP concerns.
+- **Utility layer (`app/utility/`)** — pure, single-concern helpers (hashing, MIME, EXIF, dhash, face math, video, location, tags, LLM parsing). Each has a matching unit test under `tests/unit/`.
+- **Task layer (`app/tasks/`)** — one module per Celery worker (`import_tasks`, `metadata_tasks`, `ai_tasks`, `thumbnail_tasks`, `face_tasks`); the package `__init__` re-exports all five tasks with their original `app.tasks.*` names preserved so `celery_app.py` task routing is unchanged.
+
+Models (`app/models/`) and configuration (`app/config.py`) sit below these layers; `create_app` wires the blueprints, Celery, metrics, and migrations.
+
 ## Background Processing (Celery)
 
 | Queue | Worker | Concurrency | Work |

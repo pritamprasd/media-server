@@ -79,6 +79,8 @@ flowchart LR
 
 The React SPA talks to a Flask API backed by PostgreSQL and Redis. Long-running work (imports, metadata, AI, thumbnails, face detection) is dispatched to dedicated Celery workers. AI features call a local Ollama instance; face detection uses InsightFace. The frontend is an installable PWA with a service worker caching shell, API, media, thumbnails, map tiles, and MUI assets for offline use.
 
+The Flask backend is layered for maintainability: one Blueprint per domain under `app/api/` (files, upload, explorer, map, tools, filters, sessions, system, plus face/collection/memory), a `app/services/` layer holding domain business logic, single-concern helpers in `app/utility/` (each with unit tests), and one Celery task module per worker under `app/tasks/`. See [docs/architecture.md](docs/architecture.md) and [docs/project-structure.md](docs/project-structure.md).
+
 ## Documentation
 
 Detailed reference material lives in [`docs/`](docs/):

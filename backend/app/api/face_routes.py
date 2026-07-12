@@ -3,10 +3,10 @@ import os
 import random
 from datetime import datetime, timedelta
 
-from flask import jsonify, request
+from flask import Blueprint, jsonify, request
 
 from app import db
-from app.api import api_bp
+face_bp = Blueprint("face", __name__)
 from app.models.imported_file import ImportedFile
 from app.models.person import Person
 from app.models.detected_face import DetectedFace
@@ -15,7 +15,7 @@ from app.tasks import detect_faces
 from app.metrics import face_scans_total, persons_created_total
 
 
-@api_bp.route("/persons", methods=["GET"])
+@face_bp.route("/persons", methods=["GET"])
 def list_persons():
     page = request.args.get("page", 1, type=int)
     per_page = request.args.get("per_page", 50, type=int)
@@ -46,7 +46,7 @@ def list_persons():
     }), 200
 
 
-@api_bp.route("/persons/<int:person_id>", methods=["PUT"])
+@face_bp.route("/persons/<int:person_id>", methods=["PUT"])
 def update_person(person_id):
     person = db.session.get(Person, person_id)
     if not person:
@@ -83,7 +83,7 @@ def update_person(person_id):
     return jsonify(person.to_dict()), 200
 
 
-@api_bp.route("/persons/<int:person_id>", methods=["DELETE"])
+@face_bp.route("/persons/<int:person_id>", methods=["DELETE"])
 def delete_person(person_id):
     person = db.session.get(Person, person_id)
     if not person:
@@ -96,7 +96,7 @@ def delete_person(person_id):
     return jsonify({"message": "Person deleted"}), 200
 
 
-@api_bp.route("/persons/batch-delete", methods=["POST"])
+@face_bp.route("/persons/batch-delete", methods=["POST"])
 def batch_delete_persons():
     data = request.get_json(silent=True) or {}
     person_ids = data.get("person_ids", [])
@@ -112,7 +112,7 @@ def batch_delete_persons():
     return jsonify({"message": f"Deleted {len(persons)} persons"}), 200
 
 
-@api_bp.route("/persons/<int:person_id>/faces", methods=["GET"])
+@face_bp.route("/persons/<int:person_id>/faces", methods=["GET"])
 def list_person_faces(person_id):
     person = db.session.get(Person, person_id)
     if not person:
@@ -133,7 +133,7 @@ def list_person_faces(person_id):
     }), 200
 
 
-@api_bp.route("/persons/<int:person_id>/files", methods=["GET"])
+@face_bp.route("/persons/<int:person_id>/files", methods=["GET"])
 def list_person_files(person_id):
     person = db.session.get(Person, person_id)
     if not person:
@@ -165,7 +165,7 @@ def list_person_files(person_id):
     }), 200
 
 
-@api_bp.route("/persons/scan", methods=["POST"])
+@face_bp.route("/persons/scan", methods=["POST"])
 def scan_all_faces():
     face_scans_total.inc()
     subq = db.session.query(DetectedFace.file_id).distinct().subquery()
@@ -194,7 +194,7 @@ def scan_all_faces():
     return jsonify({"message": f"Face detection queued for {count} files"}), 202
 
 
-@api_bp.route("/files/<int:file_id>/detect-faces", methods=["POST"])
+@face_bp.route("/files/<int:file_id>/detect-faces", methods=["POST"])
 def detect_faces_for_file(file_id):
     file_record = db.session.get(ImportedFile, file_id)
     if not file_record:
@@ -211,7 +211,7 @@ def detect_faces_for_file(file_id):
     return jsonify({"message": "Face detection queued"}), 202
 
 
-@api_bp.route("/faces/<int:face_id>", methods=["PUT"])
+@face_bp.route("/faces/<int:face_id>", methods=["PUT"])
 def update_face(face_id):
     face = db.session.get(DetectedFace, face_id)
     if not face:
@@ -285,7 +285,7 @@ def update_face(face_id):
     return jsonify(result), 200
 
 
-@api_bp.route("/faces", methods=["GET"])
+@face_bp.route("/faces", methods=["GET"])
 def list_recent_faces():
     page = request.args.get("page", 1, type=int)
     per_page = request.args.get("per_page", 50, type=int)
@@ -307,7 +307,7 @@ def list_recent_faces():
     }), 200
 
 
-@api_bp.route("/persons/merge", methods=["POST"])
+@face_bp.route("/persons/merge", methods=["POST"])
 def merge_persons():
     data = request.get_json(silent=True) or {}
     person_ids = data.get("person_ids", [])
@@ -358,7 +358,7 @@ def merge_persons():
     return jsonify(target.to_dict()), 200
 
 
-@api_bp.route("/files/<int:file_id>/faces", methods=["GET"])
+@face_bp.route("/files/<int:file_id>/faces", methods=["GET"])
 def list_file_faces(file_id):
     file_record = db.session.get(ImportedFile, file_id)
     if not file_record:
@@ -378,7 +378,7 @@ def list_file_faces(file_id):
     return jsonify(result), 200
 
 
-@api_bp.route("/persons/<int:person_id>/timeline", methods=["GET"])
+@face_bp.route("/persons/<int:person_id>/timeline", methods=["GET"])
 def person_timeline(person_id):
     person = db.session.get(Person, person_id)
     if not person:
@@ -645,7 +645,7 @@ def person_timeline(person_id):
     })
 
 
-@api_bp.route("/faces/stats", methods=["GET"])
+@face_bp.route("/faces/stats", methods=["GET"])
 def face_stats():
     total_persons = Person.query.count()
     total_faces = DetectedFace.query.count()

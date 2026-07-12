@@ -5,9 +5,24 @@ media-server/
 ├── backend/
 │   ├── app/
 │   │   ├── api/
-│   │   │   ├── routes.py              # 80+ API endpoints (files, import, upload, explorer, stats, etc.)
-│   │   │   ├── face_routes.py         # Face/person API endpoints
-│   │   │   └── __init__.py            # API blueprint
+│   │   │   ├── files_routes.py        # files_bp: file metadata, tags, favorite, primary, hidden, thumbnail, serve, download, edit, delete, duplicates, favorites
+│   │   │   ├── upload_routes.py       # upload_bp: upload dirs/files, move, copy, rename, recent, nicknames
+│   │   │   ├── explorer_routes.py     # explorer_bp: browse, rename, move, copy, delete, favorites
+│   │   │   ├── map_routes.py          # map_bp: locations, geocode/reverse, with-gps, export
+│   │   │   ├── tools_routes.py        # tools_bp: ingredient-scanner, barcode-scanner
+│   │   │   ├── filters_routes.py      # filters_bp: filter presets
+│   │   │   ├── sessions_routes.py     # sessions_bp: status, stats, directories, browse-fs, import, sessions
+│   │   │   ├── system_routes.py       # system_bp: openapi.yaml/json, docs, api_docs
+│   │   │   ├── face_routes.py         # face_bp: face/person API endpoints
+│   │   │   ├── collection_routes.py   # collection_bp: collections API
+│   │   │   ├── memory_routes.py       # memory_bp: user memory API
+│   │   │   ├── file_helpers.py        # shared route helpers (image edit/filter pipeline)
+│   │   │   └── __init__.py            # imports + exposes all blueprints
+│   │   ├── services/
+│   │   │   ├── explorer_service.py    # explorer browse/rename/move/copy/delete + favorite folders
+│   │   │   ├── duplicate_service.py   # exact + near duplicate detection
+│   │   │   ├── file_service.py        # favorite/primary toggle, delete (with face cleanup), favorites
+│   │   │   └── __init__.py            # re-exports service modules
 │   │   ├── models/
 │   │   │   ├── __init__.py            # BaseModel (id, created_at, updated_at)
 │   │   │   ├── import_session.py      # ImportSession
@@ -34,7 +49,13 @@ media-server/
 │   │   │   ├── tags_utility.py        # Folder tag extraction
 │   │   │   ├── type_utility.py         # safe_int helper
 │   │   │   └── video_utility.py       # ffprobe metadata, ffmpeg frame extraction, video editing
-│   │   ├── tasks.py                   # 5 Celery task definitions
+│   │   ├── tasks/
+│   │   │   ├── import_tasks.py        # process_import_folder (import_queue)
+│   │   │   ├── metadata_tasks.py      # extract_file_metadata (metadata queue)
+│   │   │   ├── ai_tasks.py            # generate_ai_metadata (ai_metadata queue)
+│   │   │   ├── thumbnail_tasks.py     # generate_thumbnail (thumbnail queue)
+│   │   │   ├── face_tasks.py          # detect_faces (face_detection queue)
+│   │   │   └── __init__.py            # re-exports all 5 tasks (names preserved: app.tasks.*)
 │   │   ├── metrics.py                 # Prometheus metrics (HTTP, Celery, file ops, processing, library stats)
 │   │   ├── celery_app.py              # Celery app factory + worker init
 │   │   ├── config.py                  # App configuration (all env vars with docstrings)
@@ -43,7 +64,8 @@ media-server/
 │   ├── scripts/
 │   │   └── regenerate_heic_thumbnails.py
 │   ├── tests/
-│   │   └── test_api.py                # 14 test cases (pytest, in-memory SQLite)
+│   │   ├── test_api.py                # API integration tests (pytest, in-memory SQLite)
+│   │   └── unit/                      # Unit tests for each app/utility module (pytest)
 │   ├── Dockerfile
 │   ├── gunicorn.conf.py               # Gunicorn config + metrics server startup
 │   └── requirements.txt               # 22 pinned packages

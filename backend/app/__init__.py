@@ -34,8 +34,15 @@ def create_app(testing=False):
     db.init_app(application)
     migrate.init_app(application, db)
 
-    from app.api import api_bp
-    application.register_blueprint(api_bp, url_prefix="/api")
+    from app.api import (
+        sessions_bp, files_bp, upload_bp, explorer_bp, filters_bp,
+        map_bp, tools_bp, system_bp, face_bp, collection_bp, memory_bp,
+    )
+    for bp in (
+        sessions_bp, files_bp, upload_bp, explorer_bp, filters_bp,
+        map_bp, tools_bp, system_bp, face_bp, collection_bp, memory_bp,
+    ):
+        application.register_blueprint(bp, url_prefix="/api")
 
     import app.models  # noqa: F401
 
@@ -49,8 +56,5 @@ def create_app(testing=False):
     @application.route("/health")
     def health():
         return {"status": "ok"}
-
-    from app.api.routes import api_docs
-    application.add_url_rule("/docs", endpoint="api_docs_root", view_func=api_docs)
 
     return application

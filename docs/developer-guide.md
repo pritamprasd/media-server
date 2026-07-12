@@ -40,7 +40,7 @@ The project provides a comprehensive Makefile for common development tasks.
 ### Testing & Build
 | Target | Description |
 |--------|-------------|
-| `make test` | Run backend pytest suite |
+| `make test` | Run backend pytest suite (`tests/test_api.py` + `tests/unit/`) |
 | `make lint` | Run frontend ESLint |
 | `make build` | Build frontend for production |
 | `make preview` | Preview production frontend build |

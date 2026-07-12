@@ -1,12 +1,12 @@
-from flask import jsonify, request
+from flask import Blueprint, jsonify, request
 
 from app import db
-from app.api import api_bp
+memory_bp = Blueprint("memory", __name__)
 from app.models.imported_file import ImportedFile
 from app.models.user_memory import UserMemory
 
 
-@api_bp.route("/files/<int:file_id>/memories", methods=["GET"])
+@memory_bp.route("/files/<int:file_id>/memories", methods=["GET"])
 def list_memories(file_id):
     file = db.session.get(ImportedFile, file_id)
     if not file:
@@ -15,7 +15,7 @@ def list_memories(file_id):
     return jsonify([m.to_dict() for m in memories])
 
 
-@api_bp.route("/files/<int:file_id>/memories", methods=["POST"])
+@memory_bp.route("/files/<int:file_id>/memories", methods=["POST"])
 def create_memory(file_id):
     file = db.session.get(ImportedFile, file_id)
     if not file:
@@ -33,7 +33,7 @@ def create_memory(file_id):
     return jsonify(memory.to_dict()), 201
 
 
-@api_bp.route("/memories/<int:memory_id>", methods=["PUT"])
+@memory_bp.route("/memories/<int:memory_id>", methods=["PUT"])
 def update_memory(memory_id):
     memory = db.session.get(UserMemory, memory_id)
     if not memory:
@@ -53,7 +53,7 @@ def update_memory(memory_id):
     return jsonify(memory.to_dict())
 
 
-@api_bp.route("/memories/<int:memory_id>", methods=["DELETE"])
+@memory_bp.route("/memories/<int:memory_id>", methods=["DELETE"])
 def delete_memory(memory_id):
     memory = db.session.get(UserMemory, memory_id)
     if not memory:
