@@ -2,9 +2,13 @@ const DB_NAME = "media-server";
 const DB_VERSION = 2;
 export const MAX_CACHE_BYTES = 5 * 1024 * 1024 * 1024;
 
+let dbInstance = null;
+
 function open() {
-  return new Promise((resolve, reject) => {
+  return new Promise((resolve) => {
+    if (dbInstance) return resolve(dbInstance);
     const req = indexedDB.open(DB_NAME, DB_VERSION);
+    const timer = setTimeout(() => resolve(null), 3000);
     req.onupgradeneeded = (e) => {
       const db = req.result;
       if (e.oldVersion < 1) {
@@ -18,18 +22,30 @@ function open() {
         }
       }
     };
-    req.onsuccess = () => resolve(req.result);
-    req.onerror = () => reject(req.error);
+    req.onsuccess = () => {
+      clearTimeout(timer);
+      dbInstance = req.result;
+      resolve(dbInstance);
+    };
+    req.onerror = () => {
+      clearTimeout(timer);
+      resolve(null);
+    };
   });
 }
 
 const dbPromise = open();
 
+async function getDb() {
+  return dbPromise;
+}
+
 // ── Prefs (original) ────────────────────────────────────────────────
 
 export async function getPref(key, fallback) {
   try {
-    const db = await dbPromise;
+    const db = await getDb();
+    if (!db) return fallback;
     return await new Promise((resolve) => {
       const tx = db.transaction("prefs", "readonly");
       const req = tx.objectStore("prefs").get(key);
@@ -43,7 +59,8 @@ export async function getPref(key, fallback) {
 
 export async function setPref(key, value) {
   try {
-    const db = await dbPromise;
+    const db = await getDb();
+    if (!db) return;
     const tx = db.transaction("prefs", "readwrite");
     tx.objectStore("prefs").put(value, key);
   } catch {}
@@ -51,7 +68,8 @@ export async function setPref(key, value) {
 
 export async function clearAllPrefs() {
   try {
-    const db = await dbPromise;
+    const db = await getDb();
+    if (!db) return;
     const tx = db.transaction("prefs", "readwrite");
     tx.objectStore("prefs").clear();
   } catch {}
@@ -61,7 +79,8 @@ export async function clearAllPrefs() {
 
 export async function cacheApiData(url, data) {
   try {
-    const db = await dbPromise;
+    const db = await getDb();
+    if (!db) return;
     const tx = db.transaction("apiCache", "readwrite");
     tx.objectStore("apiCache").put({ data, ts: Date.now() }, url);
   } catch {}
@@ -69,7 +88,8 @@ export async function cacheApiData(url, data) {
 
 export async function getCachedApiData(url) {
   try {
-    const db = await dbPromise;
+    const db = await getDb();
+    if (!db) return null;
     return await new Promise((resolve) => {
       const tx = db.transaction("apiCache", "readonly");
       const req = tx.objectStore("apiCache").get(url);
@@ -83,7 +103,8 @@ export async function getCachedApiData(url) {
 
 export async function clearApiCache() {
   try {
-    const db = await dbPromise;
+    const db = await getDb();
+    if (!db) return;
     const tx = db.transaction("apiCache", "readwrite");
     tx.objectStore("apiCache").clear();
   } catch {}
@@ -91,7 +112,8 @@ export async function clearApiCache() {
 
 export async function evictOldestApiEntries(count = 50) {
   try {
-    const db = await dbPromise;
+    const db = await getDb();
+    if (!db) return;
     const tx = db.transaction("apiCache", "readwrite");
     const store = tx.objectStore("apiCache");
     const req = store.openCursor();

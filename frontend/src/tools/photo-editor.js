@@ -193,6 +193,8 @@ export function init(container) {
     .pe-overlay-grain{position:absolute;inset:0;pointer-events:none;mix-blend-mode:overlay}
     .pe-overlay-colorize{position:absolute;inset:0;pointer-events:none;mix-blend-mode:color}
     .pe-loading{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:var(--color-bg);z-index:20;font-size:0.85rem;color:var(--color-text-muted)}
+    .pe-toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);padding:0.5rem 1.1rem;border-radius:10px;background:var(--color-surface);color:var(--color-text);box-shadow:var(--neu-raised-sm);font-size:0.8rem;font-weight:500;z-index:9999;opacity:0;transition:opacity 0.25s;pointer-events:none}
+    .pe-toast--visible{opacity:1}
     @media(max-width:700px){
       .pe-panel{width:100%;border-left:none;border-top:1px solid var(--color-border);max-height:45vh}
       .pe-main{flex-direction:column}
@@ -869,6 +871,20 @@ export function init(container) {
     return outCanvas;
   }
 
+  const toast = el('div', '', null);
+  toast.className = 'pe-toast';
+  toast.textContent = 'Downloaded';
+
+  function showToast(msg) {
+    toast.textContent = msg || 'Downloaded';
+    document.body.appendChild(toast);
+    requestAnimationFrame(() => toast.classList.add('pe-toast--visible'));
+    setTimeout(() => {
+      toast.classList.remove('pe-toast--visible');
+      setTimeout(() => toast.remove(), 300);
+    }, 1500);
+  }
+
   function download() {
     const canvas = exportToCanvas();
     if (!canvas) return;
@@ -884,6 +900,7 @@ export function init(container) {
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
+      showToast('Downloaded');
     }, mimeMap[S.exportFormat] || 'image/jpeg', S.exportQuality / 100);
   }
 
@@ -915,6 +932,7 @@ export function init(container) {
     if (colorTimer) clearTimeout(colorTimer);
     document.removeEventListener('mousemove', onCropMouseMove);
     document.removeEventListener('mouseup', onCropMouseUp);
+    toast.remove();
     wrapper.remove();
     style.remove();
   };
