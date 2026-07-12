@@ -22,6 +22,7 @@ import About from "./pages/About";
 import Tools from "./pages/Tools";
 import Collections from "./pages/Collections";
 import CollectionDetail from "./pages/CollectionDetail";
+import ApiDocs from "./pages/ApiDocs";
 import "leaflet/dist/leaflet.css";
 import "./App.css";
 
@@ -110,6 +111,7 @@ function App() {
           <Route path="/collections" element={<Collections />} />
           <Route path="/collections/:id" element={<CollectionDetail />} />
           <Route path="/view/:fileId" element={<ShareView />} />
+          <Route path="/docs" element={<ApiDocs />} />
         </Routes>
       </main>
       {installAvailable && (

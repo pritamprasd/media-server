@@ -1,3 +1,6 @@
 - url: "chrome://flags"
   label: "Chrome Flags"
   description: "All the chrome flags, Useful in allowing server.local"
+- url: "/docs"
+  label: "API Docs (Swagger)"
+  description: "Interactive OpenAPI / Swagger UI for the backend REST API"

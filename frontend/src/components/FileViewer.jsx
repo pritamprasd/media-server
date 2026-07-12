@@ -218,6 +218,7 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete, onN
   const [memContent, setMemContent] = useState("");
   const [memTags, setMemTags] = useState("");
   const [memSaving, setMemSaving] = useState(false);
+  const [showAddMem, setShowAddMem] = useState(false);
   const [editingMemId, setEditingMemId] = useState(null);
   const [editMemContent, setEditMemContent] = useState("");
   const [editMemTags, setEditMemTags] = useState("");
@@ -321,6 +322,7 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete, onN
       setMemories((prev) => [m, ...prev]);
       setMemContent("");
       setMemTags("");
+      setShowAddMem(false);
     } catch { /* ignored */ } finally {
       setMemSaving(false);
     }
@@ -2163,29 +2165,38 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete, onN
                             ))}
                           </div>
                         )}
-                        <div className="viewer-mem-add">
-                          <textarea
-                            className="viewer-mem-textarea"
-                            rows={2}
-                            placeholder="Add a note about this file..."
-                            value={memContent}
-                            onChange={(e) => setMemContent(e.target.value)}
-                          />
-                          <input
-                            className="viewer-mem-input"
-                            type="text"
-                            placeholder="Tags (comma-separated)"
-                            value={memTags}
-                            onChange={(e) => setMemTags(e.target.value)}
-                          />
+                        {memories.length === 0 || showAddMem ? (
+                          <div className="viewer-mem-add">
+                            <textarea
+                              className="viewer-mem-textarea"
+                              rows={2}
+                              placeholder="Add a note about this file..."
+                              value={memContent}
+                              onChange={(e) => setMemContent(e.target.value)}
+                            />
+                            <input
+                              className="viewer-mem-input"
+                              type="text"
+                              placeholder="Tags (comma-separated)"
+                              value={memTags}
+                              onChange={(e) => setMemTags(e.target.value)}
+                            />
+                            <button
+                              className="viewer-mem-btn viewer-mem-btn--save"
+                              onClick={handleAddMemory}
+                              disabled={memSaving || !memContent.trim()}
+                            >
+                              {memSaving ? <Spinner size={12} /> : "+ Add"}
+                            </button>
+                          </div>
+                        ) : (
                           <button
-                            className="viewer-mem-btn viewer-mem-btn--save"
-                            onClick={handleAddMemory}
-                            disabled={memSaving || !memContent.trim()}
+                            className="viewer-mem-btn viewer-mem-btn--add"
+                            onClick={() => setShowAddMem(true)}
                           >
-                            {memSaving ? <Spinner size={12} /> : "+ Add"}
+                            + Add note
                           </button>
-                        </div>
+                        )}
                       </>
                     )}
                   </div>

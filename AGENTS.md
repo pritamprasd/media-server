@@ -118,7 +118,8 @@
 ### Settings — Shortcuts
 - **YAML-driven shortcuts**: `frontend/src/data/shortcuts.yaml` (git-ignored) defines browser shortcuts as a flat list of `{ url, label, description }`. Loaded via `@modyfi/vite-plugin-yaml` in Vite.
 - **Copy-to-clipboard**: `chrome://` URLs can't be opened via `<a href>`. Clicking a shortcut copies the URL to clipboard with a green checkmark toast for 2s. Fallback: `window.open()` if clipboard API fails.
-- **Adding shortcuts**: Append entries to `shortcuts.yaml`. Only `chrome://` and related browser-internal links belong here; regular HTTP links should use standard `<a>` tags elsewhere.
+- **HTTP shortcuts open in new tab**: Non-internal URLs (anything not starting with `chrome://`, `about:`, or `edge://`) are opened directly via `window.open(url, "_blank")` instead of being copied — e.g. the `API Docs (Swagger)` shortcut points to the in-app `/docs` route.
+- **Adding shortcuts**: Append entries to `shortcuts.yaml`. `chrome://` and related browser-internal links belong here (they copy to clipboard); same-site HTTP links (e.g. `/docs`) are also allowed and will open in a new tab.
 
 ### Theme System (Style + Mode)
 - **Two-axis theme**: `data-style` (neumorphic|material) × `data-mode` (dark|light) on `<html>` gives 4 theme combinations. Persisted to IndexedDB as `themeStyle` and `themeMode`.

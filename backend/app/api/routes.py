@@ -3474,3 +3474,55 @@ def _root_dir_id(upload_session, upload_dir):
         session_id=upload_session.id, path=""
     ).first()
     return root.id if root else None
+
+
+OPENAPI_SPEC_PATH = os.path.join(os.path.dirname(__file__), "..", "..", "openapi.yaml")
+
+
+@api_bp.route("/openapi.yaml", methods=["GET"])
+def openapi_spec_yaml():
+    if not os.path.exists(OPENAPI_SPEC_PATH):
+        return jsonify({"error": "OpenAPI spec not found"}), 404
+    return send_file(OPENAPI_SPEC_PATH, mimetype="application/x-yaml")
+
+
+@api_bp.route("/openapi.json", methods=["GET"])
+def openapi_spec_json():
+    import yaml
+
+    if not os.path.exists(OPENAPI_SPEC_PATH):
+        return jsonify({"error": "OpenAPI spec not found"}), 404
+    with open(OPENAPI_SPEC_PATH, "r") as f:
+        spec = yaml.safe_load(f)
+    return jsonify(spec)
+
+
+@api_bp.route("/docs", methods=["GET"])
+def api_docs():
+    html = """<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Media Server API - Swagger UI</title>
+    <link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist@5/swagger-ui.css" />
+  </head>
+  <body>
+    <div id="swagger-ui"></div>
+    <script src="https://unpkg.com/swagger-ui-dist@5/swagger-ui-bundle.js" charset="UTF-8"></script>
+    <script src="https://unpkg.com/swagger-ui-dist@5/swagger-ui-standalone-preset.js" charset="UTF-8"></script>
+    <script>
+      window.onload = function () {
+        window.ui = SwaggerUIBundle({
+          url: "/api/openapi.yaml",
+          dom_id: "#swagger-ui",
+          deepLinking: true,
+          presets: [SwaggerUIBundle.presets.apis, SwaggerUIStandalonePreset],
+          layout: "StandaloneLayout",
+        });
+      };
+    </script>
+  </body>
+</html>
+"""
+    return Response(html, mimetype="text/html")

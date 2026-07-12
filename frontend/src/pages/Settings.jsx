@@ -350,11 +350,16 @@ function Settings() {
   };
 
   const handleCopyShortcut = async (url) => {
-    try {
-      await navigator.clipboard.writeText(url);
-      setCopiedUrl(url);
-      setTimeout(() => setCopiedUrl(null), 2000);
-    } catch {
+    const isInternal = url.startsWith("chrome://") || url.startsWith("about:") || url.startsWith("edge://");
+    if (isInternal) {
+      try {
+        await navigator.clipboard.writeText(url);
+        setCopiedUrl(url);
+        setTimeout(() => setCopiedUrl(null), 2000);
+      } catch {
+        window.open(url, "_blank", "noopener,noreferrer");
+      }
+    } else {
       window.open(url, "_blank", "noopener,noreferrer");
     }
   };

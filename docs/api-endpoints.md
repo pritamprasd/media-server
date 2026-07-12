@@ -2,6 +2,10 @@
 
 All endpoints are prefixed with `/api` unless noted. Authentication is via the hidden-files PIN header (`X-Hidden-Pin`) where required.
 
+> A machine-readable **OpenAPI 3.1** specification covering all endpoints is available at [`backend/openapi.yaml`](../backend/openapi.yaml).
+> The backend also serves a live **Swagger UI** viewer at `GET /api/docs` (raw spec at `GET /api/openapi.yaml` / `/api/openapi.json`). In the app, open **Settings → Shortcuts → API Docs (Swagger)**, or visit the in-app route `/docs`.
+
+
 ## Files
 | Method | Path | Description |
 | ------ | ---- | ----------- |

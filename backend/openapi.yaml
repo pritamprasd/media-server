@@ -1,0 +1,2828 @@
+openapi: 3.1.0
+info:
+  title: Media Server API
+  version: 1.0.0
+  description: >-
+    REST API for the Media Server backend (Flask). All routes are mounted under
+    the `/api` prefix by the API blueprint, so a route such as `/files` is
+    exposed as `/api/files`. This specification documents the Files, Import &
+    Upload, Media Explorer, Favorites, Duplicates, Filters, Locations, Faces &
+    Persons, Collections, User Memories, Tools, and System & Geocoding
+    endpoints.
+servers:
+  - url: http://localhost:5000/api
+    description: Local development
+security: []
+tags:
+  - name: System & Geocoding
+  - name: Files
+  - name: Import & Upload
+  - name: Media Explorer
+  - name: Favorites
+  - name: Duplicates
+  - name: Filters
+  - name: Locations
+  - name: Faces & Persons
+  - name: Collections
+  - name: User Memories
+  - name: Tools
+
+components:
+  parameters:
+    HiddenPinHeader:
+      name: X-Hidden-Pin
+      in: header
+      required: false
+      description: 6-digit PIN protecting hidden files. Required (and validated) for hidden-file endpoints.
+      schema:
+        type: string
+        example: "123456"
+  schemas:
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+        message:
+          type: string
+      required: [error]
+    StatusResponse:
+      type: object
+      properties:
+        message:
+          type: string
+      required: [message]
+    StatsResponse:
+      type: object
+      properties:
+        overview:
+          type: object
+          additionalProperties: true
+          properties:
+            total_files: { type: integer }
+            total_favorites: { type: integer }
+            total_metadata: { type: integer }
+            total_size: { type: integer }
+            total_size_formatted: { type: string }
+        mime_breakdown:
+          type: object
+          additionalProperties: true
+        mime_detail:
+          type: array
+          items:
+            type: object
+            properties:
+              mime: { type: string }
+              count: { type: integer }
+        metadata_status:
+          type: array
+          items:
+            type: object
+            properties:
+              status: { type: [string, "null"] }
+              count: { type: integer }
+        thumbnail_status:
+          type: array
+          items:
+            type: object
+            properties:
+              status: { type: [string, "null"] }
+              count: { type: integer }
+        files_by_date:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        top_tags:
+          type: array
+          items:
+            type: object
+            properties:
+              tag: { type: string }
+              count: { type: integer }
+        dimension_ranges:
+          type: object
+          additionalProperties: { type: integer }
+        size_distribution:
+          type: array
+          items:
+            type: object
+            properties:
+              range: { type: string }
+              count: { type: integer }
+        coverage:
+          type: object
+          additionalProperties: true
+        sessions:
+          type: object
+          additionalProperties: true
+        faces:
+          type: object
+          additionalProperties: true
+      additionalProperties: true
+    PaginatedFiles:
+      type: object
+      properties:
+        files:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        total: { type: integer }
+        page: { type: integer }
+        per_page: { type: integer }
+        pages: { type: integer }
+      required: [files, total, page, per_page, pages]
+    PaginatedPersons:
+      type: object
+      properties:
+        persons:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        total: { type: integer }
+        page: { type: integer }
+        per_page: { type: integer }
+        pages: { type: integer }
+      required: [persons, total, page, per_page, pages]
+    PaginatedFaces:
+      type: object
+      properties:
+        faces:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        total: { type: integer }
+        page: { type: integer }
+        per_page: { type: integer }
+        pages: { type: integer }
+      required: [faces, total, page, per_page, pages]
+    File:
+      type: object
+      additionalProperties: true
+      description: ImportedFile record (id, filename, file_path, mime_type, size, etc.).
+    FileMetadata:
+      type: object
+      additionalProperties: true
+      description: FileMetadata record (description, tags, width, height, latitude, longitude, date_taken, etc.).
+    Person:
+      type: object
+      additionalProperties: true
+      description: Person record (id, name, face_count, avg_encoding, etc.).
+    DetectedFace:
+      type: object
+      additionalProperties: true
+      description: DetectedFace record (id, person_id, confidence, encoding, etc.).
+    Collection:
+      type: object
+      additionalProperties: true
+      description: Collection record (id, name, description, cover_file_id, file_count, files, etc.).
+    SavedLocation:
+      type: object
+      additionalProperties: true
+      description: SavedLocation record (id, name, latitude, longitude, radius, file_count).
+    FilterPreset:
+      type: object
+      additionalProperties: true
+      description: FilterPreset record (id, name, operations, file_id).
+    UserMemory:
+      type: object
+      additionalProperties: true
+      description: UserMemory record (id, file_id, content, tags, created_at).
+
+paths:
+  /status:
+    get:
+      operationId: getStatus
+      tags: [System & Geocoding]
+      summary: API health/status check
+      responses:
+        "200":
+          description: API is running
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusResponse"
+  /stats/refresh:
+    post:
+      operationId: refreshStats
+      tags: [System & Geocoding]
+      summary: Recompute cached library statistics
+      responses:
+        "200":
+          description: Stats refreshed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+  /directories:
+    get:
+      operationId: listDirectories
+      tags: [Files]
+      summary: List all imported directories
+      responses:
+        "200":
+          description: List of directories
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  additionalProperties: true
+  /browse-fs:
+    get:
+      operationId: browseFileSystem
+      tags: [Files]
+      summary: Browse the local filesystem directory tree
+      parameters:
+        - name: path
+          in: query
+          required: false
+          schema: { type: string }
+      responses:
+        "200":
+          description: Directory contents
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "404":
+          description: Directory not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+  /import:
+    post:
+      operationId: importFolder
+      tags: [Import & Upload]
+      summary: Import a folder into the library
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                path:
+                  type: string
+                  description: Absolute path of the folder to import (required).
+                groups:
+                  type: array
+                  items: { type: string }
+                  description: MIME groups to import, e.g. ["image","video"] (required).
+              required: [path, groups]
+      responses:
+        "201":
+          description: Import initiated
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "400":
+          description: Missing path or groups
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "404":
+          description: Directory not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+  /sessions:
+    get:
+      operationId: listSessions
+      tags: [Import & Upload]
+      summary: List import sessions
+      responses:
+        "200":
+          description: List of sessions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  additionalProperties: true
+  /sessions/{session_id}/browse:
+    get:
+      operationId: browseSession
+      tags: [Import & Upload]
+      summary: Browse files and directories within an import session
+      parameters:
+        - name: session_id
+          in: path
+          required: true
+          schema: { type: integer }
+        - name: path
+          in: query
+          required: false
+          schema: { type: string }
+      responses:
+        "200":
+          description: Session directory contents
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "404":
+          description: Session not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+  /files/{file_id}/metadata:
+    get:
+      operationId: getFileMetadata
+      tags: [Files]
+      summary: Get metadata for a file
+      parameters:
+        - name: file_id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: File metadata
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/FileMetadata" }
+        "404":
+          description: File or metadata not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+    patch:
+      operationId: updateFileMetadata
+      tags: [Files]
+      summary: Update metadata (e.g. date_taken) for a file
+      parameters:
+        - name: file_id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                date_taken:
+                  type: [string, "null"]
+                  description: ISO 8601 datetime string, or null to clear.
+      responses:
+        "200":
+          description: Updated metadata
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/FileMetadata" }
+        "400":
+          description: Invalid date format
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "404":
+          description: File or metadata not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+  /files/{file_id}/tags:
+    patch:
+      operationId: updateFileTags
+      tags: [Files]
+      summary: Set tags for a file
+      parameters:
+        - name: file_id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                tags:
+                  type: array
+                  items: { type: string }
+              required: [tags]
+      responses:
+        "200":
+          description: Updated tags
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  tags:
+                    type: array
+                    items: { type: string }
+        "400":
+          description: tags must be a list
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "404":
+          description: File or metadata not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+  /files/batch-metadata:
+    post:
+      operationId: batchUpdateMetadata
+      tags: [Files]
+      summary: Batch update metadata (date_taken) for multiple files
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                file_ids:
+                  type: array
+                  items: { type: integer }
+                date_taken:
+                  type: [string, "null"]
+              required: [file_ids]
+      responses:
+        "200":
+          description: Update count
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  updated: { type: integer }
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+  /files/batch-memories:
+    post:
+      operationId: batchCreateMemories
+      tags: [User Memories]
+      summary: Create a user memory/note on multiple files
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                file_ids:
+                  type: array
+                  items: { type: integer }
+                content:
+                  type: string
+                tags:
+                  oneOf:
+                    - type: array
+                      items: { type: string }
+                    - type: string
+              required: [file_ids, content]
+      responses:
+        "201":
+          description: Created count
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  created: { type: integer }
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+  /files/{file_id}/favorite:
+    patch:
+      operationId: toggleFavorite
+      tags: [Favorites]
+      summary: Toggle favorite flag on a file
+      parameters:
+        - name: file_id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Updated file
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/File" }
+        "404":
+          description: File not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+  /files/{file_id}/primary:
+    patch:
+      operationId: togglePrimary
+      tags: [Duplicates]
+      summary: Toggle primary (keep) flag on a file
+      parameters:
+        - name: file_id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Updated file
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/File" }
+        "404":
+          description: File not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+  /files:
+    get:
+      operationId: listFiles
+      tags: [Files]
+      summary: List files with filtering, search and pagination
+      parameters:
+        - name: page
+          in: query
+          required: false
+          schema: { type: integer, default: 1 }
+        - name: per_page
+          in: query
+          required: false
+          schema: { type: integer, default: 50 }
+        - name: mime_group
+          in: query
+          required: false
+          schema: { type: string, enum: [image, video] }
+        - name: q
+          in: query
+          required: false
+          schema: { type: string }
+        - name: directory_id
+          in: query
+          required: false
+          schema: { type: integer }
+        - name: min_width
+          in: query
+          required: false
+          schema: { type: integer }
+        - name: min_height
+          in: query
+          required: false
+          schema: { type: integer }
+        - name: sort_by
+          in: query
+          required: false
+          schema: { type: string, enum: [created_at, filename, size], default: created_at }
+        - name: sort_dir
+          in: query
+          required: false
+          schema: { type: string, enum: [asc, desc], default: desc }
+        - name: tag
+          in: query
+          required: false
+          schema: { type: string }
+        - name: has_ai
+          in: query
+          required: false
+          schema: { type: boolean }
+      responses:
+        "200":
+          description: Paginated file list
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PaginatedFiles" }
+  /files/hidden:
+    get:
+      operationId: listHiddenFiles
+      tags: [Files]
+      summary: List hidden files (requires PIN)
+      parameters:
+        - $ref: "#/components/parameters/HiddenPinHeader"
+        - name: page
+          in: query
+          required: false
+          schema: { type: integer, default: 1 }
+        - name: per_page
+          in: query
+          required: false
+          schema: { type: integer, default: 50 }
+        - name: mime_group
+          in: query
+          required: false
+          schema: { type: string, enum: [image, video] }
+        - name: q
+          in: query
+          required: false
+          schema: { type: string }
+        - name: sort_by
+          in: query
+          required: false
+          schema: { type: string, enum: [created_at, filename, size], default: created_at }
+        - name: sort_dir
+          in: query
+          required: false
+          schema: { type: string, enum: [asc, desc], default: desc }
+        - name: tag
+          in: query
+          required: false
+          schema: { type: string }
+      responses:
+        "200":
+          description: Paginated hidden file list
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PaginatedFiles" }
+        "403":
+          description: Invalid PIN
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+  /files/{file_id}/toggle-hidden:
+    patch:
+      operationId: toggleHidden
+      tags: [Files]
+      summary: Toggle hidden flag on a file
+      parameters:
+        - name: file_id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: New hidden state
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: { type: integer }
+                  is_hidden: { type: boolean }
+        "404":
+          description: File not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+  /files/verify-hidden-pin:
+    post:
+      operationId: verifyHiddenPin
+      tags: [Files]
+      summary: Verify the hidden-files PIN
+      parameters:
+        - $ref: "#/components/parameters/HiddenPinHeader"
+      responses:
+        "200":
+          description: PIN valid
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  valid: { type: boolean }
+        "403":
+          description: Invalid PIN
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+  /files/unhide:
+    post:
+      operationId: unhideFiles
+      tags: [Files]
+      summary: Unhide multiple files (requires PIN)
+      parameters:
+        - $ref: "#/components/parameters/HiddenPinHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                file_ids:
+                  type: array
+                  items: { type: integer }
+              required: [file_ids]
+      responses:
+        "200":
+          description: Count unhidden
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  unhidden: { type: integer }
+        "400":
+          description: No file IDs provided
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "403":
+          description: Invalid PIN
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+  /duplicates:
+    get:
+      operationId: listDuplicates
+      tags: [Duplicates]
+      summary: List exact or near duplicate files
+      parameters:
+        - name: type
+          in: query
+          required: false
+          schema: { type: string, enum: [exact, near], default: exact }
+      responses:
+        "200":
+          description: Duplicate groups or pairs
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "400":
+          description: Invalid type
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+  /files/{file_id}/near-duplicates:
+    get:
+      operationId: getNearDuplicates
+      tags: [Duplicates]
+      summary: Find near-duplicate files for a specific file
+      parameters:
+        - name: file_id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Near-duplicate list
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "404":
+          description: No dhash available
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+  /favorites:
+    get:
+      operationId: listFavorites
+      tags: [Favorites]
+      summary: List all favorite files
+      responses:
+        "200":
+          description: Favorite files
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/File" }
+  /files/{file_id}/thumbnail:
+    get:
+      operationId: getFileThumbnail
+      tags: [Files]
+      summary: Get the base64 thumbnail for a file
+      parameters:
+        - name: file_id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Thumbnail data
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  thumbnail: { type: string }
+                  thumbnail_status: { type: string }
+        "404":
+          description: Thumbnail not available
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+  /files/{file_id}/regenerate-ai:
+    post:
+      operationId: regenerateAiMetadata
+      tags: [Files]
+      summary: Queue AI metadata regeneration for a file
+      parameters:
+        - name: file_id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "202":
+          description: Regeneration queued
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+        "404":
+          description: File not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "503":
+          description: Airplane mode enabled
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+  /files/{file_id}/regenerate-exif:
+    post:
+      operationId: regenerateExif
+      tags: [Files]
+      summary: Queue EXIF/metadata extraction for a file
+      parameters:
+        - name: file_id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "202":
+          description: Regeneration queued
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+        "404":
+          description: File not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+  /files/{file_id}/regenerate-thumbnail:
+    post:
+      operationId: regenerateThumbnail
+      tags: [Files]
+      summary: Queue thumbnail regeneration for a file
+      parameters:
+        - name: file_id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "202":
+          description: Regeneration queued
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+        "404":
+          description: File not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+  /files/{file_id}/edit:
+    post:
+      operationId: editFile
+      tags: [Files]
+      summary: Apply edit operations to an image/video and save a new edited copy
+      parameters:
+        - name: file_id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                operations:
+                  type: array
+                  items:
+                    type: object
+                    additionalProperties: true
+                    description: Each op has a `type` plus type-specific fields (value, degrees, direction, x/y/width/height, name, colors, tolerance).
+              required: [operations]
+      responses:
+        "201":
+          description: Created edited file
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/File" }
+        "404":
+          description: File not found or missing on disk
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+  /files/{file_id}:
+    get:
+      operationId: getFile
+      tags: [Files]
+      summary: Get a single file record
+      parameters:
+        - name: file_id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: File record
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/File" }
+        "404":
+          description: File not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+    delete:
+      operationId: deleteFile
+      tags: [Files]
+      summary: Delete a file (optionally from disk)
+      parameters:
+        - name: file_id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                delete_storage:
+                  type: boolean
+                  default: false
+      responses:
+        "200":
+          description: File deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+        "404":
+          description: File not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+  /files/{file_id}/serve:
+    get:
+      operationId: serveFile
+      tags: [Files]
+      summary: Serve the raw file (with range support for video, HEIC conversion)
+      parameters:
+        - name: file_id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: File bytes (binary)
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        "404":
+          description: File not found or missing on disk
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+  /files/{file_id}/download:
+    get:
+      operationId: downloadFile
+      tags: [Files]
+      summary: Download a file as an attachment
+      parameters:
+        - name: file_id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: File bytes (attachment)
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        "404":
+          description: File not found or missing on disk
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+  /upload/directories:
+    get:
+      operationId: listUploadDirectories
+      tags: [Import & Upload]
+      summary: List subdirectories of the upload directory
+      parameters:
+        - name: prefix
+          in: query
+          required: false
+          schema: { type: string }
+      responses:
+        "200":
+          description: Directory listing
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  directories:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: true
+                  prefix: { type: string }
+    post:
+      operationId: createUploadDirectory
+      tags: [Import & Upload]
+      summary: Create a subdirectory in the upload directory
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                path:
+                  type: string
+                  description: Relative path to create (required).
+              required: [path]
+      responses:
+        "201":
+          description: Directory created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  path: { type: string }
+                  message: { type: string }
+        "400":
+          description: Path required
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "500":
+          description: Filesystem error
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+  /upload:
+    post:
+      operationId: uploadFiles
+      tags: [Import & Upload]
+      summary: Upload one or more files (multipart form)
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                directory:
+                  type: string
+                  description: Optional subdirectory within the upload dir.
+                nickname:
+                  type: string
+                  description: Required uploader nickname.
+                files:
+                  type: array
+                  items:
+                    type: string
+                    format: binary
+            required: [nickname, files]
+      responses:
+        "201":
+          description: Saved files
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  saved:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: true
+                  errors:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: true
+        "400":
+          description: Missing nickname or files / unsupported mime
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+  /upload/files/delete:
+    post:
+      operationId: softDeleteUploadFiles
+      tags: [Import & Upload]
+      summary: Soft-delete uploaded files
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                file_ids:
+                  type: array
+                  items: { type: integer }
+                paths:
+                  type: array
+                  items: { type: string }
+      responses:
+        "200":
+          description: Deleted count
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  deleted: { type: integer }
+        "400":
+          description: Provide file_ids or paths
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+  /upload/directories/delete:
+    post:
+      operationId: softDeleteUploadDirectory
+      tags: [Import & Upload]
+      summary: Soft-delete an upload directory (and contents)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                path:
+                  type: string
+              required: [path]
+      responses:
+        "200":
+          description: Deletion result
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "400":
+          description: path is required
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+  /upload/move:
+    post:
+      operationId: moveUploadItems
+      tags: [Import & Upload]
+      summary: Move uploaded files/directories
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                paths:
+                  type: array
+                  items: { type: string }
+                target:
+                  type: string
+              required: [paths]
+      responses:
+        "200":
+          description: Move result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+        "400":
+          description: paths is required
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+  /upload/copy:
+    post:
+      operationId: copyUploadItems
+      tags: [Import & Upload]
+      summary: Copy uploaded files/directories
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                paths:
+                  type: array
+                  items: { type: string }
+                target:
+                  type: string
+              required: [paths]
+      responses:
+        "200":
+          description: Copy result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+        "400":
+          description: paths is required
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+  /upload/rename:
+    post:
+      operationId: renameUploadItem
+      tags: [Import & Upload]
+      summary: Rename an uploaded file or directory
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                path:
+                  type: string
+                new_name:
+                  type: string
+              required: [path, new_name]
+      responses:
+        "200":
+          description: Renamed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+        "400":
+          description: path and new_name are required
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+  /upload/files/recent:
+    get:
+      operationId: listRecentUploadFiles
+      tags: [Import & Upload]
+      summary: List recent upload files
+      parameters:
+        - name: prefix
+          in: query
+          required: false
+          schema: { type: string }
+      responses:
+        "200":
+          description: Recent files
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  files:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: true
+  /upload/nicknames:
+    get:
+      operationId: listNicknames
+      tags: [Import & Upload]
+      summary: List distinct uploader nicknames
+      responses:
+        "200":
+          description: Nicknames
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  nicknames:
+                    type: array
+                    items: { type: string }
+  /tags:
+    get:
+      operationId: listAllTags
+      tags: [Filters]
+      summary: List all tags with frequency counts
+      responses:
+        "200":
+          description: Tags with counts
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  tags:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        tag: { type: string }
+                        count: { type: integer }
+  /stats:
+    get:
+      operationId: getStatistics
+      tags: [System & Geocoding]
+      summary: Get aggregated library statistics
+      responses:
+        "200":
+          description: Statistics
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/StatsResponse" }
+  /filters:
+    get:
+      operationId: listFilters
+      tags: [Filters]
+      summary: List saved filter presets
+      responses:
+        "200":
+          description: Filter presets
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/FilterPreset" }
+    post:
+      operationId: createFilter
+      tags: [Filters]
+      summary: Create or update a filter preset
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                operations:
+                  type: array
+                  items:
+                    type: object
+                    additionalProperties: true
+                file_id:
+                  type: [integer, "null"]
+              required: [name, operations]
+      responses:
+        "200":
+          description: Updated preset
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/FilterPreset" }
+        "201":
+          description: Created preset
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/FilterPreset" }
+        "400":
+          description: Missing name or operations
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+  /filters/{filter_id}:
+    delete:
+      operationId: deleteFilter
+      tags: [Filters]
+      summary: Delete a filter preset
+      parameters:
+        - name: filter_id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+        "404":
+          description: Filter not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+  /files/with-gps:
+    get:
+      operationId: listFilesWithGps
+      tags: [Locations]
+      summary: List files that have GPS coordinates
+      parameters:
+        - name: page
+          in: query
+          required: false
+          schema: { type: integer, default: 1 }
+        - name: per_page
+          in: query
+          required: false
+          schema: { type: integer, default: 200 }
+      responses:
+        "200":
+          description: GPS files
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PaginatedFiles" }
+  /locations:
+    get:
+      operationId: listLocations
+      tags: [Locations]
+      summary: List saved locations
+      responses:
+        "200":
+          description: Locations
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/SavedLocation" }
+    post:
+      operationId: createLocation
+      tags: [Locations]
+      summary: Create a saved location
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                latitude:
+                  type: number
+                longitude:
+                  type: number
+                radius:
+                  type: number
+                  default: 0.09
+              required: [name, latitude, longitude]
+      responses:
+        "201":
+          description: Created location
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SavedLocation" }
+        "400":
+          description: Missing name/latitude/longitude
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+  /locations/{loc_id}:
+    put:
+      operationId: updateLocation
+      tags: [Locations]
+      summary: Update a saved location
+      parameters:
+        - name: loc_id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string }
+                latitude: { type: number }
+                longitude: { type: number }
+                radius: { type: number }
+      responses:
+        "200":
+          description: Updated location
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SavedLocation" }
+        "404":
+          description: Location not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+    delete:
+      operationId: deleteLocation
+      tags: [Locations]
+      summary: Delete a saved location
+      parameters:
+        - name: loc_id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+        "404":
+          description: Location not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+  /files/{file_id}/export:
+    post:
+      operationId: exportFile
+      tags: [Files]
+      summary: Export a file with edit operations to a chosen format
+      parameters:
+        - name: file_id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                operations:
+                  type: array
+                  items:
+                    type: object
+                    additionalProperties: true
+                format:
+                  type: string
+                  enum: [jpeg, png, webp, heic, pdf, ascii]
+                  default: jpeg
+                quality:
+                  type: integer
+                  default: 95
+                ascii_chars:
+                  type: string
+                ascii_width:
+                  type: integer
+      responses:
+        "200":
+          description: Exported file bytes
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        "404":
+          description: File not found or missing on disk
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+  /geocode/reverse:
+    get:
+      operationId: reverseGeocode
+      tags: [System & Geocoding]
+      summary: Reverse-geocode coordinates to a place name
+      parameters:
+        - name: lat
+          in: query
+          required: true
+          schema: { type: number }
+        - name: lng
+          in: query
+          required: true
+          schema: { type: number }
+      responses:
+        "200":
+          description: Geocode result
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "400":
+          description: Missing lat/lng
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "503":
+          description: Airplane mode enabled
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+  /files/{file_id}/export-video:
+    post:
+      operationId: exportVideo
+      tags: [Files]
+      summary: Export a video with edit operations to a chosen format
+      parameters:
+        - name: file_id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                operations:
+                  type: array
+                  items:
+                    type: object
+                    additionalProperties: true
+                format:
+                  type: string
+                  enum: [mp4, webm, avi, mkv, mov]
+                  default: mp4
+      responses:
+        "200":
+          description: Exported video bytes
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        "400":
+          description: Unsupported format
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "404":
+          description: File not found or missing on disk
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+  /explorer/browse:
+    get:
+      operationId: explorerBrowse
+      tags: [Media Explorer]
+      summary: Browse the media explorer tree (dirs + files)
+      parameters:
+        - name: prefix
+          in: query
+          required: false
+          schema: { type: string }
+        - name: page
+          in: query
+          required: false
+          schema: { type: integer, default: 1 }
+        - name: per_page
+          in: query
+          required: false
+          schema: { type: integer, default: 100 }
+      responses:
+        "200":
+          description: Explorer contents
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+  /explorer/rename:
+    post:
+      operationId: explorerRename
+      tags: [Media Explorer]
+      summary: Rename a file or directory in the explorer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                path:
+                  type: string
+                new_name:
+                  type: string
+                type:
+                  type: string
+                  enum: [file, dir]
+                  default: file
+              required: [path, new_name]
+      responses:
+        "200":
+          description: Renamed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+        "400":
+          description: path and new_name are required
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "404":
+          description: Item not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+  /explorer/move:
+    post:
+      operationId: explorerMove
+      tags: [Media Explorer]
+      summary: Move items in the explorer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                paths:
+                  type: array
+                  items: { type: string }
+                target:
+                  type: string
+              required: [paths]
+      responses:
+        "200":
+          description: Move result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+        "400":
+          description: paths is required / upload session missing
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "404":
+          description: No items moved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+  /explorer/copy:
+    post:
+      operationId: explorerCopy
+      tags: [Media Explorer]
+      summary: Copy items in the explorer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                paths:
+                  type: array
+                  items: { type: string }
+                target:
+                  type: string
+              required: [paths]
+      responses:
+        "200":
+          description: Copy result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+        "400":
+          description: paths is required / upload session missing
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+  /explorer/delete:
+    post:
+      operationId: explorerDelete
+      tags: [Media Explorer]
+      summary: Delete items (files/dirs) in the explorer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                paths:
+                  type: array
+                  items: { type: string }
+              required: [paths]
+      responses:
+        "200":
+          description: Deletion result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+        "400":
+          description: paths is required
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+  /explorer/favorites:
+    get:
+      operationId: explorerListFavorites
+      tags: [Media Explorer]
+      summary: List favorited folders
+      responses:
+        "200":
+          description: Favorites
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  favorites:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: true
+    post:
+      operationId: explorerAddFavorite
+      tags: [Media Explorer]
+      summary: Add a folder to favorites
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                path: { type: string }
+                name: { type: string }
+              required: [path, name]
+      responses:
+        "200":
+          description: Already favorited
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "201":
+          description: Folder favorited
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "400":
+          description: path and name are required
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+    delete:
+      operationId: explorerRemoveFavorite
+      tags: [Media Explorer]
+      summary: Remove a folder from favorites
+      parameters:
+        - name: path
+          in: query
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Favorite removed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+        "400":
+          description: path query parameter is required
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+  /tools/ingredient-scanner/analyze:
+    post:
+      operationId: ingredientScannerAnalyze
+      tags: [Tools]
+      summary: Analyze ingredient text via Ollama (async)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                text:
+                  type: string
+              required: [text]
+      responses:
+        "202":
+          description: Analysis queued
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  task_id: { type: string }
+                  status: { type: string }
+        "400":
+          description: No text provided
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+  /tools/ingredient-scanner/result/{task_id}:
+    get:
+      operationId: ingredientScannerResult
+      tags: [Tools]
+      summary: Poll ingredient scanner analysis result
+      parameters:
+        - name: task_id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Task status/result
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "404":
+          description: Task not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+  /tools/barcode-scanner/stats:
+    post:
+      operationId: barcodeScannerStats
+      tags: [Tools]
+      summary: Record a barcode scan event
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                value: { type: string }
+                format: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+  /tools/barcode-scanner/sync:
+    post:
+      operationId: barcodeScannerSync
+      tags: [Tools]
+      summary: Sync barcode scanner cart/history
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                cart:
+                  type: object
+                  additionalProperties: true
+                history:
+                  type: array
+                  items:
+                    type: object
+                    additionalProperties: true
+      responses:
+        "200":
+          description: Synced
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+  /tools/ingredient-scanner-ai/analyze:
+    post:
+      operationId: ingredientScannerAiAnalyze
+      tags: [Tools]
+      summary: Analyze a label image via Ollama vision (async)
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                image:
+                  type: string
+                  format: binary
+              required: [image]
+      responses:
+        "202":
+          description: Analysis queued
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  task_id: { type: string }
+                  status: { type: string }
+        "400":
+          description: No image provided
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+  /tools/ingredient-scanner-ai/result/{task_id}:
+    get:
+      operationId: ingredientScannerAiResult
+      tags: [Tools]
+      summary: Poll AI ingredient scanner result
+      parameters:
+        - name: task_id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Task status/result
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "404":
+          description: Task not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+  /persons:
+    get:
+      operationId: listPersons
+      tags: [Faces & Persons]
+      summary: List persons (paginated, searchable)
+      parameters:
+        - name: page
+          in: query
+          required: false
+          schema: { type: integer, default: 1 }
+        - name: per_page
+          in: query
+          required: false
+          schema: { type: integer, default: 50 }
+        - name: q
+          in: query
+          required: false
+          schema: { type: string }
+      responses:
+        "200":
+          description: Persons
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PaginatedPersons" }
+  /persons/{person_id}:
+    put:
+      operationId: updatePerson
+      tags: [Faces & Persons]
+      summary: Rename a person
+      parameters:
+        - name: person_id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: [string, "null"]
+      responses:
+        "200":
+          description: Updated person
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Person" }
+        "404":
+          description: Person not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+    delete:
+      operationId: deletePerson
+      tags: [Faces & Persons]
+      summary: Delete a person (unlinks faces)
+      parameters:
+        - name: person_id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Person deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+        "404":
+          description: Person not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+  /persons/batch-delete:
+    post:
+      operationId: batchDeletePersons
+      tags: [Faces & Persons]
+      summary: Delete multiple persons
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                person_ids:
+                  type: array
+                  items: { type: integer }
+              required: [person_ids]
+      responses:
+        "200":
+          description: Deletion result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+        "400":
+          description: No person IDs provided
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+  /persons/{person_id}/faces:
+    get:
+      operationId: listPersonFaces
+      tags: [Faces & Persons]
+      summary: List faces for a person
+      parameters:
+        - name: person_id
+          in: path
+          required: true
+          schema: { type: integer }
+        - name: page
+          in: query
+          required: false
+          schema: { type: integer, default: 1 }
+        - name: per_page
+          in: query
+          required: false
+          schema: { type: integer, default: 12 }
+      responses:
+        "200":
+          description: Faces
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PaginatedFaces" }
+        "404":
+          description: Person not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+  /persons/{person_id}/files:
+    get:
+      operationId: listPersonFiles
+      tags: [Faces & Persons]
+      summary: List files containing a person
+      parameters:
+        - name: person_id
+          in: path
+          required: true
+          schema: { type: integer }
+        - name: page
+          in: query
+          required: false
+          schema: { type: integer, default: 1 }
+        - name: per_page
+          in: query
+          required: false
+          schema: { type: integer, default: 32 }
+      responses:
+        "200":
+          description: Files
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PaginatedFiles" }
+        "404":
+          description: Person not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+  /persons/scan:
+    post:
+      operationId: scanAllFaces
+      tags: [Faces & Persons]
+      summary: Queue face detection for all unscanned image files
+      responses:
+        "202":
+          description: Scan queued
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+  /files/{file_id}/detect-faces:
+    post:
+      operationId: detectFacesForFile
+      tags: [Faces & Persons]
+      summary: Queue face detection for a single file
+      parameters:
+        - name: file_id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "202":
+          description: Detection queued
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+        "400":
+          description: Not an image file
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "404":
+          description: File not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+  /faces/{face_id}:
+    put:
+      operationId: updateFace
+      tags: [Faces & Persons]
+      summary: Assign/unassign a name to a detected face
+      parameters:
+        - name: face_id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: [string, "null"]
+      responses:
+        "200":
+          description: Updated face
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "404":
+          description: Face not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+  /faces:
+    get:
+      operationId: listRecentFaces
+      tags: [Faces & Persons]
+      summary: List recent detected faces
+      parameters:
+        - name: page
+          in: query
+          required: false
+          schema: { type: integer, default: 1 }
+        - name: per_page
+          in: query
+          required: false
+          schema: { type: integer, default: 50 }
+        - name: person_id
+          in: query
+          required: false
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Faces
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PaginatedFaces" }
+  /persons/merge:
+    post:
+      operationId: mergePersons
+      tags: [Faces & Persons]
+      summary: Merge multiple persons into one
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                person_ids:
+                  type: array
+                  items: { type: integer }
+                name:
+                  type: [string, "null"]
+              required: [person_ids]
+      responses:
+        "200":
+          description: Merged person
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Person" }
+        "400":
+          description: Need at least 2 persons
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+  /files/{file_id}/faces:
+    get:
+      operationId: listFileFaces
+      tags: [Faces & Persons]
+      summary: List detected faces in a file
+      parameters:
+        - name: file_id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Faces
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  additionalProperties: true
+        "404":
+          description: File not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+  /persons/{person_id}/timeline:
+    get:
+      operationId: personTimeline
+      tags: [Faces & Persons]
+      summary: Build a timeline of a person's files
+      parameters:
+        - name: person_id
+          in: path
+          required: true
+          schema: { type: integer }
+        - name: timeframe
+          in: query
+          required: false
+          schema: { type: string, enum: [year, month, week, day], default: year }
+        - name: date_from
+          in: query
+          required: false
+          schema: { type: string }
+        - name: date_to
+          in: query
+          required: false
+          schema: { type: string }
+        - name: person_groups
+          in: query
+          required: false
+          schema: { type: string }
+          description: JSON-encoded array of person-id arrays (for AND combos).
+        - name: person_ids
+          in: query
+          required: false
+          schema: { type: string }
+          description: Comma-separated person ids.
+      responses:
+        "200":
+          description: Timeline buckets
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "404":
+          description: Person not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+  /faces/stats:
+    get:
+      operationId: faceStats
+      tags: [Faces & Persons]
+      summary: Get face/person statistics
+      responses:
+        "200":
+          description: Face stats
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  total_persons: { type: integer }
+                  total_faces: { type: integer }
+                  named_persons: { type: integer }
+                  files_with_faces: { type: integer }
+  /collections:
+    get:
+      operationId: listCollections
+      tags: [Collections]
+      summary: List collections (optionally filtered by file membership)
+      parameters:
+        - name: file_id
+          in: query
+          required: false
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Collections
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Collection" }
+    post:
+      operationId: createCollection
+      tags: [Collections]
+      summary: Create a collection
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                description:
+                  type: string
+                cover_file_id:
+                  type: [integer, "null"]
+              required: [name]
+      responses:
+        "201":
+          description: Created collection
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Collection" }
+        "400":
+          description: Name is required
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "409":
+          description: Name already exists
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+  /collections/{collection_id}:
+    get:
+      operationId: getCollection
+      tags: [Collections]
+      summary: Get a collection with its files
+      parameters:
+        - name: collection_id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Collection
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Collection" }
+        "404":
+          description: Collection not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+    put:
+      operationId: updateCollection
+      tags: [Collections]
+      summary: Update a collection
+      parameters:
+        - name: collection_id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string }
+                description: { type: string }
+                cover_file_id: { type: [integer, "null"] }
+      responses:
+        "200":
+          description: Updated collection
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Collection" }
+        "400":
+          description: Name cannot be empty
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "404":
+          description: Collection not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "409":
+          description: Name already exists
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+    delete:
+      operationId: deleteCollection
+      tags: [Collections]
+      summary: Delete a collection (keeps files)
+      parameters:
+        - name: collection_id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean }
+        "404":
+          description: Collection not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+  /collections/{collection_id}/files:
+    post:
+      operationId: addFilesToCollection
+      tags: [Collections]
+      summary: Add files to a collection
+      parameters:
+        - name: collection_id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                file_ids:
+                  type: array
+                  items: { type: integer }
+              required: [file_ids]
+      responses:
+        "200":
+          description: Add result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  added: { type: integer }
+                  total: { type: integer }
+        "400":
+          description: file_ids is required
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "404":
+          description: Collection not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+    delete:
+      operationId: removeFilesFromCollection
+      tags: [Collections]
+      summary: Remove files from a collection
+      parameters:
+        - name: collection_id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                file_ids:
+                  type: array
+                  items: { type: integer }
+              required: [file_ids]
+      responses:
+        "200":
+          description: Remove result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean }
+                  total: { type: integer }
+        "400":
+          description: file_ids is required
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "404":
+          description: Collection not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+  /collections/{collection_id}/download:
+    get:
+      operationId: downloadCollectionZip
+      tags: [Collections]
+      summary: Download a collection as a ZIP archive
+      parameters:
+        - name: collection_id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: ZIP archive bytes
+          content:
+            application/zip:
+              schema:
+                type: string
+                format: binary
+        "400":
+          description: Collection is empty
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "404":
+          description: Collection not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+  /files/{file_id}/memories:
+    get:
+      operationId: listMemories
+      tags: [User Memories]
+      summary: List user memories for a file
+      parameters:
+        - name: file_id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Memories
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/UserMemory" }
+        "404":
+          description: File not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+    post:
+      operationId: createMemory
+      tags: [User Memories]
+      summary: Create a user memory for a file
+      parameters:
+        - name: file_id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                content:
+                  type: string
+                tags:
+                  oneOf:
+                    - type: array
+                      items: { type: string }
+                    - type: string
+              required: [content]
+      responses:
+        "201":
+          description: Created memory
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UserMemory" }
+        "400":
+          description: Content is required
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "404":
+          description: File not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+  /memories/{memory_id}:
+    put:
+      operationId: updateMemory
+      tags: [User Memories]
+      summary: Update a user memory
+      parameters:
+        - name: memory_id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                content: { type: string }
+                tags:
+                  oneOf:
+                    - type: array
+                      items: { type: string }
+                    - type: string
+      responses:
+        "200":
+          description: Updated memory
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UserMemory" }
+        "400":
+          description: Content cannot be empty
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "404":
+          description: Memory not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+    delete:
+      operationId: deleteMemory
+      tags: [User Memories]
+      summary: Delete a user memory
+      parameters:
+        - name: memory_id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean }
+        "404":
+          description: Memory not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
