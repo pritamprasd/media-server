@@ -566,19 +566,6 @@ function MediaExplorer() {
             title={viewMode === "grid" ? "List view" : "Grid view"}>
             {viewMode === "grid" ? <List size={16} /> : <Grid3X3 size={16} />}
           </button>
-          {viewMode === "grid" && (
-            <div className="explorer__thumb-slider" onClick={(e) => e.stopPropagation()}>
-              <input
-                type="range"
-                min={80}
-                max={300}
-                value={thumbSize}
-                onChange={handleThumbSizeChange}
-                className="explorer__thumb-range"
-                title={`Thumbnail size: ${thumbSize}px`}
-              />
-            </div>
-          )}
           <div className="explorer__new-wrap" ref={newMenuRef}>
             <button className="explorer__new-btn" onClick={(e) => { e.stopPropagation(); setShowNewMenu((v) => !v); }}>
               <Plus size={16} /> New <ChevronDown size={12} />
@@ -599,6 +586,23 @@ function MediaExplorer() {
           </div>
         </div>
       </div>
+      {viewMode === "grid" && (
+        <div className="explorer__thumb-slider-row" onClick={(e) => e.stopPropagation()}>
+          <Grid3X3 size={14} className="explorer__thumb-icon explorer__thumb-icon--small" />
+          <input
+            type="range"
+            min={80}
+            max={300}
+            value={thumbSize}
+            onChange={handleThumbSizeChange}
+            className="explorer__thumb-range"
+            title={`Thumbnail size: ${thumbSize}px`}
+            style={{ "--thumb-pct": `${((thumbSize - 80) / (300 - 80)) * 100}%` }}
+          />
+          <Grid3X3 size={22} className="explorer__thumb-icon explorer__thumb-icon--large" />
+          <span className="explorer__thumb-label">{thumbSize}px</span>
+        </div>
+      )}
 
       {favoriteFolders.length > 0 && (
         <div className="explorer__favorites-bar">

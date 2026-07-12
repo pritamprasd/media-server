@@ -397,40 +397,93 @@
   animation: upload-spin 0.8s linear infinite;
 }
 
-.explorer__thumb-slider {
+.explorer__thumb-slider-row {
   display: flex;
   align-items: center;
-  padding: 0 0.25rem;
+  gap: 0.375rem;
+  padding: 0.375rem 0.5rem;
+  border-bottom: 1px solid var(--color-surface);
+}
+
+.explorer__thumb-icon {
+  flex-shrink: 0;
+  color: var(--color-text-muted);
+  opacity: 0.6;
+  transition: opacity 0.15s;
+}
+
+.explorer__thumb-icon--large {
+  opacity: 0.9;
+  color: var(--color-primary);
+}
+
+.explorer__thumb-slider-row:hover .explorer__thumb-icon {
+  opacity: 1;
 }
 
 .explorer__thumb-range {
-  width: 80px;
-  height: 4px;
+  width: 90px;
+  height: 6px;
   -webkit-appearance: none;
   appearance: none;
-  background: var(--color-surface-light);
-  border-radius: 2px;
+  background: linear-gradient(
+    to right,
+    var(--color-primary) 0%,
+    var(--color-primary) var(--thumb-pct, 36%),
+    var(--color-surface-light) var(--thumb-pct, 36%),
+    var(--color-surface-light) 100%
+  );
+  border-radius: 3px;
   outline: none;
   cursor: pointer;
+  transition: background 0.1s;
+}
+
+.explorer__thumb-range:hover {
+  height: 7px;
 }
 
 .explorer__thumb-range::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
-  width: 14px;
-  height: 14px;
+  width: 16px;
+  height: 16px;
   border-radius: 50%;
   background: var(--color-primary);
   cursor: pointer;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
+  transition: transform 0.1s, box-shadow 0.1s;
+}
+
+.explorer__thumb-range:hover::-webkit-slider-thumb {
+  transform: scale(1.15);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
 }
 
 .explorer__thumb-range::-moz-range-thumb {
-  width: 14px;
-  height: 14px;
+  width: 16px;
+  height: 16px;
   border-radius: 50%;
   background: var(--color-primary);
   cursor: pointer;
   border: none;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
+  transition: transform 0.1s, box-shadow 0.1s;
+}
+
+.explorer__thumb-range:hover::-moz-range-thumb {
+  transform: scale(1.15);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+}
+
+.explorer__thumb-label {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  min-width: 2.5rem;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  user-select: none;
 }
 
 .explorer__rename-input {

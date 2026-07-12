@@ -106,6 +106,7 @@
 - **No upload-session exclusion**: The `explorer_browse` endpoint does NOT filter out the upload session — all sessions' files appear in Explorer. The `seen_paths` dedup logic prevents duplicate directory entries.
 - **Folder icon/color per path**: Customizations stored as a single IndexedDB key `explorer_folder_styles = { [relative_path]: { icon: string, color: string } }`. Supports 13 Lucide icons and 10 color options.
 - **File operations guards**: `explorer_delete` must `DetectedFace.query.filter_by(file_id=...).delete()` before hard-deleting any `ImportedFile` to avoid FK NOT NULL violations (autoflush cascade). `FileMetadata` has no `date_added` column — do not reference it in metadata copy constructors.
+- **Thumbnail size slider**: Auto-saves to IndexedDB on every drag (no Save button). Lives on its own row below the toolbar (after the New dropdown). Uses `--thumb-pct` inline style driving the filled-track gradient. Small `Grid3X3` (14px, muted) on left = "small", large `Grid3X3` (22px, primary) on right = "large". Live `Npx` label via `.explorer__thumb-label`. Grid columns driven by `--thumb-size` CSS variable on `.explorer__items--grid`.
 
 ### Map
 - **Explicit search**: The distance radius slider (1–100 km) controls a `pendingKm` draft state. Only clicking the "Search" button copies it to the active `nearbyKm` state, triggering `filteredMarkers` recalculation. Map click and Zoom In also sync `pendingKm = nearbyKm` so the slider reflects the active radius.
@@ -175,6 +176,11 @@
 - All edits go to edited-images directory (~/media-server-edited)
 
 
+## Developer Productivity
+- Keep the **Developer Productivity** section in README.md up to date with all Makefile targets, scripts, helper files, and utility commands.
+- When adding a new feature, check if any new Makefile targets, scripts, Docker compose changes, or developer helper files are needed and document them there.
+- See `README.md#developer-productivity` for the current reference.
+
 ## MUST DOs:
-1. Update README.md file on each feature addition/update.
+1. Update README.md file on each feature addition/update — add new features to appropriate sections, update API endpoints, configuration, developer productivity, and architecture as needed.
 2. Provide a one line commit message as last line of the output.
