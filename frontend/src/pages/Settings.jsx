@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   ChevronRight, Save, Trash2, ArrowUp, ArrowDown, RotateCcw,
@@ -110,9 +110,6 @@ function Settings() {
     getPref("settingsOrder", null).then((order) => {
       if (order && Array.isArray(order) && order.length > 0) setSettingsOrder(order);
     });
-    if ("serviceWorker" in navigator && navigator.serviceWorker.controller) {
-      navigator.serviceWorker.controller.postMessage({ type: "GET_CACHE_STATUS" });
-    }
     const onCacheMsg = (e) => {
       if (e.data.type === "CACHE_STATUS") setCacheBreakdown(e.data.data);
     };
@@ -122,6 +119,30 @@ function Settings() {
     getPref("orientationLock", false).then(setOrientationLock);
     return () => navigator.serviceWorker?.removeEventListener("message", onCacheMsg);
   }, []);
+
+  // Request per-cache SW status. Uses navigator.serviceWorker.ready so it works
+  // even before the SW has taken control of the page (controller can be null on load).
+  const requestCacheStatus = useCallback(() => {
+    if (!("serviceWorker" in navigator)) return;
+    navigator.serviceWorker.ready
+      .then((reg) => {
+        if (reg.active) reg.active.postMessage({ type: "GET_CACHE_STATUS" });
+      })
+      .catch(() => {});
+  }, []);
+
+  // Refresh cache status every time the Offline Cache dialog is opened.
+  useEffect(() => {
+    if (openDialog === "offline-cache") requestCacheStatus();
+  }, [openDialog, requestCacheStatus]);
+
+  // Re-fetch once the service worker takes control of the page.
+  useEffect(() => {
+    if (!("serviceWorker" in navigator) || !navigator.serviceWorker) return;
+    const onCtrl = () => requestCacheStatus();
+    navigator.serviceWorker.addEventListener("controllerchange", onCtrl);
+    return () => navigator.serviceWorker.removeEventListener("controllerchange", onCtrl);
+  }, [requestCacheStatus]);
 
   const handleMoveTab = (type, idx, dir) => {
     const setter = type === "image" ? setImageTabs : setVideoTabs;
