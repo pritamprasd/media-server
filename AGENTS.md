@@ -106,6 +106,8 @@
 - **No upload-session exclusion**: The `explorer_browse` endpoint does NOT filter out the upload session — all sessions' files appear in Explorer. The `seen_paths` dedup logic prevents duplicate directory entries.
 - **Folder icon/color per path**: Customizations stored as a single IndexedDB key `explorer_folder_styles = { [relative_path]: { icon: string, color: string } }`. Supports 13 Lucide icons and 10 color options.
 - **File operations guards**: `explorer_delete` must `DetectedFace.query.filter_by(file_id=...).delete()` before hard-deleting any `ImportedFile` to avoid FK NOT NULL violations (autoflush cascade). `FileMetadata` has no `date_added` column — do not reference it in metadata copy constructors.
+- **Batch edit**: When files are selected in Explorer, an "Edit" button appears in the toolbar. Opens a modal (`explorer__modal`) to batch-set `date_taken` (datetime picker) and add a UserMemory note (textarea + tags). Calls `POST /api/files/batch-metadata` and `POST /api/files/batch-memories`. Only file items (not directories) are editable.
+- **Folder deletion with filesystem cleanup**: `explorer_delete` deletes both database records AND filesystem files/directories (`os.remove` for files, `shutil.rmtree` for directories). Resolves full path from `ImportSession.root_path` + `relative_path`.
 - **Thumbnail size slider**: Auto-saves to IndexedDB on every drag (no Save button). Lives on its own row below the toolbar (after the New dropdown). Uses `--thumb-pct` inline style driving the filled-track gradient. Small `Grid3X3` (14px, muted) on left = "small", large `Grid3X3` (22px, primary) on right = "large". Live `Npx` label via `.explorer__thumb-label`. Grid columns driven by `--thumb-size` CSS variable on `.explorer__items--grid`.
 
 ### Map
@@ -125,6 +127,7 @@
 - **Material theme (MUI)**: `@mui/material` + `@emotion/react` + `@emotion/styled` are installed but **lazy-loaded** via `MaterialThemeWrapper.jsx` → dynamic `import("./MuiThemeProvider")`. Vite code-splits MUI into a separate chunk (~31KB gzip) that is only fetched when `style === "material"`. Service worker caches MUI chunk in `media-server-mui-v1` cache.
 - **Adding a new theme style**: Add entry to `frontend/src/config/themes.js`, add CSS variable block in `index.css` with `[data-style="newstyle"][data-mode="dark|light"]` selectors, and optionally create a lazy-loaded theme wrapper if it needs external dependencies.
 - **Missing CSS variables**: `--color-border`, `--color-surface-light`, `--color-success` are now defined in all 4 theme blocks. Use these with fallbacks: `var(--color-success, #2ecc71)`.
+- **Subtle dark mode icons**: `[data-mode="dark"] svg` gets `opacity: 0.85` and filled icons get `opacity: 0.9` to reduce visual harshness on dark backgrounds. Dark mode palettes use muted primary colors (neumorphic: `#e0525e`, material: `#a87be0`).
 
 ### Settings Page Architecture
 - **Registry pattern**: `frontend/src/config/settings.js` exports `SETTINGS` array — each entry has `{ id, label, icon, description }`. Adding a new setting = adding an entry to this array + implementing `renderDialogContent(id)` case in `Settings.jsx`.
@@ -173,7 +176,7 @@
 - **No save-as**: No backend API calls. All processing in FE. Download only.
 - **7 tabs**: Filters (preset grid with thumbnail previews), Adjust (7 sliders), Light (5 sliders), Effects (vignette/grain/colorize/grayscale), Details (clarity/dehaze), Colors (selective color picker with tolerance), Crop (aspect ratios + rotate/flip + drag handles).
 - **Crop preview**: CSS `clip-path: inset()` + `box-shadow: 0 0 0 9999px` overlay dimming + 4 corner drag handles with aspect ratio locking. Same mouse event handling as FileViewer.jsx crop.
-- **Presets**: Save/apply/delete named presets capturing all edits (excluding crop). Stored in IndexedDB as `photoEditorPresets`. Preset captures: `adjust`, `activeFilter`, `operations`, `selectedColors`, `colorTolerance`. Toggle "💾 Presets" button in toolbar to show preset bar with "+ Save" chip and named preset chips (click to apply, × to delete). Uses `window.prompt()` for preset name.
+- **Presets**: Save/apply/delete named presets capturing all edits (excluding crop). Stored in IndexedDB as `photoEditorPresets`. Preset captures: `adjust`, `activeFilter`, `operations`, `selectedColors`, `colorTolerance`. Saved presets also appear as a "Saved Presets" section at the bottom of the Filters tab, with apply and delete (×) actions directly on each chip.
 - **Color grid no-rerender**: Swatch click toggles `.pe-colors-swatch--active` class in-place and updates the "Clear all" counter text directly — does NOT call `renderColorsTab()` to avoid destroying/recreating the entire DOM. Full re-render only happens on `extractColors()` (tolerance change) and "Clear all" button.
 
 ### Video Editor Tool
@@ -187,8 +190,10 @@
 - **Trim**: Set start/end via timeline handles or "Set to Current" buttons. Preview trim plays from start to end, auto-stops at trim end.
 - **6 tabs**: Trim (timeline + time inputs + info), Adjust (7 sliders), Light (4 sliders), Effects (grayscale toggle + sepia slider), Speed (playback rate 0.25×–4× with presets), Rotate (4 buttons: rotate L/R, flip H/V — applied via UV transform in shader).
 - **Frame extraction**: Renders current frame through WebGL pipeline (or 2D fallback) to `<canvas>` → PNG download with applied filters.
-- **Download with filters**: Uses `MediaRecorder` + `canvas.captureStream()` to record the GPU-rendered canvas output while video plays through, producing a new WebM video file with all adjustments baked in. Audio from the original video is mixed in via `videoEl.captureStream()`. Recording badge shows during export; play/pause/extract disabled while recording.
-- **Presets**: Save/apply/delete named presets capturing all edits (excluding trim). Stored in IndexedDB as `videoEditorPresets`. Preset captures: `adjust`, `operations`, `speed`. Toggle "💾 Presets" button in toolbar to show preset bar with "+ Save" chip and named preset chips (click to apply, × to delete). Uses `window.prompt()` for preset name.
+- **Download with filters**: Uses `MediaRecorder` + `canvas.captureStream()` to record the GPU-rendered canvas output while video plays through, producing a new WebM video file with all adjustments baked in. Audio from the original video is mixed in via `videoEl.captureStream()`. "⏳ Rendering..." badge shows during export; play/pause/extract disabled while rendering. Button text: "⏳ Rendering..." (not "Recording...").
+- **Render cache**: After rendering, the output blob is cached in memory (`lastRenderedBlob`) with a hash of all edit parameters (`lastRenderedHash`). If the user clicks Download again without changing any parameters, the cached blob is re-downloaded instantly without re-rendering. Cache is invalidated on `resetAll()` or video source change.
+- **Tab duplication fix**: `renderTrimTab()`, `renderSpeedTab()`, and `renderRotateTab()` all clear `tabContent.innerHTML` at the start. This prevents DOM duplication when these functions are called directly (from button clicks, drag-end, or reset) rather than through `renderTabContent()`.
+- **Presets**: Save/apply/delete named presets capturing all edits (excluding trim). Stored in IndexedDB as `videoEditorPresets`. Preset captures: `adjust`, `operations`, `speed`. Saved presets also appear as a "Saved Presets" section at the bottom of the Adjust tab, with apply and delete (×) actions directly on each chip.
 
 ### Ingredient Scanner — Nutrition Facts
 - **Auto-detect from OCR text**: `runAnalysis()` searches for `nutrition (information|facts|label|values?|data)` in the OCR text and splits it: text before is treated as ingredients, text from the match onwards as nutrition data. Both sections parsed independently.
@@ -202,6 +207,11 @@
 - **Zip download**: On-the-fly streaming via `zipfile.ZipFile` in a generator. Handles duplicate filenames by appending `_N` suffix. Skips files missing from disk.
 - **FileViewer integration**: `FolderPlus` icon button in both header toolbar and floating overlay toolbar. Opens a popover listing all collections with checkmarks for membership. Toggle via `addFilesToCollection`/`removeFilesFromCollection` API calls.
 - **Collection detail page**: `/collections/:id` route. Shows file grid with remove (X) buttons. "Add Media" modal with search-as-you-type. "Download ZIP" as direct `<a href>` link.
+
+### Duplicates
+- **is_primary flag**: `ImportedFile.is_primary` (Boolean, default False). When True, the file is excluded from both exact and near duplicate detection queries. The "Keep" button (ShieldCheck icon) on each card toggles `is_primary` via `PATCH /api/files/<id>/primary` and removes the file from the current duplicates view.
+- **Exact duplicates**: Backend groups `FileMetadata` rows by `file_hash` (SHA-256), filtering out `is_primary` files. Returns groups with count > 1.
+- **Near duplicates**: Backend does O(n²) pairwise comparison of `dhash` values with band pre-filter (3/4 match required) and hamming distance <= 10. Excludes `is_primary` files.
 
 ### FileViewer — AI Description Regeneration
 - **"Delete & Regenerate" button**: Shown when `meta.description` exists AND `metadata_status === "completed"`. Calls `regenerateAiMetadata(file.id)` then polls `getFileMetadata(file.id)` every 2 seconds (max 30 attempts) until `metadata_status` becomes `"completed"` or `"failed"`. Uses `pollRef.current` for cleanup.

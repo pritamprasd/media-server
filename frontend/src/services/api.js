@@ -145,6 +145,11 @@ export async function updateTags(fileId, tags) {
   return data;
 }
 
+export async function togglePrimary(fileId) {
+  const { data } = await client.patch(`/files/${fileId}/primary`);
+  return data;
+}
+
 export async function editFile(fileId, operations) {
   const { data } = await client.post(`/files/${fileId}/edit`, { operations });
   return data;
@@ -505,6 +510,16 @@ export async function listMemories(fileId) {
 
 export async function createMemory(fileId, content, tags) {
   const { data } = await client.post(`/files/${fileId}/memories`, { content, tags });
+  return data;
+}
+
+export async function batchUpdateMetadata(fileIds, payload) {
+  const { data } = await client.post("/files/batch-metadata", { file_ids: fileIds, ...payload });
+  return data;
+}
+
+export async function batchCreateMemories(fileIds, content, tags) {
+  const { data } = await client.post("/files/batch-memories", { file_ids: fileIds, content, tags });
   return data;
 }
 

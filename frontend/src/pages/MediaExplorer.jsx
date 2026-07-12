@@ -5,11 +5,13 @@ import {
   Grid3X3, List, ChevronDown, Plus, FileUp, Eye,
   MoreVertical, Scissors, Copy, ClipboardPaste, Pencil, ArrowRight,
   ArrowLeft, ArrowUp, Loader2, Star, Heart, Home, Camera, Music, Globe, Bookmark, EyeOff,
+  Calendar, StickyNote,
 } from "lucide-react";
 import {
   explorerBrowse, explorerRename, explorerMove, explorerCopy, explorerDelete,
   explorerListFavorites, explorerAddFavorite, explorerRemoveFavorite,
   uploadFiles, listNicknames, createUploadDir, toggleHidden,
+  batchUpdateMetadata, batchCreateMemories,
 } from "../services/api";
 import { getPref, setPref } from "../services/db";
 import FileViewer from "../components/FileViewer";
@@ -57,6 +59,11 @@ function MediaExplorer() {
   const [folderStyles, setFolderStyles] = useState({});
   const [iconPicker, setIconPicker] = useState(null);
   const [thumbSize, setThumbSize] = useState(160);
+  const [batchEditOpen, setBatchEditOpen] = useState(false);
+  const [batchDateTaken, setBatchDateTaken] = useState("");
+  const [batchNote, setBatchNote] = useState("");
+  const [batchNoteTags, setBatchNoteTags] = useState("");
+  const [batchSaving, setBatchSaving] = useState(false);
   const inputRef = useRef(null);
   const fileInputRef = useRef(null);
   const folderInputRef = useRef(null);
@@ -228,6 +235,31 @@ function MediaExplorer() {
       setError("Failed to delete items");
     }
     setPasteLoading(false);
+  };
+
+  const handleBatchEdit = async () => {
+    const fileIds = filtered
+      .filter((it) => selectedIds.has(it.id || it.path) && it.kind === "file" && it.id)
+      .map((it) => it.id);
+    if (!fileIds.length) return;
+    setBatchSaving(true);
+    try {
+      if (batchDateTaken) {
+        await batchUpdateMetadata(fileIds, { date_taken: batchDateTaken });
+      }
+      if (batchNote.trim()) {
+        const tags = batchNoteTags.split(",").map((t) => t.trim()).filter(Boolean);
+        await batchCreateMemories(fileIds, batchNote.trim(), tags);
+      }
+      setBatchEditOpen(false);
+      setBatchDateTaken("");
+      setBatchNote("");
+      setBatchNoteTags("");
+      setSelectedIds(new Set());
+    } catch {
+      setError("Failed to apply batch changes");
+    }
+    setBatchSaving(false);
   };
 
   const handleFileHide = async (fileId) => {
@@ -657,6 +689,10 @@ function MediaExplorer() {
               disabled={pasteLoading}>
               <Copy size={13} /> Copy
             </button>
+            <button className="explorer__action-btn" onClick={(e) => { e.stopPropagation(); setBatchEditOpen(true); }}
+              disabled={pasteLoading}>
+              <Pencil size={13} /> Edit
+            </button>
             <button className="explorer__del-selected" onClick={(e) => { e.stopPropagation(); handleDeleteSelected(); }}
               disabled={pasteLoading}>
               <Trash2 size={13} /> Delete {selCount} item{selCount > 1 ? "s" : ""}
@@ -923,6 +959,41 @@ function MediaExplorer() {
         <div className="explorer__loading-overlay">
           <Loader2 className="explorer__loading-spinner" size={32} />
           <span>Processing...</span>
+        </div>
+      )}
+
+      {batchEditOpen && (
+        <div className="explorer__modal-overlay" onClick={() => setBatchEditOpen(false)}>
+          <div className="explorer__modal" onClick={(e) => e.stopPropagation()}>
+            <div className="explorer__modal-header">
+              <span>Edit {selectedIds.size} item{selectedIds.size > 1 ? "s" : ""}</span>
+              <button className="explorer__btn explorer__btn--small" onClick={() => setBatchEditOpen(false)}><X size={14} /></button>
+            </div>
+            <div className="explorer__modal-body">
+              <label className="explorer__modal-label">
+                <Calendar size={14} /> Date Taken
+                <input type="datetime-local" className="explorer__input"
+                  value={batchDateTaken} onChange={(e) => setBatchDateTaken(e.target.value)} />
+              </label>
+              <label className="explorer__modal-label">
+                <StickyNote size={14} /> My Notes
+                <textarea className="explorer__input" rows={3} placeholder="Add a note to all selected files..."
+                  value={batchNote} onChange={(e) => setBatchNote(e.target.value)} />
+              </label>
+              <label className="explorer__modal-label">
+                Tags (comma-separated)
+                <input className="explorer__input" type="text" placeholder="e.g. vacation, 2024"
+                  value={batchNoteTags} onChange={(e) => setBatchNoteTags(e.target.value)} />
+              </label>
+            </div>
+            <div className="explorer__modal-footer">
+              <button className="explorer__btn" onClick={() => setBatchEditOpen(false)} disabled={batchSaving}>Cancel</button>
+              <button className="explorer__btn explorer__btn--primary" onClick={handleBatchEdit}
+                disabled={batchSaving || (!batchDateTaken && !batchNote.trim())}>
+                {batchSaving ? "Saving..." : "Apply"}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

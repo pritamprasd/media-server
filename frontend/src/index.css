@@ -11,13 +11,13 @@
 [data-style="neumorphic"][data-mode="dark"] {
   --color-bg: #0d0d0d;
   --color-surface: #181818;
-  --color-primary: #ff4757;
+  --color-primary: #e0525e;
   --color-secondary: #2a2a2a;
-  --color-text: #e8e8e8;
-  --color-text-muted: #888;
-  --color-danger: #e74c3c;
-  --color-success: #2ecc71;
-  --color-border: rgba(255, 255, 255, 0.06);
+  --color-text: #d8d8d8;
+  --color-text-muted: #707070;
+  --color-danger: #c0392b;
+  --color-success: #27ae60;
+  --color-border: rgba(255, 255, 255, 0.05);
   --color-surface-light: #2a2a2a;
   --radius: 12px;
 
@@ -57,13 +57,13 @@
 [data-style="material"][data-mode="dark"] {
   --color-bg: #121212;
   --color-surface: #1e1e1e;
-  --color-primary: #bb86fc;
+  --color-primary: #a87be0;
   --color-secondary: #03dac6;
-  --color-text: #e0e0e0;
-  --color-text-muted: #9e9e9e;
-  --color-danger: #cf6679;
-  --color-success: #66bb6a;
-  --color-border: rgba(255, 255, 255, 0.08);
+  --color-text: #d4d4d4;
+  --color-text-muted: #808080;
+  --color-danger: #b05565;
+  --color-success: #559955;
+  --color-border: rgba(255, 255, 255, 0.06);
   --color-surface-light: #2c2c2c;
   --radius: 12px;
 
@@ -163,4 +163,12 @@ button {
   html {
     font-size: 14px;
   }
+}
+
+/* ── Dark mode icon subtle ────────────────────────────────────────── */
+[data-mode="dark"] svg {
+  opacity: 0.85;
+}
+[data-mode="dark"] svg[fill="currentColor"] {
+  opacity: 0.9;
 }

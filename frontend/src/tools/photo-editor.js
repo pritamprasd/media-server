@@ -445,6 +445,42 @@ export function init(container) {
         updatePreview();
       });
     });
+
+    if (presets.length > 0) {
+      const divider = el('div', '', tabContent);
+      divider.style.cssText = 'border-top:1px solid var(--color-border);margin:1rem 0 0.5rem;padding-top:0.75rem;';
+      const sectionLabel = el('div', '', divider);
+      sectionLabel.style.cssText = 'font-size:0.75rem;font-weight:600;color:var(--color-text-muted);margin-bottom:0.5rem;';
+      sectionLabel.textContent = 'Saved Presets';
+      const presetGrid = el('div', '', tabContent);
+      presetGrid.className = 'pe-filters-grid';
+      presets.forEach((p, i) => {
+        const btn = el('button', '', presetGrid);
+        btn.className = 'pe-filter-btn';
+        const lbl = el('span', '', btn);
+        lbl.className = 'pe-filter-label';
+        lbl.textContent = p.name;
+        const delBtn = el('span', '', btn);
+        delBtn.textContent = '\u00d7';
+        delBtn.style.cssText = 'position:absolute;top:4px;right:6px;font-size:0.7rem;color:var(--color-text-muted);cursor:pointer;line-height:1;';
+        delBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          presets.splice(i, 1);
+          setPref('photoEditorPresets', presets);
+          renderFiltersTab();
+        });
+        btn.addEventListener('click', () => {
+          S.adjust = { ...p.adjust };
+          S.activeFilter = p.activeFilter || 'normal';
+          S.operations = (p.operations || []).map(op => ({ ...op }));
+          S.selectedColors = (p.selectedColors || []).map(c => ({ ...c }));
+          S.colorTolerance = p.colorTolerance ?? 30;
+          updatePreview();
+          switchTab(S.currentTab);
+          showToast('Applied: ' + p.name);
+        });
+      });
+    }
   }
 
   function renderAdjustTab() {

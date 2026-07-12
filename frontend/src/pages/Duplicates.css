@@ -213,10 +213,16 @@
   flex-shrink: 0;
 }
 
+.duplicates__actions {
+  display: flex;
+  gap: 0.25rem;
+  margin-left: auto;
+}
+
+.duplicates__keep,
 .duplicates__remove {
   background: var(--color-surface);
   border: none;
-  color: var(--color-danger);
   font-size: 0.75rem;
   padding: 0.125rem 0.25rem;
   border-radius: 4px;
@@ -224,6 +230,18 @@
   flex-shrink: 0;
   box-shadow: var(--neu-flat);
   transition: all 0.15s;
+}
+
+.duplicates__keep {
+  color: var(--color-success, #2ecc71);
+}
+
+.duplicates__keep:hover {
+  box-shadow: var(--neu-raised-sm);
+}
+
+.duplicates__remove {
+  color: var(--color-danger);
 }
 
 .duplicates__remove:hover {

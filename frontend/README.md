@@ -101,6 +101,7 @@ A scalable, semantic-searchable media viewer for your home media collection. Fea
 ### 🔄 Duplicate Detection
 - **Exact duplicates** — SHA-256 hash grouping
 - **Near duplicates** — 64-bit difference hash (dhash) with band-indexed lookup; Hamming distance ≤ 10
+- **Keep flag** — ShieldCheck button on each card toggles `is_primary`, excluding file from duplicate detection
 - **Side-by-side comparison** — overlay viewer for reviewing duplicate groups
 
 ### ❤️ Favorites

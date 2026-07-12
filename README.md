@@ -262,7 +262,7 @@ mkdir -p ~/media-server-edited /uploads
 - **Local filesystem browser** — navigate the host filesystem from the import dialog to select folders
 - **Trash** — soft-delete files (library-only or library + disk)
 - **Nickname persistence** — default nickname stored in IndexedDB, editable from Settings
-- **Media Explorer** — unified file-browser-style page (grid/list view) across all sessions with breadcrumb navigation; paginated browsing (100 per page, load-more button + IntersectionObserver infinite scroll); strict folder hierarchy enforced via `directory_id` FK (not `relative_path` string matching); centered layout capped at 1600px / 90% viewport width
+- **Media Explorer** — unified file-browser-style page (grid/list view) across all sessions with breadcrumb navigation; paginated browsing (100 per page, load-more button + IntersectionObserver infinite scroll); strict folder hierarchy enforced via `directory_id` FK (not `relative_path` string matching); centered layout capped at 1600px / 90% viewport width; batch edit (date taken + notes) via toolbar modal when files selected; folder deletion removes both DB records and filesystem files/directories
 - **Folder favorites** — star-toggle any folder in the explorer and see favorites as quick-navigation chips above the breadcrumbs; persisted via `FavoriteFolder` model (DB-backed)
 - **Folder customization** — click the pencil hint on any folder tile to choose from 13 Lucide icons and 10 colors, persisted per-folder in IndexedDB (`explorer_folder_styles`)
 - **Synthetic session folders** — non-upload sessions with root-only files get a synthetic directory entry (`__session_{id}__`) in the explorer
@@ -366,6 +366,7 @@ mkdir -p ~/media-server-edited /uploads
 ### 🔄 Duplicate Detection
 - **Exact duplicates** — SHA-256 hash grouping via `file_hash` column
 - **Near duplicates** — 64-bit difference hash (dhash) with band-indexed lookup; Hamming distance ≤ 10 via `dhash_bands` table (split into 4×16-bit bands for indexed query)
+- **Keep flag** — "Keep" button (ShieldCheck icon) on each card toggles `is_primary` on `ImportedFile`, excluding the file from all duplicate detection queries
 - **Side-by-side comparison** — overlay viewer for reviewing duplicate groups
 - **Per-file lookup** — find near-duplicates for any single file
 
@@ -419,8 +420,8 @@ mkdir -p ~/media-server-edited /uploads
 - **3D Globe Explorer** — interactive 3D Earth with OpenStreetMap tile layers, map style switcher, fly-to navigation, Nominatim search autocomplete, and live Open-Meteo weather on click
 - **Log Viewer** — real-time IndexedDB log viewer shared across all tools; filter by tool source, color-coded type badges (api_request/api_response/api_error/scan_detected), expandable detail rows, auto-refresh every 3s
 - **QR Code Generator** — encode text/URLs into QR codes with configurable size and error correction
-- **Photo Editor** — FE-only image editor with upload, edit, and download in the browser; mirrors FileViewer.jsx editor architecture (same filter computation, crop system, histogram, selective color, prominent color extraction); 7 tabs (Filters, Adjust, Light, Effects, Details, Colors, Crop); canvas-based two-pass export to JPEG/PNG/WebP; saveable presets (adjust, filter, operations, selective color) stored in IndexedDB
-- **Video Editor** — FE-only video editor with upload, preview, and download; WebGL GPU-accelerated rendering via fragment shader (all adjustments applied as GLSL uniforms — live preview during playback); hidden `<video>` plays source, `<canvas>` displays filtered output; 6 tabs (Trim, Adjust, Light, Effects, Speed, Rotate); timeline with draggable trim handles, speed control (0.25×–4×), rotate/flip via UV transform, frame extraction to PNG; download records canvas output via `MediaRecorder` + `captureStream` with audio mix-in; 2D canvas fallback when WebGL unavailable; saveable presets (adjust, operations, speed) stored in IndexedDB
+- **Photo Editor** — FE-only image editor with upload, edit, and download in the browser; mirrors FileViewer.jsx editor architecture (same filter computation, crop system, histogram, selective color, prominent color extraction); 7 tabs (Filters, Adjust, Light, Effects, Details, Colors, Crop); canvas-based two-pass export to JPEG/PNG/WebP; saveable presets (adjust, filter, operations, selective color) stored in IndexedDB; presets also shown in Filters tab for quick apply
+- **Video Editor** — FE-only video editor with upload, preview, and download; WebGL GPU-accelerated rendering via fragment shader (all adjustments applied as GLSL uniforms — live preview during playback); hidden `<video>` plays source, `<canvas>` displays filtered output; 6 tabs (Trim, Adjust, Light, Effects, Speed, Rotate); timeline with draggable trim handles, speed control (0.25×–4×), rotate/flip via UV transform, frame extraction to PNG; download records canvas output via `MediaRecorder` + `captureStream` with audio mix-in; render cache (re-downloads cached blob if no edits changed); "⏳ Rendering..." badge during export; 2D canvas fallback when WebGL unavailable; saveable presets (adjust, operations, speed) stored in IndexedDB; presets shown in Adjust tab
 - **Ingredient Scanner** — analyze ingredient lists via text input; backend parses each ingredient with name, category, function, whole_food/recognizable/additive flags, and E-number detection; async Ollama text model processing with task polling
 - **Ingredient Scanner AI** — upload a food label image; two-step pipeline: (1) Ollama vision model extracts all text, (2) text model parses structured ingredients + nutrition data; supports Indian FSSAI nutrition labels (dual-column and single-column); 3 nutrition-based analyses (breakdown, daily values, nutrient density)
 - **AI Sanitizer** — sanitize and clean text data using AI
@@ -608,7 +609,7 @@ media-server/
 |-------|-------|------------|---------|
 | `ImportSession` | `import_sessions` | root_path, mime_groups, total_files | Top-level container for a media import batch. Cascades delete to all directories and files. |
 | `ImportedDirectory` | `imported_directories` | session_id, path, name, parent_path, deleted | Filesystem directory hierarchy within a session. Unique on `(session_id, path)`. |
-| `ImportedFile` | `imported_files` | session_id, directory_id, filename, file_path, mime_type, size, is_favorite, is_hidden, nickname, deleted | Central entity — one row per imported media file. Unique on `(session_id, file_path)`. |
+| `ImportedFile` | `imported_files` | session_id, directory_id, filename, file_path, mime_type, size, is_favorite, is_hidden, is_primary, nickname, deleted | Central entity — one row per imported media file. Unique on `(session_id, file_path)`. `is_primary` excludes file from duplicate detection. |
 | `FileMetadata` | `file_metadata` | file_id (1:1), exif, lat/lng, date_taken, width/height, duration, tags, description, search_words, file_hash, dhash, thumbnail, metadata_status, thumbnail_status | Extended metadata attached to every file. Populated asynchronously by Celery workers. |
 | `DHashBand` | `dhash_bands` | metadata_id, band_index, band_value | Perceptual hash bands for near-duplicate detection. Indexed for fast lookup. |
 
@@ -1104,16 +1105,23 @@ To use: copy the block above, replace `[DESCRIBE YOUR IDEA HERE]` with your tool
 | POST | `/api/explorer/rename` | Rename file or directory |
 | POST | `/api/explorer/move` | Move items within/across sessions |
 | POST | `/api/explorer/copy` | Copy items to target location |
-| POST | `/api/explorer/delete` | Hard delete files/directories |
+| POST | `/api/explorer/delete` | Hard delete files/directories (removes from disk) |
 | GET | `/api/explorer/favorites` | List favorited folders |
 | POST | `/api/explorer/favorites` | Add folder favorite |
 | DELETE | `/api/explorer/favorites` | Remove folder favorite |
+
+### Batch Operations
+| Method | Path | Description |
+| ------ | ---- | ----------- |
+| POST | `/api/files/batch-metadata` | Batch update date_taken for multiple files |
+| POST | `/api/files/batch-memories` | Batch add a note to multiple files |
 
 ### Tags & Favorites
 | Method | Path | Description |
 | ------ | ---- | ----------- |
 | GET | `/api/tags` | Tag frequency list (sorted by frequency) |
 | GET | `/api/favorites` | Favorited files (non-deleted, non-hidden) |
+| PATCH | `/api/files/<id>/primary` | Toggle is_primary flag (excluded from duplicates) |
 
 ### Duplicates
 | Method | Path | Description |

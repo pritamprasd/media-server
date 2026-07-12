@@ -214,12 +214,72 @@ def update_file_tags(file_id):
     return jsonify({"tags": meta.tags}), 200
 
 
+@api_bp.route("/files/batch-metadata", methods=["POST"])
+def batch_update_metadata():
+    data = request.get_json(silent=True) or {}
+    file_ids = data.get("file_ids", [])
+    if not file_ids or not isinstance(file_ids, list):
+        return jsonify({"error": "file_ids list is required"}), 400
+    updated = 0
+    for fid in file_ids:
+        meta = FileMetadata.query.filter_by(file_id=fid).first()
+        if not meta:
+            continue
+        if "date_taken" in data:
+            val = data["date_taken"]
+            if val is None:
+                meta.date_taken = None
+            else:
+                try:
+                    meta.date_taken = datetime.fromisoformat(val)
+                except (ValueError, TypeError):
+                    pass
+        updated += 1
+    db.session.commit()
+    return jsonify({"updated": updated}), 200
+
+
+@api_bp.route("/files/batch-memories", methods=["POST"])
+def batch_create_memories():
+    from app.models.user_memory import UserMemory
+    data = request.get_json(silent=True) or {}
+    file_ids = data.get("file_ids", [])
+    content = (data.get("content") or "").strip()
+    if not file_ids or not isinstance(file_ids, list):
+        return jsonify({"error": "file_ids list is required"}), 400
+    if not content:
+        return jsonify({"error": "content is required"}), 400
+    tags = data.get("tags") or []
+    if isinstance(tags, str):
+        tags = [t.strip() for t in tags.split(",") if t.strip()]
+    created = 0
+    for fid in file_ids:
+        f = db.session.get(ImportedFile, fid)
+        if not f:
+            continue
+        memory = UserMemory(file_id=fid, content=content, tags=tags)
+        db.session.add(memory)
+        created += 1
+    db.session.commit()
+    return jsonify({"created": created}), 201
+
+
 @api_bp.route("/files/<int:file_id>/favorite", methods=["PATCH"])
 def toggle_favorite(file_id):
     file_record = db.session.get(ImportedFile, file_id)
     if not file_record:
         return jsonify({"error": "File not found"}), 404
     file_record.is_favorite = not file_record.is_favorite
+    db.session.commit()
+    return jsonify(file_record.to_dict()), 200
+
+
+@api_bp.route("/files/<int:file_id>/primary", methods=["PATCH"])
+def toggle_primary(file_id):
+    file_record = db.session.get(ImportedFile, file_id)
+    if not file_record:
+        return jsonify({"error": "File not found"}), 404
+    file_record.is_primary = not file_record.is_primary
     db.session.commit()
     return jsonify(file_record.to_dict()), 200
 
@@ -489,6 +549,7 @@ def list_duplicates():
             .join(ImportedFile, FileMetadata.file_id == ImportedFile.id)
             .filter(
                 ImportedFile.deleted != True,
+                ImportedFile.is_primary != True,
                 FileMetadata.file_hash.isnot(None),
             )
             .group_by(FileMetadata.file_hash)
@@ -528,6 +589,7 @@ def list_duplicates():
         ).filter(
             ImportedFile.deleted != True,
             ImportedFile.is_hidden != True,
+            ImportedFile.is_primary != True,
             FileMetadata.dhash.isnot(None),
         ).all()
         pairs = []
@@ -2986,6 +3048,15 @@ def explorer_delete():
             ImportedFile.deleted != True, ImportedFile.relative_path == src_path,
         ).all()
         for f in files:
+            session = ImportSession.query.get(f.session_id)
+            if session:
+                full_path = os.path.join(session.root_path, src_path)
+                try:
+                    if os.path.isfile(full_path):
+                        os.remove(full_path)
+                except OSError:
+                    pass
+                session.total_files = max(0, (session.total_files or 0) - 1)
             DetectedFace.query.filter_by(file_id=f.id).delete()
             meta = FileMetadata.query.filter_by(file_id=f.id).first()
             if meta:
@@ -2993,13 +3064,18 @@ def explorer_delete():
                 db.session.delete(meta)
             db.session.delete(f)
             deleted_count += 1
-            session = ImportSession.query.get(f.session_id)
-            if session:
-                session.total_files = max(0, (session.total_files or 0) - 1)
         dirs = ImportedDirectory.query.filter(
             ImportedDirectory.deleted != True, ImportedDirectory.path == src_path,
         ).all()
         for d in dirs:
+            session = db.session.get(ImportSession, d.session_id)
+            if session:
+                dir_fs = os.path.join(session.root_path, src_path)
+                try:
+                    if os.path.isdir(dir_fs):
+                        shutil.rmtree(dir_fs)
+                except OSError:
+                    pass
             old_prefix = d.path + "/"
             children = ImportedDirectory.query.filter(
                 ImportedDirectory.session_id == d.session_id,
@@ -3013,9 +3089,9 @@ def explorer_delete():
                 for cf in child_files:
                     DetectedFace.query.filter_by(file_id=cf.id).delete()
                     deleted_count += 1
-                    session = ImportSession.query.get(cf.session_id)
-                    if session:
-                        session.total_files = max(0, (session.total_files or 0) - 1)
+                    sess = ImportSession.query.get(cf.session_id)
+                    if sess:
+                        sess.total_files = max(0, (sess.total_files or 0) - 1)
                     meta = FileMetadata.query.filter_by(file_id=cf.id).first()
                     if meta:
                         DHashBand.query.filter_by(metadata_id=meta.id).delete()
@@ -3029,9 +3105,9 @@ def explorer_delete():
             for cf in child_files:
                 DetectedFace.query.filter_by(file_id=cf.id).delete()
                 deleted_count += 1
-                session = ImportSession.query.get(cf.session_id)
-                if session:
-                    session.total_files = max(0, (session.total_files or 0) - 1)
+                sess = ImportSession.query.get(cf.session_id)
+                if sess:
+                    sess.total_files = max(0, (sess.total_files or 0) - 1)
                 meta = FileMetadata.query.filter_by(file_id=cf.id).first()
                 if meta:
                     DHashBand.query.filter_by(metadata_id=meta.id).delete()

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { CopyCheck, Shuffle, CheckCheck, X, Image, Video, FolderOpen } from "lucide-react";
-import { listDuplicates, deleteFile } from "../services/api";
+import { CopyCheck, Shuffle, CheckCheck, X, Image, Video, FolderOpen, ShieldCheck } from "lucide-react";
+import { listDuplicates, deleteFile, togglePrimary } from "../services/api";
 import FileViewer from "../components/FileViewer";
 import Spinner from "../components/Spinner";
 import "./Duplicates.css";
@@ -86,6 +86,21 @@ function Duplicates() {
     setGroups((prev) => prev.filter((g) => g.hash !== groupId));
   };
 
+  const handleKeepToggle = async (fileId) => {
+    await togglePrimary(fileId);
+    setGroups((prev) =>
+      prev
+        .map((g) => ({
+          ...g,
+          files: g.files.filter((f) => f.file_id !== fileId),
+        }))
+        .filter((g) => g.files.length > 1)
+    );
+    setPairs((prev) =>
+      prev.filter((p) => p.file_a.file_id !== fileId && p.file_b.file_id !== fileId)
+    );
+  };
+
   const renderCard = (f, onRemove) => (
     <div key={f.file_id} className="duplicates__card">
       <div className="duplicates__thumb-wrap" onClick={() => {
@@ -107,15 +122,24 @@ function Duplicates() {
         </span>
         <div className="duplicates__info-row">
           <span className="duplicates__size">{(f.size / 1024).toFixed(0)} KB</span>
-          {onRemove && (
+          <div className="duplicates__actions">
             <button
-              className="duplicates__remove"
-              onClick={() => onRemove(f.file_id)}
-              title="Remove from library"
+              className="duplicates__keep"
+              onClick={() => handleKeepToggle(f.file_id)}
+              title="Keep this file — hide from duplicates"
             >
-              <X size={14} />
+              <ShieldCheck size={14} />
             </button>
-          )}
+            {onRemove && (
+              <button
+                className="duplicates__remove"
+                onClick={() => onRemove(f.file_id)}
+                title="Remove from library"
+              >
+                <X size={14} />
+              </button>
+            )}
+          </div>
         </div>
       </div>
     </div>

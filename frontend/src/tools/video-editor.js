@@ -283,6 +283,8 @@ export function init(container) {
   let animFrame = null;
   let webgl = null;
   let isRecording = false;
+  let lastRenderedBlob = null;
+  let lastRenderedHash = '';
   let presets = [];
 
   getPref('videoEditorPresets', []).then((v) => {
@@ -447,7 +449,7 @@ export function init(container) {
 
   const recBadge = el('span', '', previewArea);
   recBadge.className = 've-rec-badge';
-  recBadge.textContent = '⏺ REC';
+  recBadge.textContent = '⏳ RENDER';
   recBadge.style.display = 'none';
 
   const renderCanvas = el('canvas', 'display:block;max-width:100%;max-height:calc(100vh - 230px);border-radius:4px;object-fit:contain', previewArea);
@@ -634,6 +636,7 @@ export function init(container) {
   }
 
   function renderTrimTab() {
+    tabContent.innerHTML = '';
     const s = el('div', '', tabContent);
     s.className = 've-trim-tools';
     const info = el('div', '', s);
@@ -691,6 +694,38 @@ export function init(container) {
     addSlider(s, 'exposure', 'Exposure', -100, 100, 1);
     el('div', '', s).className = 've-hint';
     s.lastChild.textContent = 'GPU-accelerated — edits apply live during playback';
+
+    if (presets.length > 0) {
+      const divider = el('div', '', tabContent);
+      divider.style.cssText = 'border-top:1px solid var(--color-border);margin:1rem 0 0.5rem;padding-top:0.75rem;';
+      const sectionLabel = el('div', '', divider);
+      sectionLabel.style.cssText = 'font-size:0.75rem;font-weight:600;color:var(--color-text-muted);margin-bottom:0.5rem;';
+      sectionLabel.textContent = 'Saved Presets';
+      const presetGrid = el('div', '', tabContent);
+      presetGrid.style.cssText = 'display:flex;flex-wrap:wrap;gap:0.4rem;';
+      presets.forEach((p, i) => {
+        const chip = el('button', BTN_RAISED + 'font-size:0.72rem;padding:0.3rem 0.65rem;border-radius:6px;position:relative;', presetGrid);
+        chip.textContent = p.name;
+        const delBtn = el('span', '', chip);
+        delBtn.textContent = '\u00d7';
+        delBtn.style.cssText = 'margin-left:0.35rem;font-size:0.7rem;color:var(--color-text-muted);cursor:pointer;';
+        delBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          presets.splice(i, 1);
+          setPref('videoEditorPresets', presets);
+          renderAdjustTab();
+        });
+        chip.addEventListener('click', () => {
+          S.adjust = { ...p.adjust };
+          S.operations = (p.operations || []).map(op => ({ ...op }));
+          S.speed = p.speed ?? 1;
+          if (videoEl) videoEl.playbackRate = S.speed;
+          if (webgl) renderFrame();
+          switchTab(S.currentTab);
+          showToast('Applied: ' + p.name);
+        });
+      });
+    }
   }
 
   function renderLightTab() {
@@ -728,6 +763,7 @@ export function init(container) {
   }
 
   function renderSpeedTab() {
+    tabContent.innerHTML = '';
     const s = el('div', '', tabContent);
     s.className = 've-sliders';
     const display = el('div', '', s);
@@ -751,6 +787,7 @@ export function init(container) {
   }
 
   function renderRotateTab() {
+    tabContent.innerHTML = '';
     const grid = el('div', '', tabContent);
     grid.className = 've-rotate-grid';
     [
@@ -981,6 +1018,25 @@ export function init(container) {
   function download() {
     if (!videoSrc || isRecording) return;
 
+    const hash = JSON.stringify({
+      src: videoSrc, adjust: S.adjust, operations: S.operations,
+      speed: S.speed, trimApplied: S.trimApplied,
+      trimStart: S.trimStart, trimEnd: S.trimEnd,
+    });
+
+    if (lastRenderedBlob && lastRenderedHash === hash) {
+      const url = URL.createObjectURL(lastRenderedBlob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'edited_video.webm';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 5000);
+      showToast('Downloaded from cache');
+      return;
+    }
+
     const canvasFps = 30;
     let canvasStream;
     try {
@@ -1048,6 +1104,8 @@ export function init(container) {
       dlBtn.disabled = false;
 
       const blob = new Blob(chunks, { type: recorder.mimeType || 'video/webm' });
+      lastRenderedBlob = blob;
+      lastRenderedHash = hash;
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -1061,7 +1119,7 @@ export function init(container) {
 
     isRecording = true;
     recBadge.style.display = '';
-    dlBtn.innerHTML = '⏺ Recording...';
+    dlBtn.innerHTML = '⏳ Rendering...';
     dlBtn.disabled = true;
 
     const startAt = S.trimApplied ? S.trimStart : 0;
@@ -1106,6 +1164,8 @@ export function init(container) {
     S.trimEnd = 0;
     S.trimApplied = false;
     S.showOriginal = false;
+    lastRenderedBlob = null;
+    lastRenderedHash = '';
     if (videoEl) {
       videoEl.pause();
       videoEl.playbackRate = 1;
