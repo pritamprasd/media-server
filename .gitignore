@@ -39,3 +39,4 @@ htmlcov/
 *.srl
 certs/
 todo.md
+frontend/src/data/shortcuts.yaml

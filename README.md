@@ -163,6 +163,7 @@ A scalable, semantic-searchable media viewer for your home media collection. Fea
 - **Navbar Tab Order** — reorder navbar tabs via drag-and-drop; persisted to IndexedDB
 - **Cache clear** — clear all IndexedDB caches and service worker caches; uses `navigator.serviceWorker.ready` for Chrome PWA compatibility; broadcasts `CLEAR_CACHES` message to all window clients
 - **Map Zoom Level** — slider (10–19) with explicit Save button; persisted to IndexedDB and consumed by the Map tab's Zoom In button
+- **Shortcuts** — YAML-driven browser shortcut links (`chrome://` URLs); click to copy URL to clipboard with toast confirmation; source file `frontend/src/data/shortcuts.yaml` is git-ignored for local customization
 
 ### 🧰 Tools
 - **Tool system** — declarative imperative DOM framework; drop a `.js` or `.html` file into `frontend/src/tools/` and it's auto-discovered via `import.meta.glob`; no route, import, or config change needed

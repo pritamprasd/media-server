@@ -3,10 +3,11 @@ import { useNavigate } from "react-router-dom";
 import {
   Settings as SettingsIcon, ArrowRight, Palette, Save, Trash2,
   ArrowUp, ArrowDown, RotateCcw, Check, Wifi, WifiOff,
-  Eye, EyeOff, Lock, Unlock,
+  Eye, EyeOff, Lock, Unlock, ExternalLink, Copy,
 } from "lucide-react";
 import { getPref, setPref, clearAllPrefs, getStorageEstimate } from "../services/db";
 import { setAirplaneMode } from "../services/api";
+import shortcuts from "../data/shortcuts.yaml";
 import "./Settings.css";
 
 const TABS = [
@@ -65,6 +66,7 @@ function Settings() {
   const [hiddenUnlocked, setHiddenUnlocked] = useState(false);
   const [hiddenPinError, setHiddenPinError] = useState(false);
   const [storageUsed, setStorageUsed] = useState(null);
+  const [copiedUrl, setCopiedUrl] = useState(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -224,6 +226,17 @@ function Settings() {
     setHiddenUnlocked(false);
     setHiddenPinInput("");
     window.dispatchEvent(new Event("hidden-pin-changed"));
+  };
+
+  const handleCopyShortcut = async (url) => {
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopiedUrl(url);
+      setTimeout(() => setCopiedUrl(null), 2000);
+    } catch {
+      // Fallback: open in new tab if clipboard fails
+      window.open(url, "_blank", "noopener,noreferrer");
+    }
   };
 
   return (
@@ -486,6 +499,36 @@ function Settings() {
           <ArrowRight size={14} /> Go to {TABS.find((t) => t.path === defaultTab)?.label}
         </button>
       </div>
+
+      {shortcuts.length > 0 && (
+        <div className="settings__card">
+          <h3 className="settings__label">Shortcuts</h3>
+          <p className="settings__desc">
+            Quick links to browser settings. Click to copy the URL, then paste it in your address bar.
+          </p>
+          <div className="settings__shortcuts-list">
+            {shortcuts.map((s) => (
+              <button
+                key={s.url}
+                className="settings__shortcut-btn"
+                onClick={() => handleCopyShortcut(s.url)}
+                title={`Copy: ${s.url}`}
+              >
+                <ExternalLink size={14} className="settings__shortcut-icon" />
+                <div className="settings__shortcut-info">
+                  <span className="settings__shortcut-label">{s.label}</span>
+                  <span className="settings__shortcut-desc">{s.description}</span>
+                </div>
+                {copiedUrl === s.url ? (
+                  <Check size={14} className="settings__shortcut-check" />
+                ) : (
+                  <Copy size={14} className="settings__shortcut-copy" />
+                )}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

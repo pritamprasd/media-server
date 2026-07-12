@@ -349,6 +349,72 @@
   align-self: flex-start;
 }
 
+.settings__shortcuts-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.settings__shortcut-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  padding: 0.75rem;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.15s;
+}
+
+.settings__shortcut-btn:hover {
+  border-color: var(--color-primary);
+  box-shadow: var(--neu-raised-sm);
+}
+
+.settings__shortcut-icon {
+  flex-shrink: 0;
+  color: var(--color-primary);
+}
+
+.settings__shortcut-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.settings__shortcut-label {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.settings__shortcut-desc {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  line-height: 1.3;
+}
+
+.settings__shortcut-copy {
+  flex-shrink: 0;
+  color: var(--color-text-muted);
+  opacity: 0.5;
+  transition: opacity 0.15s;
+}
+
+.settings__shortcut-btn:hover .settings__shortcut-copy {
+  opacity: 1;
+}
+
+.settings__shortcut-check {
+  flex-shrink: 0;
+  color: var(--color-success, #2ecc71);
+}
+
 @media (max-width: 768px) {
   .settings {
     padding: 1rem 0.75rem;

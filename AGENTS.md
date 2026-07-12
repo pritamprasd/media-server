@@ -113,6 +113,11 @@
 - **Zoom In button on pin popups**: Flies the map to the configured `mapZoomLevel` (default 18, range 10–19, set in Settings). `MapController` receives `zoomToCoords` and `mapZoomLevel` as props; the zoom effect uses `mapZoomLevel` directly rather than `map.getMaxZoom() - 1`.
 - **Map zoom level settings**: Persisted to IndexedDB as `mapZoomLevel`. Settings UI shows a range slider + explicit "Save" button (not auto-save on drag).
 
+### Settings — Shortcuts
+- **YAML-driven shortcuts**: `frontend/src/data/shortcuts.yaml` (git-ignored) defines browser shortcuts as a flat list of `{ url, label, description }`. Loaded via `@modyfi/vite-plugin-yaml` in Vite.
+- **Copy-to-clipboard**: `chrome://` URLs can't be opened via `<a href>`. Clicking a shortcut copies the URL to clipboard with a green checkmark toast for 2s. Fallback: `window.open()` if clipboard API fails.
+- **Adding shortcuts**: Append entries to `shortcuts.yaml`. Only `chrome://` and related browser-internal links belong here; regular HTTP links should use standard `<a>` tags elsewhere.
+
 ### Faces Tab
 - **Case-insensitive name grouping**: `displayPersons` computed via `useMemo` groups persons by `(p.name || "").toLowerCase()`. Combined entries have `_combined: true`, `id: number[]`, `_persons: original[]`, `thumbnails: string[]`.
 - **Combined-card constraints**: Edit/delete buttons hidden on combined cards. Operations use `loadId = selectedPerson._combined ? selectedPerson._persons[0].id : selectedPerson.id` for backend calls (backend doesn't support multi-person queries).

@@ -112,6 +112,7 @@ A scalable, semantic-searchable media viewer for your home media collection. Fea
 - **Nickname** — edit default upload nickname
 - **Editor Tab Order** — reorder image and video editor tabs via move-up/move-down; persisted to IndexedDB and reflected in the viewer
 - **Cache clear** — clear all IndexedDB caches and service worker caches; uses `navigator.serviceWorker.ready` for Chrome PWA compatibility
+- **Shortcuts** — YAML-driven browser shortcut links; click to copy URL to clipboard with toast confirmation; source file is git-ignored for local customization
 
 ### 🌍 Geocoding
 - **Reverse geocoding** — backend endpoint calls Nominatim API with 1 req/s rate limiting; results cached in-memory by rounded coordinates (4 decimal places)
