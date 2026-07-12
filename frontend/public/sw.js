@@ -161,8 +161,11 @@ async function serveRange(cachedResponse, rangeHeader) {
 self.addEventListener("message", (e) => {
   if (e.data.type === "CLEAR_CACHES") {
     (async () => {
+      // Keep the app shell so the installed PWA remains usable offline.
       const keys = await caches.keys();
-      await Promise.all(keys.map((k) => caches.delete(k)));
+      await Promise.all(
+        keys.filter((k) => k !== CACHES.shell).map((k) => caches.delete(k))
+      );
       const clients = await self.clients.matchAll({ type: "window" });
       clients.forEach((c) => c.postMessage({ type: "CACHES_CLEARED" }));
     })();
@@ -215,10 +218,15 @@ self.addEventListener("message", (e) => {
       for (const [name, key] of Object.entries(CACHES)) {
         try {
           const cache = await caches.open(key);
-          const keys = await cache.keys();
-          result[name] = keys.length;
+          const responses = await cache.matchAll();
+          let size = 0;
+          for (const res of responses) {
+            const cl = res.headers.get("content-length");
+            if (cl) size += Number(cl) || 0;
+          }
+          result[name] = { count: responses.length, size };
         } catch {
-          result[name] = 0;
+          result[name] = { count: 0, size: 0 };
         }
       }
       const clients = await self.clients.matchAll({ type: "window" });

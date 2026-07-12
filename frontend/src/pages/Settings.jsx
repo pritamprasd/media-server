@@ -4,13 +4,22 @@ import {
   ChevronRight, Save, Trash2, ArrowUp, ArrowDown, RotateCcw,
   Check, Wifi, WifiOff, Lock, Unlock, ExternalLink, Copy, GripVertical, Smartphone,
 } from "lucide-react";
-import { getPref, setPref, clearAllPrefs, getStorageEstimate } from "../services/db";
+import { getPref, setPref, clearApiCache, getStorageEstimate } from "../services/db";
+import Spinner from "../components/Spinner";
 import { setAirplaneMode } from "../services/api";
 import { useTheme } from "../contexts/ThemeContext";
 import { SETTINGS } from "../config/settings";
 import shortcuts from "../data/shortcuts.yaml";
 import SettingsDialog from "../components/SettingsDialog";
 import "./Settings.css";
+
+function formatBytes(bytes) {
+  if (!bytes || bytes === 0) return "0 B";
+  const units = ["B", "KB", "MB", "GB", "TB"];
+  const i = Math.floor(Math.log(bytes) / Math.log(1024));
+  const val = bytes / Math.pow(1024, i);
+  return `${val >= 100 || i === 0 ? Math.round(val) : val.toFixed(1)} ${units[i]}`;
+}
 
 const TABS = [
   { path: "/", label: "Home" },
@@ -226,15 +235,14 @@ function Settings() {
     }
     setCacheStatus("clearing");
     try {
-      await clearAllPrefs();
+      // Clear only the cached API data, never the user's saved preferences.
+      await clearApiCache();
       const reg = await navigator.serviceWorker.ready;
       if (reg.active) {
         reg.active.postMessage({ type: "CLEAR_CACHES" });
       } else {
         setCacheStatus("no-sw");
       }
-      setStorageUsed(null);
-      getStorageEstimate().then(setStorageUsed);
     } catch {
       setCacheStatus("no-sw");
     }
@@ -258,9 +266,16 @@ function Settings() {
       if (e.data.type === "CACHES_CLEARED") {
         setCacheStatus("done");
         setTimeout(() => setCacheStatus("idle"), 2000);
+        // Refresh usage only AFTER the SW finished deleting, so the
+        // storage estimate call never races the deletion (mobile hang).
+        getStorageEstimate().then(setStorageUsed);
+        if ("serviceWorker" in navigator && navigator.serviceWorker.controller) {
+          navigator.serviceWorker.controller.postMessage({ type: "GET_CACHE_STATUS" });
+        }
       }
       if (e.data.type === "SINGLE_CACHE_CLEARED") {
         setClearingCache(null);
+        getStorageEstimate().then(setStorageUsed);
         if ("serviceWorker" in navigator && navigator.serviceWorker.controller) {
           navigator.serviceWorker.controller.postMessage({ type: "GET_CACHE_STATUS" });
         }
@@ -510,7 +525,7 @@ function Settings() {
                   <div className="settings__cache-bar-fill" style={{ width: `${Math.min(storageUsed.percent, 100)}%` }} />
                 </div>
                 <span className="settings__cache-text">
-                  {(storageUsed.used / (1024 * 1024)).toFixed(1)} MB used ({storageUsed.percent}%)
+                  {formatBytes(storageUsed.used)} used ({storageUsed.percent}%)
                 </span>
               </div>
             )}
@@ -524,27 +539,35 @@ function Settings() {
                     ["media", "Media", "Viewed photos and video thumbnails cached locally", cacheBreakdown.media],
                     ["tiles", "Map Tiles", "OpenStreetMap map tiles for the Map tab", cacheBreakdown.tiles],
                     ["mui", "MUI Fonts", "Roboto/Noto font files for Material UI theme", cacheBreakdown.mui],
-                  ].map(([key, label, desc, count]) => (
-                    <div key={key} className="settings__cache-breakdown-row">
-                      <div className="settings__cache-breakdown-info">
-                        <span className="settings__cache-breakdown-label">{label} <span className="settings__cache-breakdown-count">{count ?? 0}</span></span>
-                        <span className="settings__cache-breakdown-desc">{desc}</span>
+                  ].map(([key, label, desc, info]) => {
+                    const count = info?.count ?? 0;
+                    const size = info?.size ?? 0;
+                    return (
+                      <div key={key} className="settings__cache-breakdown-row">
+                        <div className="settings__cache-breakdown-info">
+                          <span className="settings__cache-breakdown-label">
+                            {label} <span className="settings__cache-breakdown-count">{count} · {formatBytes(size)}</span>
+                          </span>
+                          <span className="settings__cache-breakdown-desc">{desc}</span>
+                        </div>
+                        <button
+                          className="settings__cache-breakdown-clear"
+                          onClick={() => handleClearSingleCache(key)}
+                          disabled={clearingCache === key || count === 0}
+                          aria-label={`Clear ${label} cache`}
+                          title={`Clear ${label} cache`}
+                        >
+                          {clearingCache === key ? <Spinner size={14} /> : <Trash2 size={14} />}
+                        </button>
                       </div>
-                      <button
-                        className="settings__cache-breakdown-clear"
-                        onClick={() => handleClearSingleCache(key)}
-                        disabled={clearingCache === key || (count ?? 0) === 0}
-                      >
-                        {clearingCache === key ? "..." : "Clear"}
-                      </button>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             )}
             <div className="settings__cache-row">
               <button className="settings__btn settings__btn--danger" onClick={handleClearCache} disabled={cacheStatus === "clearing"}>
-                <Trash2 size={14} /> {cacheStatus === "clearing" ? "Clearing..." : "Clear Cache"}
+                <Trash2 size={14} /> {cacheStatus === "clearing" ? "Clearing..." : "Clear All Caches"}
               </button>
               {cacheStatus === "done" && <span className="settings__cache-ok">&checkmark; Cleared!</span>}
               {cacheStatus === "no-sw" && <span className="settings__cache-err">Service worker not available</span>}
