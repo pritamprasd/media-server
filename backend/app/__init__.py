@@ -50,4 +50,7 @@ def create_app(testing=False):
     def health():
         return {"status": "ok"}
 
+    from app.api.routes import api_docs
+    application.add_url_rule("/docs", endpoint="api_docs_root", view_func=api_docs)
+
     return application
