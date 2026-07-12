@@ -4,7 +4,7 @@ import {
   Heart, Download, Trash2, X, RotateCcw, RotateCw, ArrowLeftRight,
   ArrowUpDown, Contrast, Image, FileJson, MapPin, RefreshCw,
   Hash, Tag, AlignLeft, Clock, Maximize2, Camera,
-  Save, Filter, SlidersHorizontal, Sun, ZoomOut,
+  Save, Filter, SlidersHorizontal, Sun, ZoomOut, ZoomIn,
   Sparkles, Undo2, Paintbrush, FlipHorizontal, Search, IdCard, FolderOpen,
   ChevronLeft, ChevronRight, Scissors, Palette, Droplets, Eye, EyeOff,
   Grid3X3, Sigma, ChevronDown, FileImage, Drama, Volume2,
@@ -1444,6 +1444,13 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete, onN
                 <ChevronRight size={28} />
               </button>
             )}
+            {!editMode && (
+              <div className="viewer-zoom-controls">
+                <button className="viewer-float-btn viewer-float-btn--zoom" onClick={() => setZoom((p) => Math.min(5, +(p / 1.2).toFixed(2)))} title="Zoom out"><ZoomOut size={16} /></button>
+                <span className="viewer-float-pct">{Math.round(zoom * 100)}%</span>
+                <button className="viewer-float-btn viewer-float-btn--zoom" onClick={() => setZoom((p) => Math.min(5, +(p * 1.2).toFixed(2)))} title="Zoom in"><ZoomIn size={16} /></button>
+              </div>
+            )}
           </div>
 
           {editMode && (
@@ -2202,8 +2209,9 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete, onN
                             face={face}
                             onNameChange={async (name) => {
                               try {
-                                const updated = await updateFace(face.id, { name });
-                                setFileFaces((prev) => prev.map((f) => f.id === face.id ? { ...f, person_name: updated.person_name, person_id: updated.person_id } : f));
+                                await updateFace(face.id, { name });
+                                const refreshed = await listFileFaces(file.id);
+                                setFileFaces(refreshed);
                               } catch (e) {
                                 console.error("Failed to update face name:", e);
                               }

@@ -325,7 +325,7 @@ mkdir -p ~/media-server-edited /uploads
 - **Person management** — rename persons inline (syncs name as tag to all containing files); merge multiple persons into one (recomputes average encoding, sums face count); view all images containing a person
 - **Scan all faces** — one-click scan of all unscanned images; modal shows queue count; auto-triggered on import, upload, and edit
 - **Tag propagation** — naming a person adds the name as a tag to all containing images (removed on rename)
-- **Face viewer** — view detected face thumbnails per image in the file viewer sidebar; name individual faces inline (creates or reuses persons)
+- **Face viewer** — view detected face thumbnails per image in the file viewer sidebar; name individual faces inline (creates or reuses persons); naming propagates to all unnamed faces with similar embeddings (cosine distance < 0.3)
 - **Person timeline** — timeline view of a person's appearances across files bucketed by year/month/week/day; supports multi-person intersection filtering and date ranges
 - **Infinite scroll** — Faces page uses paginated backend (50 per page) with IntersectionObserver for seamless scrolling
 - **Case-insensitive name grouping** — persons with the same name (case-insensitive) are grouped into a single combined card showing a 2×2 thumbnail grid, total face count, and group size; edit/delete hidden on combined cards
@@ -600,24 +600,66 @@ media-server/
 └── README.md
 ```
 
-## Database Models (12 tables)
+## Database Entities
+
+### Core Media
 
 | Model | Table | Key Fields | Purpose |
 |-------|-------|------------|---------|
-| `BaseModel` | (abstract) | id, created_at, updated_at | Base for all models |
-| `ImportSession` | `import_sessions` | root_path, mime_groups, total_files | Import folder tracking |
-| `ImportedDirectory` | `imported_directories` | session_id, path, name, parent_path, deleted | Directory hierarchy |
-| `ImportedFile` | `imported_files` | session_id, directory_id, filename, file_path, mime_type, size, is_favorite, is_hidden, nickname, deleted | File records |
-| `FileMetadata` | `file_metadata` | file_id (1:1), exif, lat/lng, date_taken, width/height, duration, tags, description, search_words, file_hash, dhash, thumbnail, metadata_status, thumbnail_status | Per-file metadata |
-| `DHashBand` | `dhash_bands` | metadata_id, band_index, band_value | Near-duplicate indexed lookup |
-| `DetectedFace` | `detected_faces` | file_id, person_id, encoding, bounding_box, confidence, thumbnail, age, gender, face_status | Per-face detections |
-| `Person` | `persons` | name, thumbnail, face_count, avg_encoding, meta_info | Named/unnamed person groups |
-| `SavedLocation` | `saved_locations` | name, lat, lng, radius | Map saved locations |
-| `Collection` | `collections` | name, description, cover_file_id | File collections |
-| `collection_files` | `collection_files` | collection_id, file_id | Many-to-many join table |
-| `FilterPreset` | `filter_presets` | name, operations, file_id | Saved edit filter presets |
-| `FavoriteFolder` | `favorite_folders` | path, name | Explorer folder favorites |
-| `UserMemory` | `user_memories` | file_id, content, tags | User notes on files |
+| `ImportSession` | `import_sessions` | root_path, mime_groups, total_files | Top-level container for a media import batch. Cascades delete to all directories and files. |
+| `ImportedDirectory` | `imported_directories` | session_id, path, name, parent_path, deleted | Filesystem directory hierarchy within a session. Unique on `(session_id, path)`. |
+| `ImportedFile` | `imported_files` | session_id, directory_id, filename, file_path, mime_type, size, is_favorite, is_hidden, nickname, deleted | Central entity — one row per imported media file. Unique on `(session_id, file_path)`. |
+| `FileMetadata` | `file_metadata` | file_id (1:1), exif, lat/lng, date_taken, width/height, duration, tags, description, search_words, file_hash, dhash, thumbnail, metadata_status, thumbnail_status | Extended metadata attached to every file. Populated asynchronously by Celery workers. |
+| `DHashBand` | `dhash_bands` | metadata_id, band_index, band_value | Perceptual hash bands for near-duplicate detection. Indexed for fast lookup. |
+
+### People & Faces
+
+| Model | Table | Key Fields | Purpose |
+|-------|-------|------------|---------|
+| `Person` | `persons` | name, thumbnail, face_count, avg_encoding, meta_info | Named or unnamed person entity. Stores a weighted-average face encoding for matching. |
+| `DetectedFace` | `detected_faces` | file_id, person_id, encoding, bounding_box, confidence, thumbnail, age, gender, face_status | Individual face detection on a specific file. Links a file to a person (optional). |
+
+### Organization
+
+| Model | Table | Key Fields | Purpose |
+|-------|-------|------------|---------|
+| `Collection` | `collections` | name, description, cover_file_id | User-created named groupings of files (many-to-many via `collection_files`). |
+| `collection_files` | `collection_files` | collection_id, file_id | Join table for Collection ↔ ImportedFile many-to-many. |
+| `FavoriteFolder` | `favorite_folders` | path, name | Bookmarked filesystem paths for quick access in the Explorer. |
+
+### User Data
+
+| Model | Table | Key Fields | Purpose |
+|-------|-------|------------|---------|
+| `UserMemory` | `user_memories` | file_id, content, tags | User-authored notes/annotations on files. FK has `ON DELETE CASCADE`. |
+| `SavedLocation` | `saved_locations` | name, lat, lng, radius | Named geographic points of interest for the Map tab. |
+| `FilterPreset` | `filter_presets` | name, operations, file_id | Saved image editor filter configurations. Optional link to a file. |
+
+### Relationships
+
+```
+ImportSession (1) ──── (N) ImportedDirectory   [cascade: delete-orphan]
+                     └──── (N) ImportedFile     [cascade: delete-orphan]
+
+ImportedDirectory (1) ── (N) ImportedFile       [FK: directory_id]
+
+ImportedFile (1) ──┬── (1) FileMetadata         [FK: file_id, unique — one-to-one]
+                   ├── (N) DetectedFace          [FK: file_id]
+                   ├── (N) UserMemory            [FK: file_id, ON DELETE CASCADE]
+                   ├── (N) FilterPreset          [FK: file_id, nullable]
+                   └── (N) Collection            [M2M via collection_files]
+
+FileMetadata (1) ── (N) DHashBand               [FK: metadata_id]
+
+Person (1) ── (N) DetectedFace                  [FK: person_id, nullable]
+```
+
+**Key behaviors:**
+- Deleting an `ImportSession` cascades to all its directories and files
+- Deleting an `ImportedFile` cascades to its `UserMemory` records (DB-level `ON DELETE CASCADE`)
+- `DetectedFace.person_id` is nullable — unnamed faces have `person_id = NULL`
+- `Collection.files` is many-to-many — deleting a collection only removes join rows, not files
+- Face naming (`PUT /api/faces/<id>`).propagates to all unnamed faces with similar embeddings (cosine distance < 0.3)
 
 ## Database Indexes
 

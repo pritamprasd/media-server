@@ -71,7 +71,7 @@ A scalable, semantic-searchable media viewer for your home media collection. Fea
 - **Person management** — rename persons inline; merge multiple persons into one (recomputes average encoding); view all images containing a person
 - **Scan all faces** — one-click scan of all unscanned images; modal shows queue count; auto-triggered on import, upload, and edit
 - **Tag propagation** — naming a person adds the name as a tag to all containing images (removed on rename)
-- **Face viewer** — view detected face thumbnails per image in the file viewer sidebar; name individual faces inline (creates or reuses persons)
+- **Face viewer** — view detected face thumbnails per image in the file viewer sidebar; name individual faces inline (creates or reuses persons); naming propagates to all unnamed faces with similar embeddings
 - **Infinite scroll** — Faces page uses paginated backend (50 per page) with IntersectionObserver for seamless scrolling
 - **Batch delete** — select one or more persons and delete them in one action; faces are unlinked, not deleted
 - **Reload after operation** — name-save, delete, merge, and batch-delete re-fetch all previously loaded pages to preserve scroll context

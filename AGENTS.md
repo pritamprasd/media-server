@@ -142,6 +142,7 @@
 - **Multi-select delete**: The `selectedIds` set (shared with merge) also powers batch delete. A "Delete N" button appears when `selectedIds.size >= 1`. Calls `POST /api/persons/batch-delete` which un-links faces and deletes persons in one DB transaction.
 - **Reload after operation**: After name-save, delete, merge, or batch-delete, `reloadAfterOperation()` re-fetches page 1 plus all previously loaded pages (2 through `personPage`) to preserve the user's scroll context. This avoids the "load more → operation → page resets to 1" problem.
 - **Auto-load on filter**: When switching to "Named" or "Unnamed" filter, if the filtered count is below 20, `autoLoadForFilter()` automatically fetches subsequent pages until the threshold is met or no more pages exist. Uses a `prevFilterMode` ref to avoid re-triggering on every render.
+- **Name propagation to matching faces**: When a face is named in FileViewer (`PUT /api/faces/<id>`), the backend finds all unnamed faces with similar embeddings (cosine distance < `FACE_MATCH_THRESHOLD` = 0.3) and assigns them to the same person. Returns `propagated_count` in response. The avg_encoding is recomputed from all matched encodings. Frontend re-fetches file faces after naming to pick up propagated changes on the current file.
 
 ### Tools Tab
 - **Tool discovery**: `frontend/src/tools/index.js` uses `import.meta.glob` to auto-discover all `.js` and `.html` files in `frontend/src/tools/`. No registration needed — dropping a file there automatically adds it to the `/tools` grid.
@@ -206,6 +207,7 @@
 - **"Delete & Regenerate" button**: Shown when `meta.description` exists AND `metadata_status === "completed"`. Calls `regenerateAiMetadata(file.id)` then polls `getFileMetadata(file.id)` every 2 seconds (max 30 attempts) until `metadata_status` becomes `"completed"` or `"failed"`. Uses `pollRef.current` for cleanup.
 - **Location loading state**: `locationLoading` state set to `true` while `reverseGeocode` is in-flight. Shows a Spinner icon next to "Location" label in the meta sidebar while geocoding is pending. Backend `reverse_geocode` in `routes.py` only caches successful results (no `None` cache entries).
 - **Float buttons mobile UX**: On screens ≤768px, float buttons reduced to 34px (from 40px), gap to 0.35rem, icon SVGs scaled to 14px via CSS. Close button retains 16px. `.viewer-float-btn--zoom` is always 34px.
+- **Zoom hover buttons**: `.viewer-zoom-controls` div positioned absolutely at bottom-right of `.viewer-body`. Hidden by default (`opacity: 0`), shown on `.viewer-body:hover` (`opacity: 1`). Contains ZoomOut button, percentage label, and ZoomIn button. Uses existing `zoom` state (0.25–5x range, step via ×1.2/÷1.2). On mobile (≤768px), always visible and centered at bottom.
 
 ### User Memories (My Notes)
 - **One-to-many relationship**: `UserMemory` model FK to `imported_files.id` with `ondelete="CASCADE"`. A file can have many user memories.

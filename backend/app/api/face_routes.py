@@ -249,10 +249,39 @@ def update_face(face_id):
             tags.append(name)
             meta.tags = tags
 
+    propagated_count = 0
+    if face.encoding:
+        from app.utility.face_utility import encoding_distance
+        from app.config import Config
+        unnamed_faces = DetectedFace.query.filter(
+            DetectedFace.person_id.is_(None),
+            DetectedFace.id != face.id,
+            DetectedFace.encoding.isnot(None),
+        ).all()
+        matched_encodings = [face.encoding]
+        for uf in unnamed_faces:
+            dist = encoding_distance(face.encoding, uf.encoding)
+            if dist < Config.FACE_MATCH_THRESHOLD:
+                uf.person_id = person.id
+                propagated_count += 1
+                matched_encodings.append(uf.encoding)
+                uf_meta = FileMetadata.query.filter_by(file_id=uf.file_id).first()
+                if uf_meta:
+                    tags = uf_meta.tags or []
+                    if name not in tags:
+                        tags.append(name)
+                        uf_meta.tags = tags
+        if propagated_count > 0:
+            from app.utility.face_utility import compute_average_encoding
+            person.avg_encoding = compute_average_encoding(matched_encodings)
+            person.face_count = (person.face_count or 0) + propagated_count
+
     db.session.commit()
     result = face.to_dict()
     result["person_name"] = person.name
     result["person_id"] = person.id
+    if propagated_count:
+        result["propagated_count"] = propagated_count
     return jsonify(result), 200
 
 
