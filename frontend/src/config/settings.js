@@ -2,6 +2,7 @@ import {
   Palette, Paintbrush, WifiOff, Lock,
   LayoutGrid, User, Database, MapPin, Scan,
   ArrowUp, ArrowDown, Navigation, ExternalLink,
+  Smartphone,
 } from "lucide-react";
 
 export const SETTINGS = [
@@ -22,6 +23,12 @@ export const SETTINGS = [
     label: "Airplane Mode",
     icon: WifiOff,
     description: "Disable external API calls",
+  },
+  {
+    id: "orientation",
+    label: "Screen Orientation",
+    icon: Smartphone,
+    description: "Lock screen to portrait mode in PWA",
   },
   {
     id: "hidden-files",

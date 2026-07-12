@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   ChevronRight, Save, Trash2, ArrowUp, ArrowDown, RotateCcw,
-  Check, Wifi, WifiOff, Lock, Unlock, ExternalLink, Copy, GripVertical,
+  Check, Wifi, WifiOff, Lock, Unlock, ExternalLink, Copy, GripVertical, Smartphone,
 } from "lucide-react";
 import { getPref, setPref, clearAllPrefs, getStorageEstimate } from "../services/db";
 import { setAirplaneMode } from "../services/api";
@@ -77,6 +77,7 @@ function Settings() {
   const [settingsDragIdx, setSettingsDragIdx] = useState(null);
   const [settingsDropIdx, setSettingsDropIdx] = useState(null);
   const [cacheBreakdown, setCacheBreakdown] = useState(null);
+  const [orientationLock, setOrientationLock] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -108,6 +109,7 @@ function Settings() {
     navigator.serviceWorker?.addEventListener("message", onCacheMsg);
     const saved = sessionStorage.getItem("hidden_pin_unlocked");
     setHiddenUnlocked(saved === "true");
+    getPref("orientationLock", false).then(setOrientationLock);
     return () => navigator.serviceWorker?.removeEventListener("message", onCacheMsg);
   }, []);
 
@@ -276,6 +278,21 @@ function Settings() {
     window.dispatchEvent(new Event("hidden-pin-changed"));
   };
 
+  const handleOrientationToggle = async () => {
+    const next = !orientationLock;
+    setOrientationLock(next);
+    setPref("orientationLock", next);
+    try {
+      if (next && screen.orientation?.lock) {
+        await screen.orientation.lock("portrait");
+      } else if (screen.orientation?.unlock) {
+        screen.orientation.unlock();
+      }
+    } catch {
+      // screen.orientation.lock() may not be supported or allowed
+    }
+  };
+
   const handleCopyShortcut = async (url) => {
     try {
       await navigator.clipboard.writeText(url);
@@ -302,6 +319,7 @@ function Settings() {
       case "navbar-tab-order": return `${navTabs.length} links`;
       case "default-landing": return TABS.find((t) => t.path === defaultTab)?.label || "Home";
       case "shortcuts": return shortcuts.length > 0 ? `${shortcuts.length} links` : null;
+      case "orientation": return orientationLock ? "Portrait" : "Auto";
       default: return null;
     }
   };
@@ -381,6 +399,17 @@ function Settings() {
           >
             {airplaneModeState ? <WifiOff size={16} /> : <Wifi size={16} />}
             {airplaneModeState ? "Airplane Mode ON" : "Airplane Mode OFF"}
+          </button>
+        );
+
+      case "orientation":
+        return (
+          <button
+            className={`settings__airplane-btn ${orientationLock ? "settings__airplane-btn--on" : ""}`}
+            onClick={handleOrientationToggle}
+          >
+            <Smartphone size={16} />
+            {orientationLock ? "Portrait Mode ON" : "Portrait Mode OFF"}
           </button>
         );
 

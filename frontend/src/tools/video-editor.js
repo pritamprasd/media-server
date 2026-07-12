@@ -2,6 +2,8 @@ export const icon = '🎬';
 export const name = 'Video Editor';
 export const description = 'Upload, preview, trim and adjust videos with GPU-accelerated live editing';
 
+import { getPref, setPref } from '../services/db.js';
+
 const ADJUST_TABS = [
   { id: 'trim', label: 'Trim', icon: '✂️' },
   { id: 'adjust', label: 'Adjust', icon: '🔧' },
@@ -281,6 +283,12 @@ export function init(container) {
   let animFrame = null;
   let webgl = null;
   let isRecording = false;
+  let presets = [];
+
+  getPref('videoEditorPresets', []).then((v) => {
+    presets = Array.isArray(v) ? v : [];
+    renderPresetsBar();
+  });
 
   const style = document.createElement('style');
   style.textContent = `
@@ -350,6 +358,15 @@ export function init(container) {
     .ve-orig-btn:hover{background:rgba(0,0,0,0.8)}
     .ve-toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);padding:0.5rem 1.1rem;border-radius:10px;background:var(--color-surface);color:var(--color-text);box-shadow:var(--neu-raised-sm);font-size:0.8rem;font-weight:500;z-index:9999;opacity:0;transition:opacity 0.25s;pointer-events:none}
     .ve-toast--visible{opacity:1}
+    .ve-presets-bar{display:flex;align-items:center;gap:0.4rem;padding:0.4rem 0.85rem;background:var(--color-surface);border-bottom:1px solid var(--color-border);flex-shrink:0;overflow-x:auto;scrollbar-width:none;transition:max-height 0.2s ease}
+    .ve-presets-bar::-webkit-scrollbar{display:none}
+    .ve-presets-bar--hidden{max-height:0;padding:0 0.85rem;border-bottom:none;overflow:hidden}
+    .ve-preset-chip{display:inline-flex;align-items:center;gap:0.3rem;padding:0.3rem 0.65rem;border:none;border-radius:6px;background:var(--color-bg);color:var(--color-text);font-size:0.72rem;font-weight:500;cursor:pointer;white-space:nowrap;box-shadow:var(--neu-flat);transition:all 0.15s}
+    .ve-preset-chip:hover{box-shadow:var(--neu-raised-sm);color:var(--color-primary)}
+    .ve-preset-chip--save{background:var(--color-primary);color:#fff}
+    .ve-preset-chip--save:hover{opacity:0.85}
+    .ve-preset-chip-x{display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:50%;background:transparent;color:var(--color-text-muted);font-size:0.65rem;cursor:pointer;border:none;padding:0;line-height:1;margin-left:0.15rem}
+    .ve-preset-chip-x:hover{background:rgba(231,76,60,0.15);color:#e74c3c}
     @media(max-width:700px){
       .ve-panel{width:100%;border-left:none;border-top:1px solid var(--color-border);max-height:45vh}
       .ve-main{flex-direction:column}
@@ -392,6 +409,15 @@ export function init(container) {
   resetBtn.style.color = '#e74c3c';
   resetBtn.addEventListener('click', resetAll);
   el('div', '', toolbar).className = 've-sep';
+  let presetsVisible = false;
+  const presetsToggleBtn = el('button', BTN_RAISED, toolbar);
+  presetsToggleBtn.innerHTML = '💾 Presets';
+  presetsToggleBtn.addEventListener('click', () => {
+    presetsVisible = !presetsVisible;
+    presetsBar.classList.toggle('ve-presets-bar--hidden', !presetsVisible);
+    presetsToggleBtn.style.cssText = presetsVisible ? BTN_ACTIVE : BTN_RAISED;
+  });
+  el('div', '', toolbar).className = 've-sep';
   const formatSelect = document.createElement('select');
   formatSelect.style.cssText = 'padding:0.35rem 0.55rem;border:1px solid var(--color-border);border-radius:6px;background:var(--color-bg);color:var(--color-text);font-size:0.78rem;cursor:pointer;';
   [['webm', 'WebM'], ['mp4', 'MP4']].forEach(([v, l]) => { const o = document.createElement('option'); o.value = v; o.textContent = l; formatSelect.appendChild(o); });
@@ -405,6 +431,9 @@ export function init(container) {
   const extractBtn = el('button', BTN_RAISED, toolbar);
   extractBtn.innerHTML = '📸 Frame';
   extractBtn.addEventListener('click', extractFrame);
+
+  const presetsBar = el('div', '', editor);
+  presetsBar.className = 've-presets-bar ve-presets-bar--hidden';
 
   const mainArea = el('div', '', editor);
   mainArea.className = 've-main';
@@ -1089,6 +1118,47 @@ export function init(container) {
     trimEndHandle.style.display = 'none';
     if (webgl) renderFrame();
     if (S.currentTab === 'trim') renderTrimTab();
+  }
+
+  function renderPresetsBar() {
+    presetsBar.innerHTML = '';
+    const saveChip = el('button', BTN_PRIMARY + 'border:none;font-size:0.72rem;cursor:pointer;padding:0.3rem 0.65rem;border-radius:6px;white-space:nowrap;font-weight:500;', presetsBar);
+    saveChip.textContent = '+ Save';
+    saveChip.addEventListener('click', () => {
+      const name = prompt('Preset name:');
+      if (!name || !name.trim()) return;
+      const preset = {
+        name: name.trim(),
+        adjust: { ...S.adjust },
+        operations: S.operations.map(op => ({ ...op })),
+        speed: S.speed,
+      };
+      presets.push(preset);
+      setPref('videoEditorPresets', presets);
+      renderPresetsBar();
+      showToast('Preset saved');
+    });
+    presets.forEach((p, i) => {
+      const chip = el('button', BTN_RAISED + 'border:none;font-size:0.72rem;cursor:pointer;', presetsBar);
+      chip.textContent = p.name;
+      const xBtn = el('span', '', chip);
+      xBtn.textContent = '\u00d7';
+      xBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        presets.splice(i, 1);
+        setPref('videoEditorPresets', presets);
+        renderPresetsBar();
+      });
+      chip.addEventListener('click', () => {
+        S.adjust = { ...p.adjust };
+        S.operations = (p.operations || []).map(op => ({ ...op }));
+        S.speed = p.speed ?? 1;
+        if (videoEl) videoEl.playbackRate = S.speed;
+        if (webgl) renderFrame();
+        switchTab(S.currentTab);
+        showToast('Applied: ' + p.name);
+      });
+    });
   }
 
   switchTab('trim');

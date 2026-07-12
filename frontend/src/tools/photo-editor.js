@@ -114,12 +114,19 @@ export function init(container) {
     currentTab: 'filters',
   };
 
+  let presets = [];
+
   getPref('photoEditorHistogram', true).then((v) => {
     S.showHistogram = v !== false;
     histCanvas.style.display = S.showHistogram ? '' : 'none';
     if (histToggleBtn) {
       histToggleBtn.textContent = S.showHistogram ? '📊 Histogram' : '📊 Show Histogram';
     }
+  });
+
+  getPref('photoEditorPresets', []).then((v) => {
+    presets = Array.isArray(v) ? v : [];
+    renderPresetsBar();
   });
 
   let imgEl = null;
@@ -206,6 +213,15 @@ export function init(container) {
     .pe-loading{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:var(--color-bg);z-index:20;font-size:0.85rem;color:var(--color-text-muted)}
     .pe-toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);padding:0.5rem 1.1rem;border-radius:10px;background:var(--color-surface);color:var(--color-text);box-shadow:var(--neu-raised-sm);font-size:0.8rem;font-weight:500;z-index:9999;opacity:0;transition:opacity 0.25s;pointer-events:none}
     .pe-toast--visible{opacity:1}
+    .pe-presets-bar{display:flex;align-items:center;gap:0.4rem;padding:0.4rem 0.85rem;background:var(--color-surface);border-bottom:1px solid var(--color-border);flex-shrink:0;overflow-x:auto;scrollbar-width:none;transition:max-height 0.2s ease}
+    .pe-presets-bar::-webkit-scrollbar{display:none}
+    .pe-presets-bar--hidden{max-height:0;padding:0 0.85rem;border-bottom:none;overflow:hidden}
+    .pe-preset-chip{display:inline-flex;align-items:center;gap:0.3rem;padding:0.3rem 0.65rem;border:none;border-radius:6px;background:var(--color-bg);color:var(--color-text);font-size:0.72rem;font-weight:500;cursor:pointer;white-space:nowrap;box-shadow:var(--neu-flat);transition:all 0.15s}
+    .pe-preset-chip:hover{box-shadow:var(--neu-raised-sm);color:var(--color-primary)}
+    .pe-preset-chip--save{background:var(--color-primary);color:#fff}
+    .pe-preset-chip--save:hover{opacity:0.85}
+    .pe-preset-chip-x{display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:50%;background:transparent;color:var(--color-text-muted);font-size:0.65rem;cursor:pointer;border:none;padding:0;line-height:1;margin-left:0.15rem}
+    .pe-preset-chip-x:hover{background:rgba(231,76,60,0.15);color:#e74c3c}
     @media(max-width:700px){
       .pe-panel{width:100%;border-left:none;border-top:1px solid var(--color-border);max-height:45vh}
       .pe-main{flex-direction:column}
@@ -248,6 +264,15 @@ export function init(container) {
   resetBtn.style.color = '#e74c3c';
   resetBtn.addEventListener('click', resetAll);
   el('div', '', toolbar).className = 'pe-sep';
+  let presetsVisible = false;
+  const presetsToggleBtn = el('button', BTN_RAISED, toolbar);
+  presetsToggleBtn.innerHTML = '💾 Presets';
+  presetsToggleBtn.addEventListener('click', () => {
+    presetsVisible = !presetsVisible;
+    presetsBar.classList.toggle('pe-presets-bar--hidden', !presetsVisible);
+    presetsToggleBtn.style.cssText = presetsVisible ? BTN_ACTIVE : BTN_RAISED;
+  });
+  el('div', '', toolbar).className = 'pe-sep';
   const formatSelect = document.createElement('select');
   formatSelect.className = 'pe-select';
   [['jpeg', 'JPEG'], ['png', 'PNG'], ['webp', 'WebP']].forEach(([v, l]) => { const o = document.createElement('option'); o.value = v; o.textContent = l; formatSelect.appendChild(o); });
@@ -274,6 +299,9 @@ export function init(container) {
     setPref('photoEditorHistogram', S.showHistogram);
     if (S.showHistogram) scheduleHistogram();
   });
+
+  const presetsBar = el('div', '', editor);
+  presetsBar.className = 'pe-presets-bar pe-presets-bar--hidden';
 
   const mainArea = el('div', '', editor);
   mainArea.className = 'pe-main';
@@ -945,6 +973,50 @@ export function init(container) {
     imgWrap.querySelector('.pe-overlay-colorize')?.remove();
     updatePreview();
     switchTab(S.currentTab);
+  }
+
+  function renderPresetsBar() {
+    presetsBar.innerHTML = '';
+    const saveChip = el('button', BTN_PRIMARY + 'border:none;font-size:0.72rem;cursor:pointer;padding:0.3rem 0.65rem;border-radius:6px;white-space:nowrap;font-weight:500;', presetsBar);
+    saveChip.textContent = '+ Save';
+    saveChip.addEventListener('click', () => {
+      const name = prompt('Preset name:');
+      if (!name || !name.trim()) return;
+      const preset = {
+        name: name.trim(),
+        adjust: { ...S.adjust },
+        activeFilter: S.activeFilter,
+        operations: S.operations.map(op => ({ ...op })),
+        selectedColors: S.selectedColors.map(c => ({ ...c })),
+        colorTolerance: S.colorTolerance,
+      };
+      presets.push(preset);
+      setPref('photoEditorPresets', presets);
+      renderPresetsBar();
+      showToast('Preset saved');
+    });
+    presets.forEach((p, i) => {
+      const chip = el('button', BTN_RAISED + 'border:none;font-size:0.72rem;cursor:pointer;', presetsBar);
+      chip.textContent = p.name;
+      const xBtn = el('span', '', chip);
+      xBtn.textContent = '\u00d7';
+      xBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        presets.splice(i, 1);
+        setPref('photoEditorPresets', presets);
+        renderPresetsBar();
+      });
+      chip.addEventListener('click', () => {
+        S.adjust = { ...p.adjust };
+        S.activeFilter = p.activeFilter || 'normal';
+        S.operations = (p.operations || []).map(op => ({ ...op }));
+        S.selectedColors = (p.selectedColors || []).map(c => ({ ...c }));
+        S.colorTolerance = p.colorTolerance ?? 30;
+        updatePreview();
+        switchTab(S.currentTab);
+        showToast('Applied: ' + p.name);
+      });
+    });
   }
 
   switchTab('filters');

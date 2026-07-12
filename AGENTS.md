@@ -132,6 +132,7 @@
 - **Draggable row reorder**: Each settings row has a `GripVertical` drag handle (visible on hover, opacity 0.3→0.7). HTML5 native drag-and-drop with `settingsOrder` state persisted to IndexedDB via `getPref`/`setPref` key `'settingsOrder'`. CSS classes: `.settings__row--dragging` (opacity 0.4 + inset shadow), `.settings__row--drop` (primary color bottom border).
 - **Mobile dialog**: On screens ≤768px, dialog slides up from bottom (sheet style) instead of centering.
 - **Accent color independence**: Accent color (`--color-primary` override via `document.documentElement.style`) persists across theme style changes. User can reset to theme default via Settings.
+- **Portrait mode lock**: "Screen Orientation" setting uses `screen.orientation.lock("portrait")` API. Only effective in standalone PWA mode (installed to home screen). Preference stored in IndexedDB as `orientationLock`, applied on app load in `App.jsx`. Manifest default is `"portrait"`. Fails silently on unsupported browsers/fullscreen-only restrictions.
 
 ### Faces Tab
 - **Case-insensitive name grouping**: `displayPersons` computed via `useMemo` groups persons by `(p.name || "").toLowerCase()`. Combined entries have `_combined: true`, `id: number[]`, `_persons: original[]`, `thumbnails: string[]`.
@@ -167,6 +168,7 @@
 - **No save-as**: No backend API calls. All processing in FE. Download only.
 - **7 tabs**: Filters (preset grid with thumbnail previews), Adjust (7 sliders), Light (5 sliders), Effects (vignette/grain/colorize/grayscale), Details (clarity/dehaze), Colors (selective color picker with tolerance), Crop (aspect ratios + rotate/flip + drag handles).
 - **Crop preview**: CSS `clip-path: inset()` + `box-shadow: 0 0 0 9999px` overlay dimming + 4 corner drag handles with aspect ratio locking. Same mouse event handling as FileViewer.jsx crop.
+- **Presets**: Save/apply/delete named presets capturing all edits (excluding crop). Stored in IndexedDB as `photoEditorPresets`. Preset captures: `adjust`, `activeFilter`, `operations`, `selectedColors`, `colorTolerance`. Toggle "💾 Presets" button in toolbar to show preset bar with "+ Save" chip and named preset chips (click to apply, × to delete). Uses `window.prompt()` for preset name.
 
 ### Video Editor Tool
 - **FE-only video editor**: `frontend/src/tools/video-editor.js` — upload, preview, trim, and adjust videos entirely in the browser.
@@ -180,6 +182,7 @@
 - **6 tabs**: Trim (timeline + time inputs + info), Adjust (7 sliders), Light (4 sliders), Effects (grayscale toggle + sepia slider), Speed (playback rate 0.25×–4× with presets), Rotate (4 buttons: rotate L/R, flip H/V — applied via UV transform in shader).
 - **Frame extraction**: Renders current frame through WebGL pipeline (or 2D fallback) to `<canvas>` → PNG download with applied filters.
 - **Download with filters**: Uses `MediaRecorder` + `canvas.captureStream()` to record the GPU-rendered canvas output while video plays through, producing a new WebM video file with all adjustments baked in. Audio from the original video is mixed in via `videoEl.captureStream()`. Recording badge shows during export; play/pause/extract disabled while recording.
+- **Presets**: Save/apply/delete named presets capturing all edits (excluding trim). Stored in IndexedDB as `videoEditorPresets`. Preset captures: `adjust`, `operations`, `speed`. Toggle "💾 Presets" button in toolbar to show preset bar with "+ Save" chip and named preset chips (click to apply, × to delete). Uses `window.prompt()` for preset name.
 
 ### Ingredient Scanner — Nutrition Facts
 - **Auto-detect from OCR text**: `runAnalysis()` searches for `nutrition (information|facts|label|values?|data)` in the OCR text and splits it: text before is treated as ingredients, text from the match onwards as nutrition data. Both sections parsed independently.

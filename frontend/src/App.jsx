@@ -36,6 +36,11 @@ function App() {
     getPref("accentColor", "#3498db").then((color) => {
       document.documentElement.style.setProperty("--color-primary", color);
     });
+    getPref("orientationLock", false).then((locked) => {
+      if (locked && screen.orientation?.lock) {
+        screen.orientation.lock("portrait").catch(() => {});
+      }
+    });
 
     const onBeforeInstall = (e) => {
       e.preventDefault();
