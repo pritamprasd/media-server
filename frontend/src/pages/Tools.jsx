@@ -7,15 +7,23 @@ import ToolViewer from "../components/ToolViewer";
 import "./Tools.css";
 
 const PINNED_KEY = "pinnedTools";
+const DISABLED_TOOLS_KEY = "disabledTools";
 
 function ToolsGrid() {
   const navigate = useNavigate();
   const allTools = useMemo(() => getTools(), []);
   const [pinned, setPinned] = useState(() => new Set());
+  const [disabled, setDisabled] = useState(() => new Set());
 
   useEffect(() => {
     getPref(PINNED_KEY, []).then((ids) => setPinned(new Set(ids)));
+    getPref(DISABLED_TOOLS_KEY, []).then((ids) => setDisabled(new Set(ids)));
   }, []);
+
+  const visibleTools = useMemo(
+    () => allTools.filter((t) => !disabled.has(t.id)),
+    [allTools, disabled]
+  );
 
   const togglePin = useCallback((id, e) => {
     e.stopPropagation();
@@ -31,21 +39,26 @@ function ToolsGrid() {
   const tools = useMemo(() => {
     const pinnedTools = [];
     const unpinnedTools = [];
-    for (const t of allTools) {
+    for (const t of visibleTools) {
       (pinned.has(t.id) ? pinnedTools : unpinnedTools).push(t);
     }
     pinnedTools.sort((a, b) => a.name.localeCompare(b.name));
     unpinnedTools.sort((a, b) => a.name.localeCompare(b.name));
     return [...pinnedTools, ...unpinnedTools];
-  }, [allTools, pinned]);
+  }, [visibleTools, pinned]);
 
   return (
     <div className="tools">
       <h2 className="tools__title"><Puzzle size={20} /> Tools</h2>
-      {tools.length === 0 && (
+      {allTools.length === 0 && (
         <p className="tools__empty">
           No tools found. Drop a <code>.js</code> or <code>.html</code> file into{" "}
           <code>frontend/src/tools/</code> to add one.
+        </p>
+      )}
+      {allTools.length > 0 && tools.length === 0 && (
+        <p className="tools__empty">
+          All tools are disabled. Enable them in Settings → Admin Tasks → Manage Tools.
         </p>
       )}
       <div className="tools__grid">

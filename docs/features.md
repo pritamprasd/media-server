@@ -159,6 +159,12 @@ See also [docs/face-detection.md](face-detection.md) for the in-depth pipeline.
 - **Map Zoom Level** — slider (10–19) with explicit Save button; persisted to IndexedDB and consumed by the Map tab's Zoom In button
 - **Shortcuts** — YAML-driven browser shortcut links (`chrome://` URLs); click to copy URL to clipboard with toast confirmation; source file `frontend/src/data/shortcuts.yaml` is git-ignored for local customization
 - **Screen Orientation** — lock screen to portrait mode in standalone PWA mode (installed to home screen); preference stored in IndexedDB; uses `screen.orientation.lock()` API; fails silently on unsupported browsers
+- **Admin Tasks** — a dedicated section with background maintenance jobs, each opening a dialog with a Run button that queues the work and reports how many files were queued:
+  - **Generate AI Descriptions** — queues one `generate_ai_metadata` Celery task per file missing an AI description
+  - **Generate EXIF Data** — queues metadata extraction for all files missing EXIF/metadata
+  - **Generate Thumbnails** — queues thumbnail generation for all files missing a thumbnail
+  - **Detect & Save Faces** — queues face detection for all image files not yet scanned
+  - **Manage Tools** — enable/disable individual tools in the Tools tab; disabled tools are hidden from the grid and persisted to IndexedDB (`disabledTools`)
 
 ## 🧰 Tools
 - **Tool system** — declarative imperative DOM framework; drop a `.js` or `.html` file into `frontend/src/tools/` and it's auto-discovered via `import.meta.glob`; no route, import, or config change needed

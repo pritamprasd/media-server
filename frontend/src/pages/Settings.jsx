@@ -6,12 +6,15 @@ import {
 } from "lucide-react";
 import { getPref, setPref, clearApiCache, getStorageEstimate } from "../services/db";
 import Spinner from "../components/Spinner";
-import { setAirplaneMode } from "../services/api";
+import { setAirplaneMode, adminBulkAi, adminBulkExif, adminBulkThumbnails, adminBulkFaces } from "../services/api";
 import { useTheme } from "../contexts/ThemeContext";
-import { SETTINGS } from "../config/settings";
+import { SETTINGS, ADMIN_TASKS, ADMIN_TASKS_MAP } from "../config/settings";
 import shortcuts from "../data/shortcuts.yaml";
+import { getTools } from "../tools/index";
 import SettingsDialog from "../components/SettingsDialog";
 import "./Settings.css";
+
+const DISABLED_TOOLS_KEY = "disabledTools";
 
 function formatBytes(bytes) {
   if (!bytes || bytes === 0) return "0 B";
@@ -88,6 +91,10 @@ function Settings() {
   const [cacheBreakdown, setCacheBreakdown] = useState(null);
   const [clearingCache, setClearingCache] = useState(null);
   const [orientationLock, setOrientationLock] = useState(false);
+  const [adminBusy, setAdminBusy] = useState(null);
+  const [adminResults, setAdminResults] = useState({});
+  const [disabledTools, setDisabledTools] = useState(() => new Set());
+  const [allTools, setAllTools] = useState([]);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -117,6 +124,8 @@ function Settings() {
     const saved = sessionStorage.getItem("hidden_pin_unlocked");
     setHiddenUnlocked(saved === "true");
     getPref("orientationLock", false).then(setOrientationLock);
+    getPref(DISABLED_TOOLS_KEY, []).then((ids) => setDisabledTools(new Set(ids)));
+    setAllTools(getTools());
     return () => navigator.serviceWorker?.removeEventListener("message", onCacheMsg);
   }, []);
 
@@ -362,6 +371,32 @@ function Settings() {
     } else {
       window.open(url, "_blank", "noopener,noreferrer");
     }
+  };
+
+  const runAdminTask = async (action) => {
+    setAdminBusy(action);
+    try {
+      let res;
+      if (action === "ai") res = await adminBulkAi();
+      else if (action === "exif") res = await adminBulkExif();
+      else if (action === "thumbnails") res = await adminBulkThumbnails();
+      else if (action === "faces") res = await adminBulkFaces();
+      setAdminResults((prev) => ({ ...prev, [action]: res?.queued ?? 0 }));
+    } catch {
+      setAdminResults((prev) => ({ ...prev, [action]: "error" }));
+    } finally {
+      setAdminBusy(null);
+    }
+  };
+
+  const toggleTool = (id) => {
+    setDisabledTools((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      setPref(DISABLED_TOOLS_KEY, [...next]);
+      return next;
+    });
   };
 
   const summaryFor = (id) => {
@@ -733,6 +768,69 @@ function Settings() {
           </div>
         );
 
+      case "admin-ai":
+      case "admin-exif":
+      case "admin-thumbnails":
+      case "admin-faces": {
+        const action = ADMIN_TASKS_MAP[id].action;
+        const busy = adminBusy === action;
+        const result = adminResults[action];
+        return (
+          <div className="settings__admin-task">
+            <p className="settings__admin-desc">
+              {ADMIN_TASKS_MAP[id].description}. This runs in the background; clicking
+              Run queues the matching files for processing.
+            </p>
+            <button
+              className="settings__btn settings__btn--primary"
+              onClick={() => runAdminTask(action)}
+              disabled={busy}
+            >
+              {busy ? <Spinner size={14} /> : null}
+              {busy ? "Queuing..." : "Run"}
+            </button>
+            {result !== undefined && result !== null && result !== "error" && (
+              <p className="settings__admin-result">
+                <Check size={14} /> {result} file{result === 1 ? "" : "s"} queued for processing.
+              </p>
+            )}
+            {result === "error" && (
+              <p className="settings__admin-error">Failed to queue task. Check the backend.</p>
+            )}
+          </div>
+        );
+      }
+
+      case "admin-tools": {
+        if (allTools.length === 0) {
+          return <p style={{ color: "var(--color-text-muted)", fontSize: "0.8125rem" }}>No tools found.</p>;
+        }
+        return (
+          <div className="settings__tools-list">
+            {allTools.map((tool) => {
+              const disabled = disabledTools.has(tool.id);
+              return (
+                <div key={tool.id} className="settings__tool-row">
+                  <div className="settings__tool-info">
+                    <span className="settings__tool-name">{tool.name}</span>
+                    <span className="settings__tool-desc">{tool.description || tool.id}</span>
+                  </div>
+                  <button
+                    className={`settings__toggle ${disabled ? "" : "settings__toggle--on"}`}
+                    onClick={() => toggleTool(tool.id)}
+                    role="switch"
+                    aria-checked={!disabled}
+                    title={disabled ? "Disabled" : "Enabled"}
+                  >
+                    <span className="settings__toggle-knob" />
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        );
+      }
+
       default:
         return null;
     }
@@ -774,6 +872,27 @@ function Settings() {
           })}
       </div>
 
+      <h2 className="settings__section-title">Admin Tasks</h2>
+      <div className="settings__list">
+        {ADMIN_TASKS.map((t) => {
+          const Icon = t.icon;
+          return (
+            <button
+              key={t.id}
+              className="settings__row"
+              onClick={() => setOpenDialog(t.id)}
+            >
+              <Icon size={18} className="settings__row-icon" />
+              <div className="settings__row-info">
+                <span className="settings__row-label">{t.label}</span>
+                <span className="settings__row-desc">{t.description}</span>
+              </div>
+              <ChevronRight size={16} className="settings__row-chevron" />
+            </button>
+          );
+        })}
+      </div>
+
       {settingsOrder
         .map((id) => SETTINGS.find((s) => s.id === id))
         .filter((s) => s && (summaryFor(s.id) !== null || s.id === "appearance"))
@@ -786,6 +905,18 @@ function Settings() {
           description={s.description}
         >
           {renderDialogContent(s.id)}
+        </SettingsDialog>
+      ))}
+
+      {ADMIN_TASKS.map((t) => (
+        <SettingsDialog
+          key={t.id}
+          open={openDialog === t.id}
+          onClose={() => setOpenDialog(null)}
+          title={t.label}
+          description={t.description}
+        >
+          {renderDialogContent(t.id)}
         </SettingsDialog>
       ))}
     </div>

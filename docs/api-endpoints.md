@@ -35,6 +35,16 @@ All endpoints are prefixed with `/api` unless noted. Authentication is via the h
 | POST | `/api/files/<id>/detect-faces` | Trigger face detection for file |
 | DELETE | `/api/files/<id>` | Hard-delete file (optional delete_storage) |
 
+## Admin Tasks
+| Method | Path | Description |
+| ------ | ---- | ----------- |
+| POST | `/api/admin/bulk-ai` | Queue one `generate_ai_metadata` Celery task per file missing an AI description (respects Airplane Mode) |
+| POST | `/api/admin/bulk-exif` | Queue `extract_file_metadata` for all files missing EXIF/metadata |
+| POST | `/api/admin/bulk-thumbnails` | Queue `generate_thumbnail` for all files missing a thumbnail |
+| POST | `/api/admin/bulk-faces` | Queue `detect_faces` for all image files not yet scanned for faces |
+
+All four return `{ "queued": <count> }` (HTTP 202). The heavy work is fanned out to the existing Celery workers; the response only reports how many files were queued.
+
 ## Import & Upload
 | Method | Path | Description |
 | ------ | ---- | ----------- |

@@ -2,7 +2,7 @@ import {
   Palette, WifiOff, Lock,
   LayoutGrid, User, Database, MapPin, Scan,
   ArrowUp, ArrowDown, Navigation, ExternalLink,
-  Smartphone,
+  Smartphone, Sparkles, Camera, Image, ScanFace, Wrench,
 } from "lucide-react";
 
 export const SETTINGS = [
@@ -94,4 +94,46 @@ export const SETTINGS = [
 
 export const SETTINGS_MAP = Object.fromEntries(
   SETTINGS.map((s) => [s.id, s])
+);
+
+export const ADMIN_TASKS = [
+  {
+    id: "admin-ai",
+    label: "Generate AI Descriptions",
+    icon: Sparkles,
+    description: "Generate AI descriptions for all media without one",
+    action: "ai",
+  },
+  {
+    id: "admin-exif",
+    label: "Generate EXIF Data",
+    icon: Camera,
+    description: "Extract EXIF / metadata for all media missing it",
+    action: "exif",
+  },
+  {
+    id: "admin-thumbnails",
+    label: "Generate Thumbnails",
+    icon: Image,
+    description: "Generate thumbnails for all media missing one",
+    action: "thumbnails",
+  },
+  {
+    id: "admin-faces",
+    label: "Detect & Save Faces",
+    icon: ScanFace,
+    description: "Detect and save faces in all unscanned media",
+    action: "faces",
+  },
+  {
+    id: "admin-tools",
+    label: "Manage Tools",
+    icon: Wrench,
+    description: "Enable or disable tools in the Tools tab",
+    action: "tools",
+  },
+];
+
+export const ADMIN_TASKS_MAP = Object.fromEntries(
+  ADMIN_TASKS.map((t) => [t.id, t])
 );

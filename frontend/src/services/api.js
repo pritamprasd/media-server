@@ -533,4 +533,24 @@ export async function deleteMemory(memoryId) {
   return data;
 }
 
+export async function adminBulkAi() {
+  const { data } = await client.post("/admin/bulk-ai");
+  return data;
+}
+
+export async function adminBulkExif() {
+  const { data } = await client.post("/admin/bulk-exif");
+  return data;
+}
+
+export async function adminBulkThumbnails() {
+  const { data } = await client.post("/admin/bulk-thumbnails");
+  return data;
+}
+
+export async function adminBulkFaces() {
+  const { data } = await client.post("/admin/bulk-faces");
+  return data;
+}
+
 export default client;

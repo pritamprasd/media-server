@@ -37,10 +37,12 @@ def create_app(testing=False):
     from app.api import (
         sessions_bp, files_bp, upload_bp, explorer_bp, filters_bp,
         map_bp, tools_bp, system_bp, face_bp, collection_bp, memory_bp,
+        admin_bp,
     )
     for bp in (
         sessions_bp, files_bp, upload_bp, explorer_bp, filters_bp,
         map_bp, tools_bp, system_bp, face_bp, collection_bp, memory_bp,
+        admin_bp,
     ):
         application.register_blueprint(bp, url_prefix="/api")
 
