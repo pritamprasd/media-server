@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   ChevronRight, Save, Trash2, ArrowUp, ArrowDown, RotateCcw,
-  Check, Wifi, WifiOff, Lock, Unlock, ExternalLink, Copy,
+  Check, Wifi, WifiOff, Lock, Unlock, ExternalLink, Copy, GripVertical,
 } from "lucide-react";
 import { getPref, setPref, clearAllPrefs, getStorageEstimate } from "../services/db";
 import { setAirplaneMode } from "../services/api";
@@ -73,6 +73,10 @@ function Settings() {
   const [storageUsed, setStorageUsed] = useState(null);
   const [copiedUrl, setCopiedUrl] = useState(null);
   const [mapZoomSaved, setMapZoomSaved] = useState(false);
+  const [settingsOrder, setSettingsOrder] = useState(SETTINGS.map((s) => s.id));
+  const [settingsDragIdx, setSettingsDragIdx] = useState(null);
+  const [settingsDropIdx, setSettingsDropIdx] = useState(null);
+  const [cacheBreakdown, setCacheBreakdown] = useState(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -92,8 +96,19 @@ function Settings() {
       setAirplaneMode(v);
     });
     getStorageEstimate().then(setStorageUsed);
+    getPref("settingsOrder", null).then((order) => {
+      if (order && Array.isArray(order) && order.length > 0) setSettingsOrder(order);
+    });
+    if ("serviceWorker" in navigator && navigator.serviceWorker.controller) {
+      navigator.serviceWorker.controller.postMessage({ type: "GET_CACHE_STATUS" });
+    }
+    const onCacheMsg = (e) => {
+      if (e.data.type === "CACHE_STATUS") setCacheBreakdown(e.data.data);
+    };
+    navigator.serviceWorker?.addEventListener("message", onCacheMsg);
     const saved = sessionStorage.getItem("hidden_pin_unlocked");
     setHiddenUnlocked(saved === "true");
+    return () => navigator.serviceWorker?.removeEventListener("message", onCacheMsg);
   }, []);
 
   const handleMoveTab = (type, idx, dir) => {
@@ -133,6 +148,32 @@ function Settings() {
     setNavTabs(def);
     setPref("navbarTabOrder", def);
   };
+
+  const handleSettingsDragStart = (e, idx) => {
+    setSettingsDragIdx(idx);
+    e.dataTransfer.effectAllowed = "move";
+    e.dataTransfer.setData("text/plain", String(idx));
+  };
+
+  const handleSettingsDragOver = (e, idx) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+    setSettingsDropIdx(idx);
+  };
+
+  const handleSettingsDrop = (e, idx) => {
+    e.preventDefault();
+    if (settingsDragIdx === null || settingsDragIdx === idx) { setSettingsDragIdx(null); setSettingsDropIdx(null); return; }
+    const next = [...settingsOrder];
+    const [moved] = next.splice(settingsDragIdx, 1);
+    next.splice(idx, 0, moved);
+    setSettingsOrder(next);
+    setPref("settingsOrder", next);
+    setSettingsDragIdx(null);
+    setSettingsDropIdx(null);
+  };
+
+  const handleSettingsDragEnd = () => { setSettingsDragIdx(null); setSettingsDropIdx(null); };
 
   const handleMapZoomChange = (e) => {
     setMapZoomLevel(Number(e.target.value));
@@ -424,6 +465,25 @@ function Settings() {
                 </span>
               </div>
             )}
+            {cacheBreakdown && (
+              <div className="settings__cache-breakdown">
+                <span className="settings__cache-breakdown-title">Cache Breakdown</span>
+                <div className="settings__cache-breakdown-list">
+                  {[
+                    ["App Shell", cacheBreakdown.app_shell],
+                    ["API Responses", cacheBreakdown.api],
+                    ["Media", cacheBreakdown.media],
+                    ["Map Tiles", cacheBreakdown.map_tiles],
+                    ["MUI Fonts", cacheBreakdown.mui_fonts],
+                  ].map(([label, count]) => (
+                    <span key={label} className="settings__cache-breakdown-item">
+                      <span className="settings__cache-breakdown-label">{label}</span>
+                      <span className="settings__cache-breakdown-count">{count ?? 0}</span>
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
             <div className="settings__cache-row">
               <button className="settings__btn settings__btn--danger" onClick={handleClearCache} disabled={cacheStatus === "clearing"}>
                 <Trash2 size={14} /> {cacheStatus === "clearing" ? "Clearing..." : "Clear Cache"}
@@ -577,28 +637,41 @@ function Settings() {
       <h2 className="settings__title">Settings</h2>
 
       <div className="settings__list">
-        {SETTINGS.filter((s) => summaryFor(s.id) !== null || s.id === "appearance").map((s) => {
-          const Icon = s.icon;
-          const summary = summaryFor(s.id);
-          return (
-            <button
-              key={s.id}
-              className="settings__row"
-              onClick={() => setOpenDialog(s.id)}
-            >
-              <Icon size={18} className="settings__row-icon" />
-              <div className="settings__row-info">
-                <span className="settings__row-label">{s.label}</span>
-                <span className="settings__row-desc">{s.description}</span>
-              </div>
-              <span className="settings__row-summary">{summary}</span>
-              <ChevronRight size={16} className="settings__row-chevron" />
-            </button>
-          );
-        })}
+        {settingsOrder
+          .map((id) => SETTINGS.find((s) => s.id === id))
+          .filter((s) => s && (summaryFor(s.id) !== null || s.id === "appearance"))
+          .map((s, idx) => {
+            const Icon = s.icon;
+            const summary = summaryFor(s.id);
+            const isDragTarget = settingsDropIdx === idx && settingsDragIdx !== null && settingsDragIdx !== idx;
+            return (
+              <button
+                key={s.id}
+                className={`settings__row ${settingsDragIdx === idx ? "settings__row--dragging" : ""} ${isDragTarget ? "settings__row--drop" : ""}`}
+                onClick={() => setOpenDialog(s.id)}
+                draggable
+                onDragStart={(e) => handleSettingsDragStart(e, idx)}
+                onDragOver={(e) => handleSettingsDragOver(e, idx)}
+                onDrop={(e) => handleSettingsDrop(e, idx)}
+                onDragEnd={handleSettingsDragEnd}
+              >
+                <GripVertical size={14} className="settings__row-grip" />
+                <Icon size={18} className="settings__row-icon" />
+                <div className="settings__row-info">
+                  <span className="settings__row-label">{s.label}</span>
+                  <span className="settings__row-desc">{s.description}</span>
+                </div>
+                <span className="settings__row-summary">{summary}</span>
+                <ChevronRight size={16} className="settings__row-chevron" />
+              </button>
+            );
+          })}
       </div>
 
-      {SETTINGS.filter((s) => summaryFor(s.id) !== null || s.id === "appearance").map((s) => (
+      {settingsOrder
+        .map((id) => SETTINGS.find((s) => s.id === id))
+        .filter((s) => s && (summaryFor(s.id) !== null || s.id === "appearance"))
+        .map((s) => (
         <SettingsDialog
           key={s.id}
           open={openDialog === s.id}

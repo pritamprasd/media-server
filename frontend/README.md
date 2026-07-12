@@ -111,7 +111,8 @@ A scalable, semantic-searchable media viewer for your home media collection. Fea
 - **Columns** — default grid column layout (auto/1/2)
 - **Nickname** — edit default upload nickname
 - **Editor Tab Order** — reorder image and video editor tabs via move-up/move-down; persisted to IndexedDB and reflected in the viewer
-- **Cache clear** — clear all IndexedDB caches and service worker caches; uses `navigator.serviceWorker.ready` for Chrome PWA compatibility
+- **Settings Row Order** — reorder settings rows via drag-and-drop with grip handle; persisted to IndexedDB
+- **Cache clear** — clear all IndexedDB caches and service worker caches; uses `navigator.serviceWorker.ready` for Chrome PWA compatibility; shows per-cache entry breakdown
 - **Shortcuts** — YAML-driven browser shortcut links; click to copy URL to clipboard with toast confirmation; source file is git-ignored for local customization
 
 ### 🌍 Geocoding

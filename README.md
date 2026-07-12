@@ -392,6 +392,10 @@ mkdir -p ~/media-server-edited /uploads
 - **Search integration** — user memory content is included in the ILIKE search alongside description, search_words, tags, filename, and person names
 - **FileViewer UI** — "My Notes" section appears above the AI Description in the sidebar; supports inline add, edit, and delete; tags render as small pill badges; uses `StickyNote` icon from lucide-react
 
+### 🔄 AI Description Regeneration
+- **Delete & Regenerate** — "Delete & Regenerate" button appears when a file already has an AI description and metadata status is completed; triggers regeneration and polls for updates (every 2 seconds, max 30 attempts) until the new description is ready
+- **Location loading** — reverse geocoding shows a Spinner while in-flight; backend only caches successful results to avoid polluting the cache with empty lookups
+
 ### ⚙️ Settings
 - **Theme** — dark/light toggle with smooth transition
 - **Accent color** — 8 preset accent colors; applied via CSS custom property `--color-primary`
@@ -400,7 +404,8 @@ mkdir -p ~/media-server-edited /uploads
 - **Nickname** — edit default upload nickname
 - **Editor Tab Order** — reorder image and video editor tabs via move-up/move-down; persisted to IndexedDB and reflected in the viewer
 - **Navbar Tab Order** — reorder navbar tabs via drag-and-drop; persisted to IndexedDB
-- **Cache clear** — clear all IndexedDB caches and service worker caches; uses `navigator.serviceWorker.ready` for Chrome PWA compatibility; broadcasts `CLEAR_CACHES` message to all window clients
+- **Settings Row Order** — reorder settings rows via drag-and-drop; grip handle appears on hover; persisted to IndexedDB
+- **Cache clear** — clear all IndexedDB caches and service worker caches; uses `navigator.serviceWorker.ready` for Chrome PWA compatibility; broadcasts `CLEAR_CACHES` message to all window clients; shows per-cache entry breakdown (App Shell, API, Media, Map Tiles, MUI Fonts)
 - **Map Zoom Level** — slider (10–19) with explicit Save button; persisted to IndexedDB and consumed by the Map tab's Zoom In button
 - **Shortcuts** — YAML-driven browser shortcut links (`chrome://` URLs); click to copy URL to clipboard with toast confirmation; source file `frontend/src/data/shortcuts.yaml` is git-ignored for local customization
 
@@ -435,7 +440,7 @@ mkdir -p ~/media-server-edited /uploads
   | MUI (`media-server-mui-v1`) | Cache-first | Lazy-loaded Material UI chunk (when Material theme is selected) |
 - **Offline API fallback** — Axios interceptor caches GET responses to IndexedDB; when offline or network error, serves cached responses transparently
 - **Registration** — `updateViaCache: "none"`, `CLAIM`/`SKIP_WAITING` message handlers, `controllerchange` listener with debounced reload; works reliably on Chrome mobile/PWA
-- **Cache clear** — broadcasts `CLEAR_CACHES` to `{ type: "window" }` clients; all active tabs receive the clear signal
+- **Cache clear** — broadcasts `CLEAR_CACHES` to `{ type: "window" }` clients; all active tabs receive the clear signal; shows per-cache entry breakdown (App Shell, API Responses, Media, Map Tiles, MUI Fonts) via `GET_CACHE_STATUS` message to service worker
 - **Loading animation** — animated gradient blobs, rotating rings, orbiting dots, pulsing icon, and blinking text in `index.html` until React mounts
 - **Airplane mode** — toggle in the app to disable all AI/network calls; sets `X-Airplane-Mode: 1` header; geocoding and AI regeneration skip when active
 

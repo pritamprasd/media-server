@@ -129,6 +129,7 @@
 ### Settings Page Architecture
 - **Registry pattern**: `frontend/src/config/settings.js` exports `SETTINGS` array — each entry has `{ id, label, icon, description }`. Adding a new setting = adding an entry to this array + implementing `renderDialogContent(id)` case in `Settings.jsx`.
 - **Minimal rows + dialog**: Settings page renders a flat list of clickable rows (icon + label + summary). Clicking opens a `SettingsDialog` (custom portal-based modal, not MUI) with full controls. Dialog uses `.sd-*` CSS classes, supports Escape key and backdrop click to close.
+- **Draggable row reorder**: Each settings row has a `GripVertical` drag handle (visible on hover, opacity 0.3→0.7). HTML5 native drag-and-drop with `settingsOrder` state persisted to IndexedDB via `getPref`/`setPref` key `'settingsOrder'`. CSS classes: `.settings__row--dragging` (opacity 0.4 + inset shadow), `.settings__row--drop` (primary color bottom border).
 - **Mobile dialog**: On screens ≤768px, dialog slides up from bottom (sheet style) instead of centering.
 - **Accent color independence**: Accent color (`--color-primary` override via `document.documentElement.style`) persists across theme style changes. User can reset to theme default via Settings.
 
@@ -192,6 +193,11 @@
 - **Zip download**: On-the-fly streaming via `zipfile.ZipFile` in a generator. Handles duplicate filenames by appending `_N` suffix. Skips files missing from disk.
 - **FileViewer integration**: `FolderPlus` icon button in both header toolbar and floating overlay toolbar. Opens a popover listing all collections with checkmarks for membership. Toggle via `addFilesToCollection`/`removeFilesFromCollection` API calls.
 - **Collection detail page**: `/collections/:id` route. Shows file grid with remove (X) buttons. "Add Media" modal with search-as-you-type. "Download ZIP" as direct `<a href>` link.
+
+### FileViewer — AI Description Regeneration
+- **"Delete & Regenerate" button**: Shown when `meta.description` exists AND `metadata_status === "completed"`. Calls `regenerateAiMetadata(file.id)` then polls `getFileMetadata(file.id)` every 2 seconds (max 30 attempts) until `metadata_status` becomes `"completed"` or `"failed"`. Uses `pollRef.current` for cleanup.
+- **Location loading state**: `locationLoading` state set to `true` while `reverseGeocode` is in-flight. Shows a Spinner icon next to "Location" label in the meta sidebar while geocoding is pending. Backend `reverse_geocode` in `routes.py` only caches successful results (no `None` cache entries).
+- **Float buttons mobile UX**: On screens ≤768px, float buttons reduced to 34px (from 40px), gap to 0.35rem, icon SVGs scaled to 14px via CSS. Close button retains 16px. `.viewer-float-btn--zoom` is always 34px.
 
 ### User Memories (My Notes)
 - **One-to-many relationship**: `UserMemory` model FK to `imported_files.id` with `ondelete="CASCADE"`. A file can have many user memories.

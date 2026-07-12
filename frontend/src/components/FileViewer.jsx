@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Heart, Download, Trash2, X, RotateCcw, RotateCw, ArrowLeftRight,
-  ArrowUpDown, Contrast, Image, FileJson, MapPin,
+  ArrowUpDown, Contrast, Image, FileJson, MapPin, RefreshCw,
   Hash, Tag, AlignLeft, Clock, Maximize2, Camera,
   Save, Filter, SlidersHorizontal, Sun, ZoomOut,
   Sparkles, Undo2, Paintbrush, FlipHorizontal, Search, IdCard, FolderOpen,
@@ -28,7 +28,7 @@ import {
   listMemories, createMemory, updateMemory, deleteMemory,
 } from "../services/api";
 import Spinner from "./Spinner";
-import { getPref, setPref } from "../services/db";
+import { getPref } from "../services/db";
 import editingInfoMd from "../image_editing_info.md?raw";
 import "./FileViewer.css";
 
@@ -831,6 +831,27 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete, onN
       else if (type === "faces") await detectFaces(file.id);
     } catch {} finally {
       setRegenerating((p) => ({ ...p, [type]: false }));
+    }
+    if (type === "ai") {
+      if (pollRef.current) clearInterval(pollRef.current);
+      let attempts = 0;
+      const maxAttempts = 30;
+      pollRef.current = setInterval(async () => {
+        attempts++;
+        try {
+          const updated = await getFileMetadata(file.id);
+          if (updated.metadata_status === "completed" || updated.metadata_status === "failed" || attempts >= maxAttempts) {
+            clearInterval(pollRef.current);
+            pollRef.current = null;
+            setMeta(updated);
+          }
+        } catch {
+          if (attempts >= maxAttempts) {
+            clearInterval(pollRef.current);
+            pollRef.current = null;
+          }
+        }
+      }, 2000);
     }
     if (type === "faces") {
       if (pollRef.current) clearInterval(pollRef.current);
@@ -2141,6 +2162,14 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete, onN
                     <div className="viewer-meta-row viewer-meta-row--block">
                       <span className="viewer-meta-label"><AlignLeft size={12} /> Description</span>
                       <span className="viewer-meta-value">{meta.description}</span>
+                    </div>
+                  )}
+                  {meta.description && meta.metadata_status === "completed" && (
+                    <div className="viewer-meta-row">
+                      <button className="viewer-regen-btn" onClick={() => handleRegenerate("ai")} disabled={regenerating.ai}>
+                        {regenerating.ai ? <Spinner size={12} /> : <RefreshCw size={12} />}
+                        Delete & Regenerate
+                      </button>
                     </div>
                   )}
                   <div className="viewer-meta-row viewer-meta-row--block">

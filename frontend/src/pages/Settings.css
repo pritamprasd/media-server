@@ -49,6 +49,27 @@
   background: var(--color-bg);
 }
 
+.settings__row-grip {
+  color: var(--color-text-muted);
+  opacity: 0.3;
+  cursor: grab;
+  flex-shrink: 0;
+  transition: opacity 0.15s;
+}
+
+.settings__row:hover .settings__row-grip {
+  opacity: 0.7;
+}
+
+.settings__row--dragging {
+  opacity: 0.4;
+  box-shadow: var(--neu-inset-sm) !important;
+}
+
+.settings__row--drop {
+  box-shadow: 0 2px 0 0 var(--color-primary) !important;
+}
+
 .settings__row-icon {
   color: var(--color-primary);
   flex-shrink: 0;
@@ -267,6 +288,43 @@
 .settings__cache-text {
   font-size: 0.75rem;
   color: var(--color-text-muted);
+}
+
+.settings__cache-breakdown {
+  margin-top: 0.75rem;
+  padding: 0.75rem;
+  background: var(--color-bg);
+  border-radius: var(--radius);
+}
+
+.settings__cache-breakdown-title {
+  display: block;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+  color: var(--color-text);
+  font-size: 0.85rem;
+}
+
+.settings__cache-breakdown-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.settings__cache-breakdown-item {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.82rem;
+}
+
+.settings__cache-breakdown-label {
+  color: var(--color-text-muted);
+}
+
+.settings__cache-breakdown-count {
+  font-weight: 600;
+  color: var(--color-text);
+  font-variant-numeric: tabular-nums;
 }
 
 .settings__airplane-btn {
