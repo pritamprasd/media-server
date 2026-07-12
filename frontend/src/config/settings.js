@@ -1,5 +1,5 @@
 import {
-  Palette, Paintbrush, WifiOff, Lock,
+  Palette, WifiOff, Lock,
   LayoutGrid, User, Database, MapPin, Scan,
   ArrowUp, ArrowDown, Navigation, ExternalLink,
   Smartphone,
@@ -10,13 +10,7 @@ export const SETTINGS = [
     id: "appearance",
     label: "Appearance",
     icon: Palette,
-    description: "Theme style and color mode",
-  },
-  {
-    id: "accent-color",
-    label: "Accent Color",
-    icon: Paintbrush,
-    description: "Accent color used across the site",
+    description: "Theme style, color mode, and accent color",
   },
   {
     id: "airplane-mode",

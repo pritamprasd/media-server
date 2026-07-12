@@ -341,7 +341,6 @@ function Settings() {
   const summaryFor = (id) => {
     switch (id) {
       case "appearance": return `${style === "material" ? "Material" : "Neumorphic"} / ${mode === "dark" ? "Dark" : "Light"}`;
-      case "accent-color": return null;
       case "airplane-mode": return airplaneModeState ? "ON" : "OFF";
       case "hidden-files": return hiddenUnlocked ? "Unlocked" : "Locked";
       case "home-columns": return COLUMN_OPTIONS.find((o) => o.value === columns)?.label || "Auto";
@@ -393,31 +392,30 @@ function Settings() {
                 ))}
               </div>
             </div>
-          </div>
-        );
-
-      case "accent-color":
-        return (
-          <div className="settings__colors">
-            {ACCENT_COLORS.map((c) => (
-              <button
-                key={c.value}
-                className={`settings__color-btn ${accentColor === c.value ? "settings__color-btn--active" : ""}`}
-                style={{ background: c.value }}
-                onClick={() => handleAccentChange(c.value)}
-                title={c.name}
-              />
-            ))}
-            <label
-              className={`settings__color-btn settings__color-picker ${!ACCENT_COLORS.some((c) => c.value === accentColor) ? "settings__color-btn--active" : ""}`}
-              title="Custom color"
-            >
-              <input
-                type="color"
-                value={ACCENT_COLORS.some((c) => c.value === accentColor) ? "#3498db" : accentColor}
-                onChange={(e) => handleAccentChange(e.target.value)}
-              />
-            </label>
+            <div className="settings__appearance-section">
+              <span className="settings__appearance-label">Accent Color</span>
+              <div className="settings__colors">
+                {ACCENT_COLORS.map((c) => (
+                  <button
+                    key={c.value}
+                    className={`settings__color-btn ${accentColor === c.value ? "settings__color-btn--active" : ""}`}
+                    style={{ background: c.value }}
+                    onClick={() => handleAccentChange(c.value)}
+                    title={c.name}
+                  />
+                ))}
+                <label
+                  className={`settings__color-btn settings__color-picker ${!ACCENT_COLORS.some((c) => c.value === accentColor) ? "settings__color-btn--active" : ""}`}
+                  title="Custom color"
+                >
+                  <input
+                    type="color"
+                    value={ACCENT_COLORS.some((c) => c.value === accentColor) ? "#3498db" : accentColor}
+                    onChange={(e) => handleAccentChange(e.target.value)}
+                  />
+                </label>
+              </div>
+            </div>
           </div>
         );
 

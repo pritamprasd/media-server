@@ -529,7 +529,7 @@
   flex-direction: column;
   border-left: 1px solid var(--neu-dark);
   padding-left: 1rem;
-  overflow: hidden;
+  overflow-y: auto;
 }
 
 .faces-sidebar-header {
@@ -577,8 +577,6 @@
 }
 
 .faces-sidebar-grid {
-  flex: 1;
-  overflow-y: auto;
   display: grid;
   grid-template-columns: repeat(2, 1fr);
   gap: 0.375rem;
