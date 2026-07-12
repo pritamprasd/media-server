@@ -75,7 +75,7 @@ flowchart TD
     I -->|No| L[thumbnail = null]
     K --> M[Collect result dict]
     L --> M
-    M --> N[Return results[]]
+    M --> N["Return results[]"]
 ```
 
 Returns a list of dicts with:
@@ -115,8 +115,8 @@ flowchart LR
     A[enc_a, enc_b] --> B{Dimensions<br/>valid?}
     B -->|No| C[return 1.0]
     B -->|Yes| D[dot = a · b]
-    D --> E[norm_a = |a|]
-    E --> F[norm_b = |b|]
+    D --> E["norm_a = |a|"]
+    E --> F["norm_b = |b|"]
     F --> G{Norms<br/>> 0?}
     G -->|No| C
     G -->|Yes| H[return 1 - dot / (norm_a × norm_b)]
