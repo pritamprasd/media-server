@@ -424,13 +424,14 @@ mkdir -p ~/media-server-edited /uploads
 
 ### 🌐 PWA & Offline
 - **Installable** — full PWA manifest with standalone display, theme color (`#1a1a2e`), icon set (192/512 PNG + SVG)
-- **Service worker** — 4 cache stores with different strategies:
+- **Service worker** — 5 cache stores with different strategies:
   | Cache | Strategy | Contents |
   |-------|----------|----------|
   | Shell (`media-server-shell-v1`) | Cache-first | App JS/CSS (precached), `/index.html` |
   | API (`media-server-api-v1`) | Network-first | File listings, metadata, tags (with offline fallback) |
   | Media (`media-server-media-v1`) | Custom (Range-aware) | Full images and videos (Range requests for streaming, background caching for offline) |
   | Map Tiles (`media-server-tiles-v1`) | Cache-first | OpenStreetMap tiles, CartoDB, ArcGIS, NASA imagery |
+  | MUI (`media-server-mui-v1`) | Cache-first | Lazy-loaded Material UI chunk (when Material theme is selected) |
 - **Offline API fallback** — Axios interceptor caches GET responses to IndexedDB; when offline or network error, serves cached responses transparently
 - **Registration** — `updateViaCache: "none"`, `CLAIM`/`SKIP_WAITING` message handlers, `controllerchange` listener with debounced reload; works reliably on Chrome mobile/PWA
 - **Cache clear** — broadcasts `CLEAR_CACHES` to `{ type: "window" }` clients; all active tabs receive the clear signal
@@ -438,11 +439,15 @@ mkdir -p ~/media-server-edited /uploads
 - **Airplane mode** — toggle in the app to disable all AI/network calls; sets `X-Airplane-Mode: 1` header; geocoding and AI regeneration skip when active
 
 ### 🎨 Design System
+- **Theme system (Style × Mode)** — two-axis theming: Style (Neumorphic / Material) × Mode (Dark / Light) gives 4 theme combinations; persists to IndexedDB as `themeStyle` and `themeMode`; toggle mode via navbar sun/moon button, select style from Settings
 - **Neumorphic UI** — custom box-shadow system (`--neu-raised`, `--neu-inset`, `--neu-flat`) across all interactive elements
-- **Dark/Light themes** — 50+ CSS custom properties; dark base `#0d0d0d`, light base `#e4e4ed`
+- **Material Design theme** — MUI (`@mui/material` + `@emotion`) lazy-loaded only when Material style is selected; Vite code-splits into separate ~31KB gzip chunk; service worker caches in `media-server-mui-v1` cache
+- **CSS variables** — 20+ custom properties per theme block; `--color-border`, `--color-surface-light`, `--color-success` defined across all 4 variants
+- **Accent color** — independent accent color override (`--color-primary`) persists across theme style changes; reset to theme default via Settings
 - **Animations** — 10 CSS-only SpinKit spinner variants (ring, dual-ring, dots, pulse, bars, hourglass, ripple, infinity, grid, circle) with size/color theming
 - **Lucide icons** — every button uses a thoughtful lucide-react icon
 - **Responsive** — mobile layouts for Faces sidebar, Upload bottom sheet, map layout, viewer padding (buttons no longer hidden behind image content); filter bar collapses to stacked layout with dimension dropdown, full-width tag selector, and evenly-spaced sort buttons on ≤768px
+- **Settings page** — minimal card rows (icon + label + summary) that open portal-based dialogs with full controls; mobile dialogs slide up from bottom
 
 ### 🖥️ Docker Deployment
 - **9 services** — backend (Flask/Gunicorn), 5 Celery workers (import, metadata, AI, thumbnail, face), frontend (Nginx), PostgreSQL, Redis

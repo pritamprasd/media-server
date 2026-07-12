@@ -2,14 +2,26 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
 import App from "./App";
-import { ThemeProvider } from "./contexts/ThemeContext";
+import { ThemeProvider, useTheme } from "./contexts/ThemeContext";
+import MaterialThemeWrapper from "./contexts/MaterialThemeWrapper";
 import "./index.css";
+
+function ThemeAppliedProvider({ children }) {
+  const { style, mode } = useTheme();
+  return (
+    <MaterialThemeWrapper style={style} mode={mode}>
+      {children}
+    </MaterialThemeWrapper>
+  );
+}
 
 createRoot(document.getElementById("root")).render(
   <StrictMode>
     <BrowserRouter>
       <ThemeProvider>
-        <App />
+        <ThemeAppliedProvider>
+          <App />
+        </ThemeAppliedProvider>
       </ThemeProvider>
     </BrowserRouter>
   </StrictMode>,

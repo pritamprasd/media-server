@@ -3,6 +3,7 @@ const CACHES = {
   api: "media-server-api-v1",
   media: "media-server-media-v1",
   tiles: "media-server-tiles-v1",
+  mui: "media-server-mui-v1",
 };
 
 const SHELL_URLS = ["/", "/index.html", "/icon-192.png", "/icon-512.png"];
@@ -176,6 +177,19 @@ self.addEventListener("message", (e) => {
     const urls = e.data.urls || [];
     if (urls.length === 0) return;
     caches.open(CACHES.api).then((c) => {
+      Promise.allSettled(
+        urls.map((u) =>
+          fetch(u).then((r) => {
+            if (r.ok) return c.put(u, r);
+          })
+        )
+      );
+    });
+  }
+  if (e.data.type === "CACHE_MUI_FILES") {
+    const urls = e.data.urls || [];
+    if (urls.length === 0) return;
+    caches.open(CACHES.mui).then((c) => {
       Promise.allSettled(
         urls.map((u) =>
           fetch(u).then((r) => {

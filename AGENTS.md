@@ -118,6 +118,20 @@
 - **Copy-to-clipboard**: `chrome://` URLs can't be opened via `<a href>`. Clicking a shortcut copies the URL to clipboard with a green checkmark toast for 2s. Fallback: `window.open()` if clipboard API fails.
 - **Adding shortcuts**: Append entries to `shortcuts.yaml`. Only `chrome://` and related browser-internal links belong here; regular HTTP links should use standard `<a>` tags elsewhere.
 
+### Theme System (Style + Mode)
+- **Two-axis theme**: `data-style` (neumorphic|material) × `data-mode` (dark|light) on `<html>` gives 4 theme combinations. Persisted to IndexedDB as `themeStyle` and `themeMode`.
+- **ThemeContext API**: `useTheme()` returns `{ style, mode, setStyle, setMode, toggleMode }`. `toggleMode` flips dark/light (used by Navbar button). `setStyle` switches between neumorphic and material.
+- **CSS variable architecture**: `index.css` defines variables under `[data-style="X"][data-mode="Y"]` selectors. All components use `var(--color-*)` and `var(--neu-*)` — theme switching is instant via attribute change.
+- **Material theme (MUI)**: `@mui/material` + `@emotion/react` + `@emotion/styled` are installed but **lazy-loaded** via `MaterialThemeWrapper.jsx` → dynamic `import("./MuiThemeProvider")`. Vite code-splits MUI into a separate chunk (~31KB gzip) that is only fetched when `style === "material"`. Service worker caches MUI chunk in `media-server-mui-v1` cache.
+- **Adding a new theme style**: Add entry to `frontend/src/config/themes.js`, add CSS variable block in `index.css` with `[data-style="newstyle"][data-mode="dark|light"]` selectors, and optionally create a lazy-loaded theme wrapper if it needs external dependencies.
+- **Missing CSS variables**: `--color-border`, `--color-surface-light`, `--color-success` are now defined in all 4 theme blocks. Use these with fallbacks: `var(--color-success, #2ecc71)`.
+
+### Settings Page Architecture
+- **Registry pattern**: `frontend/src/config/settings.js` exports `SETTINGS` array — each entry has `{ id, label, icon, description }`. Adding a new setting = adding an entry to this array + implementing `renderDialogContent(id)` case in `Settings.jsx`.
+- **Minimal rows + dialog**: Settings page renders a flat list of clickable rows (icon + label + summary). Clicking opens a `SettingsDialog` (custom portal-based modal, not MUI) with full controls. Dialog uses `.sd-*` CSS classes, supports Escape key and backdrop click to close.
+- **Mobile dialog**: On screens ≤768px, dialog slides up from bottom (sheet style) instead of centering.
+- **Accent color independence**: Accent color (`--color-primary` override via `document.documentElement.style`) persists across theme style changes. User can reset to theme default via Settings.
+
 ### Faces Tab
 - **Case-insensitive name grouping**: `displayPersons` computed via `useMemo` groups persons by `(p.name || "").toLowerCase()`. Combined entries have `_combined: true`, `id: number[]`, `_persons: original[]`, `thumbnails: string[]`.
 - **Combined-card constraints**: Edit/delete buttons hidden on combined cards. Operations use `loadId = selectedPerson._combined ? selectedPerson._persons[0].id : selectedPerson.id` for backend calls (backend doesn't support multi-person queries).

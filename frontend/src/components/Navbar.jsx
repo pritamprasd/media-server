@@ -30,7 +30,7 @@ const DEFAULT_LINKS = [
 ];
 
 function Navbar() {
-  const { theme, toggleTheme } = useTheme();
+  const { mode, toggleMode } = useTheme();
   const [menuOpen, setMenuOpen] = useState(false);
   const [links, setLinks] = useState(DEFAULT_LINKS);
   const [showHidden, setShowHidden] = useState(sessionStorage.getItem("hidden_pin_unlocked") === "true");
@@ -149,8 +149,8 @@ function Navbar() {
         ))}
       </div>
 
-      <button className="navbar__theme-btn" onClick={toggleTheme} aria-label="Toggle theme">
-        {theme === "dark" ? <Sun size={18} /> : <Moon size={18} />}
+      <button className="navbar__theme-btn" onClick={toggleMode} aria-label="Toggle theme">
+        {mode === "dark" ? <Sun size={18} /> : <Moon size={18} />}
       </button>
 
       {menuOpen && (
