@@ -1,6 +1,7 @@
 const CACHES = {
   shell: "media-server-shell-v1",
   api: "media-server-api-v1",
+  thumbs: "media-server-thumbs-v1",
   media: "media-server-media-v1",
   tiles: "media-server-tiles-v1",
   mui: "media-server-mui-v1",
@@ -289,6 +290,13 @@ self.addEventListener("fetch", (e) => {
   // Media serve endpoint: special strategy for offline playback
   if (method === "GET" && pathname.startsWith("/api/") && pathname.endsWith("/serve")) {
     e.respondWith(mediaStrategy(request));
+    return;
+  }
+
+  // Thumbnails: cache-first in a dedicated cache so they can be cleared
+  // independently from full media and API responses.
+  if (method === "GET" && pathname.startsWith("/api/files/") && pathname.endsWith("/thumbnail")) {
+    e.respondWith(cacheFirst(request, CACHES.thumbs));
     return;
   }
 
