@@ -330,6 +330,9 @@ mkdir -p ~/media-server-edited /uploads
 - **Infinite scroll** — Faces page uses paginated backend (50 per page) with IntersectionObserver for seamless scrolling
 - **Case-insensitive name grouping** — persons with the same name (case-insensitive) are grouped into a single combined card showing a 2×2 thumbnail grid, total face count, and group size; edit/delete hidden on combined cards
 - **Merge toolbar** — select multiple persons from the faces page and merge them into one; correctly expands combined cards to include all individual IDs
+- **Batch delete** — select one or more persons and delete them in one action; faces are unlinked (person_id set to NULL), not deleted; batch endpoint `POST /api/persons/batch-delete`
+- **Reload after operation** — name-save, delete, merge, and batch-delete re-fetch all previously loaded pages to preserve scroll context (no more "load more → operation → reset to page 1")
+- **Auto-load on filter** — switching to Named/Unnamed filter auto-fetches more pages if the current filtered count is below 20, so the view isn't empty after filtering
 - **Stats** — total persons, faces, named persons, files with faces, average age, gender breakdown
 
 ### 📍 Map & Locations
@@ -1098,6 +1101,7 @@ To use: copy the block above, replace `[DESCRIBE YOUR IDEA HERE]` with your tool
 | GET | `/api/persons` | Paginated persons list (search by name, sort by face_count) |
 | PUT | `/api/persons/<id>` | Rename person (syncs name as tag) |
 | DELETE | `/api/persons/<id>` | Delete person (faces become unassigned) |
+| POST | `/api/persons/batch-delete` | Batch delete persons by IDs |
 | GET | `/api/persons/<id>/faces` | Paginated faces for a person |
 | GET | `/api/persons/<id>/files` | Paginated files containing a person |
 | GET | `/api/persons/<id>/timeline` | Timeline of person's appearances (year/month/week/day buckets) |

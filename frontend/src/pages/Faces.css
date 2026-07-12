@@ -288,6 +288,8 @@
 
 .faces-btn--merge { color: var(--color-primary); }
 
+.faces-btn--danger { color: var(--color-danger, #e74c3c); }
+
 .faces-card-thumb {
   position: relative;
   aspect-ratio: 1;

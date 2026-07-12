@@ -1,8 +1,8 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
-import { Eye, EyeOff, Search, UserPlus, UserMinus, IdCard, Scan, Image, SlidersHorizontal, X, ChevronLeft, ChevronRight, Tags, GitMerge, CheckSquare, Square, ChevronDown, Users, List, Grid3X3 } from "lucide-react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { Eye, EyeOff, Search, UserPlus, UserMinus, IdCard, Scan, Image, SlidersHorizontal, X, ChevronLeft, ChevronRight, Tags, GitMerge, CheckSquare, Square, ChevronDown, Users, List, Grid3X3, Trash2 } from "lucide-react";
 import Spinner from "../components/Spinner";
 import FileViewer from "../components/FileViewer";
-import { listPersons, updatePerson, deletePerson, scanAllFaces, listPersonFiles, getFaceStats, mergePersons } from "../services/api";
+import { listPersons, updatePerson, deletePerson, deletePersons, scanAllFaces, listPersonFiles, getFaceStats, mergePersons } from "../services/api";
 import { getPref } from "../services/db";
 import "./Faces.css";
 
@@ -65,6 +65,55 @@ function Faces() {
 
   useEffect(() => { setPersonPage(1); loadPersons(1); }, [loadPersons]);
 
+  const reloadAfterOperation = useCallback(async () => {
+    const maxPage = personPage;
+    try {
+      setLoading(true);
+      const firstResult = await listPersons(1, 50, searchName);
+      let allPersons = firstResult.persons;
+      for (let p = 2; p <= maxPage; p++) {
+        const pageResult = await listPersons(p, 50, searchName);
+        allPersons = [...allPersons, ...pageResult.persons];
+      }
+      setPersons(allPersons);
+      setPersonPage(firstResult.page);
+      setPersonTotal(firstResult.total);
+      setPersonPages(firstResult.pages);
+      const sData = await getFaceStats();
+      setStats(sData);
+    } catch (e) {
+      console.error("Failed to reload persons:", e);
+    } finally {
+      setLoading(false);
+    }
+  }, [personPage, searchName]);
+
+  const autoLoadForFilter = useCallback(async () => {
+    if (filterMode === "all") return;
+    let currentPersons = persons;
+    let currentPage = personPage;
+    const isMatch = filterMode === "named" ? (p) => !!p.name : (p) => !p.name;
+    while (currentPersons.filter(isMatch).length < 20 && currentPage < personPages) {
+      currentPage++;
+      try {
+        const data = await listPersons(currentPage, 50, searchName);
+        currentPersons = [...currentPersons, ...data.persons];
+        setPersons(currentPersons);
+        setPersonPage(data.page);
+      } catch {
+        break;
+      }
+    }
+  }, [filterMode, persons, personPage, personPages, searchName]);
+
+  const prevFilterMode = useRef(filterMode);
+  useEffect(() => {
+    if (filterMode !== prevFilterMode.current) {
+      prevFilterMode.current = filterMode;
+      autoLoadForFilter();
+    }
+  }, [filterMode, autoLoadForFilter]);
+
   useEffect(() => {
     getPref("facesPerPage", 15).then(setFacesPerPage);
   }, []);
@@ -123,7 +172,7 @@ function Faces() {
     try {
       await updatePerson(person.id, { name: nameValue || null });
       setEditingName(null);
-      await loadPersons();
+      await reloadAfterOperation();
       if (selectedPerson?.id === person.id) {
         setSelectedPerson((p) => ({ ...p, name: nameValue || null }));
       }
@@ -138,7 +187,7 @@ function Faces() {
       await deletePerson(person.id);
       if (selectedPerson?.id === person.id) setSelectedPerson(null);
       setSelectedIds((prev) => { const next = new Set(prev); next.delete(person.id); return next; });
-      await loadPersons();
+      await reloadAfterOperation();
     } catch (e) {
       console.error("Failed to delete person:", e);
     }
@@ -163,11 +212,27 @@ function Faces() {
       await mergePersons(Array.from(selectedIds), name);
       setSelectedIds(new Set());
       setMergeName("");
-      await loadPersons();
+      await reloadAfterOperation();
     } catch (e) {
       console.error("Merge failed:", e);
     } finally {
       setMerging(false);
+    }
+  };
+
+  const handleDeleteSelected = async () => {
+    if (selectedIds.size === 0) return;
+    if (!window.confirm(`Delete ${selectedIds.size} selected person group(s)? Faces will be unlinked.`)) return;
+    try {
+      await deletePersons(Array.from(selectedIds));
+      setSelectedIds(new Set());
+      if (selectedPerson) {
+        const selId = Array.isArray(selectedPerson.id) ? selectedPerson.id : [selectedPerson.id];
+        if (selId.some((id) => selectedIds.has(id))) setSelectedPerson(null);
+      }
+      await reloadAfterOperation();
+    } catch (e) {
+      console.error("Batch delete failed:", e);
     }
   };
 
@@ -265,6 +330,11 @@ function Faces() {
                 Merge {selectedIds.size}
               </button>
             </div>
+          )}
+          {selectedIds.size >= 1 && (
+            <button className="faces-btn faces-btn--danger" onClick={handleDeleteSelected}>
+              <Trash2 size={14} /> Delete {selectedIds.size}
+            </button>
           )}
           <div className="faces-search-wrap">
             <Search size={13} className="faces-search-icon" />

@@ -96,6 +96,22 @@ def delete_person(person_id):
     return jsonify({"message": "Person deleted"}), 200
 
 
+@api_bp.route("/persons/batch-delete", methods=["POST"])
+def batch_delete_persons():
+    data = request.get_json(silent=True) or {}
+    person_ids = data.get("person_ids", [])
+    if not person_ids:
+        return jsonify({"error": "No person IDs provided"}), 400
+    persons = Person.query.filter(Person.id.in_(person_ids)).all()
+    for person in persons:
+        DetectedFace.query.filter_by(person_id=person.id).update(
+            {DetectedFace.person_id: None}, synchronize_session="fetch"
+        )
+        db.session.delete(person)
+    db.session.commit()
+    return jsonify({"message": f"Deleted {len(persons)} persons"}), 200
+
+
 @api_bp.route("/persons/<int:person_id>/faces", methods=["GET"])
 def list_person_faces(person_id):
     person = db.session.get(Person, person_id)

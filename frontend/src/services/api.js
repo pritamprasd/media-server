@@ -303,6 +303,11 @@ export async function deletePerson(personId) {
   return data;
 }
 
+export async function deletePersons(personIds) {
+  const { data } = await client.post("/persons/batch-delete", { person_ids: personIds });
+  return data;
+}
+
 export async function listPersonFaces(personId, page = 1, perPage = 12) {
   const { data } = await client.get(`/persons/${personId}/faces`, {
     params: { page, per_page: perPage },

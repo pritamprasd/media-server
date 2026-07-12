@@ -73,6 +73,9 @@ A scalable, semantic-searchable media viewer for your home media collection. Fea
 - **Tag propagation** — naming a person adds the name as a tag to all containing images (removed on rename)
 - **Face viewer** — view detected face thumbnails per image in the file viewer sidebar; name individual faces inline (creates or reuses persons)
 - **Infinite scroll** — Faces page uses paginated backend (50 per page) with IntersectionObserver for seamless scrolling
+- **Batch delete** — select one or more persons and delete them in one action; faces are unlinked, not deleted
+- **Reload after operation** — name-save, delete, merge, and batch-delete re-fetch all previously loaded pages to preserve scroll context
+- **Auto-load on filter** — switching to Named/Unnamed filter auto-fetches more pages if the current filtered count is below 20
 - **Stats** — total persons, faces, named persons, files with faces
 
 ### 📍 Map & Locations
@@ -336,6 +339,7 @@ flask db downgrade            # Rollback one migration
 | GET | `/api/persons` | List all persons |
 | PUT | `/api/persons/<id>` | Rename person (syncs name as tag) |
 | DELETE | `/api/persons/<id>` | Delete person group |
+| POST | `/api/persons/batch-delete` | Batch delete persons by IDs |
 | GET | `/api/persons/<id>/faces` | Paginated faces for a person |
 | GET | `/api/persons/<id>/files` | Paginated files containing a person |
 | POST | `/api/persons/scan` | Queue face detection for unscanned files |
