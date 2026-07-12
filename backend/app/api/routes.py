@@ -17,7 +17,7 @@ pillow_heif.register_heif_opener()
 
 from sqlalchemy import func
 
-from flask import current_app, jsonify, request, send_file
+from flask import current_app, jsonify, request, send_file, Response
 from werkzeug.utils import secure_filename
 
 from app import db
@@ -1216,6 +1216,52 @@ def _resize_image_bytes(data, source_size=None):
         return None
 
 
+def _serve_with_range(file_path, mime_type, file_size):
+    range_header = request.headers.get("Range")
+
+    if range_header:
+        try:
+            ranges = range_header.replace("bytes=", "").split("-")
+            start = int(ranges[0]) if ranges[0] else 0
+            end = int(ranges[1]) if ranges[1] else file_size - 1
+            if start >= file_size or end >= file_size or start > end:
+                resp = Response(status=416)
+                resp.headers["Content-Range"] = f"bytes */{file_size}"
+                return resp
+        except (ValueError, IndexError):
+            start = 0
+            end = file_size - 1
+    else:
+        start = 0
+        end = file_size - 1
+
+    content_length = end - start + 1
+
+    def generate():
+        with open(file_path, "rb") as f:
+            f.seek(start)
+            remaining = content_length
+            chunk_size = 64 * 1024
+            while remaining > 0:
+                read_size = min(chunk_size, remaining)
+                data = f.read(read_size)
+                if not data:
+                    break
+                remaining -= len(data)
+                yield data
+
+    if range_header:
+        resp = Response(generate(), status=206, mimetype=mime_type)
+        resp.headers["Content-Range"] = f"bytes {start}-{end}/{file_size}"
+    else:
+        resp = Response(generate(), status=200, mimetype=mime_type)
+
+    resp.headers["Accept-Ranges"] = "bytes"
+    resp.headers["Content-Length"] = content_length
+    resp.headers["Cache-Control"] = "private, max-age=60"
+    return resp
+
+
 @api_bp.route("/files/<int:file_id>/serve", methods=["GET"])
 def serve_file(file_id):
     file_record = db.session.get(ImportedFile, file_id)
@@ -1262,6 +1308,9 @@ def serve_file(file_id):
                 return resp
         except Exception as e:
             current_app.logger.warning("serve_file resize failed for id=%s: %s", file_id, e)
+
+    if file_record.mime_type and file_record.mime_type.startswith("video/"):
+        return _serve_with_range(file_record.file_path, file_record.mime_type, file_size)
 
     return send_file(
         file_record.file_path,

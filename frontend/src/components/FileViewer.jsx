@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import {
   Heart, Download, Trash2, X, RotateCcw, RotateCw, ArrowLeftRight,
   ArrowUpDown, Contrast, Image, FileJson, MapPin, RefreshCw,
-  Hash, Tag, AlignLeft, Clock, Maximize2, Camera,
+  Hash, Tag, AlignLeft, Clock, Maximize2, Camera, Film,
   Save, Filter, SlidersHorizontal, Sun, ZoomOut, ZoomIn,
   Sparkles, Undo2, Paintbrush, FlipHorizontal, Search, IdCard, FolderOpen,
   ChevronLeft, ChevronRight, Scissors, Palette, Droplets, Eye, EyeOff,
@@ -200,6 +200,7 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete, onN
   const [prominentColors, setProminentColors] = useState([]);
   const [selectiveColorSrc, setSelectiveColorSrc] = useState(null);
   const [mediaLoading, setMediaLoading] = useState(true);
+  const [videoError, setVideoError] = useState(null);
   const [tabOrder, setTabOrder] = useState(null);
   const [locationName, setLocationName] = useState(null);
   const [locationLoading, setLocationLoading] = useState(false);
@@ -375,7 +376,7 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete, onN
     });
   }, [isVideo]);
 
-  useEffect(() => { setMediaLoading(true); }, [file.id]);
+  useEffect(() => { setMediaLoading(true); setVideoError(null); }, [file.id]);
 
   const extractProminentColors = useCallback(() => {
     const img = imgRef.current;
@@ -1387,7 +1388,19 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete, onN
               <div className="viewer-media-loading"><Spinner size={36} center /></div>
             )}
             {isVideo ? (
-              <video ref={videoRef} className="viewer-media" src={fileUrl} controls autoPlay style={{ filter: showOriginal ? "none" : previewFilter }} onCanPlay={() => { setMediaLoading(false); checkCacheStatus(); }} />
+              <>
+                <video ref={videoRef} className="viewer-media" src={fileUrl} controls autoPlay style={{ filter: showOriginal ? "none" : previewFilter }} onCanPlay={() => { setMediaLoading(false); checkCacheStatus(); }} onError={() => { setMediaLoading(false); setVideoError(meta?.video_codec || "unknown"); }} />
+                {videoError && (
+                  <div className="viewer-video-error">
+                    <div className="viewer-video-error__icon">⚠</div>
+                    <div className="viewer-video-error__text">
+                      <strong>Cannot play this video</strong>
+                      <span>Codec: {videoError}</span>
+                      <span>Your browser may not support this video format.</span>
+                    </div>
+                  </div>
+                )}
+              </>
             ) : (
               <div className="viewer-media-wrap" style={mediaLoading ? { visibility: "hidden", position: "absolute" } : {}}>
                 <img ref={imgRef} className="viewer-media" src={selectiveColorSrc || fileUrl} alt={file.filename} style={previewStyle} onLoad={() => { setMediaLoading(false); if (!selectiveColorSrc) checkCacheStatus(); }} />
@@ -2010,6 +2023,12 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete, onN
                     <div className="viewer-meta-row">
                       <span className="viewer-meta-label"><Clock size={12} /> Duration</span>
                       <span className="viewer-meta-value">{meta.duration.toFixed(1)}s</span>
+                    </div>
+                  )}
+                  {meta.video_codec && (
+                    <div className="viewer-meta-row">
+                      <span className="viewer-meta-label"><Film size={12} /> Codec</span>
+                      <span className="viewer-meta-value">{meta.video_codec}</span>
                     </div>
                   )}
                   <div className="viewer-meta-row">

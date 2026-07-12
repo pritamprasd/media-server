@@ -28,6 +28,7 @@ def extract_video_metadata(path, meta):
     if video_stream:
         meta.width = safe_int(video_stream.get("width"))
         meta.height = safe_int(video_stream.get("height"))
+        meta.video_codec = video_stream.get("codec_name")
 
     fmt = data.get("format", {})
     duration_str = fmt.get("duration") or (video_stream or {}).get("duration")

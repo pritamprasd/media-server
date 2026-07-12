@@ -17,6 +17,7 @@ class FileMetadata(db.Model):
     width = db.Column(db.Integer, nullable=True)
     height = db.Column(db.Integer, nullable=True)
     duration = db.Column(db.Float, nullable=True)
+    video_codec = db.Column(db.Text, nullable=True)
 
     tags = db.Column(db.JSON, nullable=True)
     description = db.Column(db.Text, nullable=True)
@@ -45,6 +46,7 @@ class FileMetadata(db.Model):
             "width": self.width,
             "height": self.height,
             "duration": self.duration,
+            "video_codec": self.video_codec,
             "tags": self.tags,
             "description": self.description,
             "search_words": self.search_words,

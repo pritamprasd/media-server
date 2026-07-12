@@ -637,21 +637,20 @@ media-server/
 
 ### Relationships
 
-```
-ImportSession (1) ──── (N) ImportedDirectory   [cascade: delete-orphan]
-                     └──── (N) ImportedFile     [cascade: delete-orphan]
+```mermaid
+erDiagram
+    ImportSession ||--o{ ImportedDirectory : "has"
+    ImportSession ||--o{ ImportedFile : "has"
+    ImportedDirectory ||--o{ ImportedFile : "contains"
 
-ImportedDirectory (1) ── (N) ImportedFile       [FK: directory_id]
+    ImportedFile ||--o| FileMetadata : "has"
+    ImportedFile ||--o{ DetectedFace : "has"
+    ImportedFile ||--o{ UserMemory : "has"
+    ImportedFile ||--o{ FilterPreset : "has"
+    ImportedFile }|--|| Collection : "belongs to"
 
-ImportedFile (1) ──┬── (1) FileMetadata         [FK: file_id, unique — one-to-one]
-                   ├── (N) DetectedFace          [FK: file_id]
-                   ├── (N) UserMemory            [FK: file_id, ON DELETE CASCADE]
-                   ├── (N) FilterPreset          [FK: file_id, nullable]
-                   └── (N) Collection            [M2M via collection_files]
-
-FileMetadata (1) ── (N) DHashBand               [FK: metadata_id]
-
-Person (1) ── (N) DetectedFace                  [FK: person_id, nullable]
+    FileMetadata ||--o{ DHashBand : "has"
+    Person ||--o{ DetectedFace : "identifies"
 ```
 
 **Key behaviors:**
@@ -659,7 +658,7 @@ Person (1) ── (N) DetectedFace                  [FK: person_id, nullable]
 - Deleting an `ImportedFile` cascades to its `UserMemory` records (DB-level `ON DELETE CASCADE`)
 - `DetectedFace.person_id` is nullable — unnamed faces have `person_id = NULL`
 - `Collection.files` is many-to-many — deleting a collection only removes join rows, not files
-- Face naming (`PUT /api/faces/<id>`).propagates to all unnamed faces with similar embeddings (cosine distance < 0.3)
+- Face naming (`PUT /api/faces/<id>`) propagates to all unnamed faces with similar embeddings (cosine distance < 0.3)
 
 ## Database Indexes
 
