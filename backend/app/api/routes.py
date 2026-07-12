@@ -2462,8 +2462,9 @@ def reverse_geocode():
         r = _get_redis()
         cached = r.get(cache_key)
         if cached:
+            cached_data = json.loads(cached)
             geocode_requests_total.labels(cache="hit").inc()
-            return jsonify(json.loads(cached))
+            return jsonify(cached_data)
     except Exception:
         pass
     geocode_requests_total.labels(cache="miss").inc()
@@ -2488,11 +2489,12 @@ def reverse_geocode():
     except Exception as e:
         result = {"error": str(e)}
 
-    try:
-        r = _get_redis()
-        r.set(cache_key, json.dumps(result))
-    except Exception:
-        pass
+    if "display_name" in result:
+        try:
+            r = _get_redis()
+            r.set(cache_key, json.dumps(result))
+        except Exception:
+            pass
 
     return jsonify(result)
 

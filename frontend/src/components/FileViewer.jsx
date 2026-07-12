@@ -202,6 +202,7 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete, onN
   const [mediaLoading, setMediaLoading] = useState(true);
   const [tabOrder, setTabOrder] = useState(null);
   const [locationName, setLocationName] = useState(null);
+  const [locationLoading, setLocationLoading] = useState(false);
   const [shareCopied, setShareCopied] = useState(false);
   const [allTags, setAllTags] = useState([]);
   const [showCollectionMenu, setShowCollectionMenu] = useState(false);
@@ -545,11 +546,13 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete, onN
   useEffect(() => {
     if (meta?.latitude != null && meta?.longitude != null) {
       setLocationName(null);
+      setLocationLoading(true);
       reverseGeocode(meta.latitude, meta.longitude)
         .then((res) => {
           if (res.display_name) setLocationName(res.display_name);
         })
-        .catch(() => {});
+        .catch(() => {})
+        .finally(() => setLocationLoading(false));
     } else {
       setLocationName(null);
     }
@@ -2031,7 +2034,9 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete, onN
                     <div className="viewer-meta-row">
                       <span className="viewer-meta-label"><MapPin size={12} /> Location</span>
                       <span className="viewer-meta-value">
-                        {locationName ? (
+                        {locationLoading ? (
+                          <span className="viewer-location-name" style={{ opacity: 0.5 }}><Spinner size={10} /> Loading...</span>
+                        ) : locationName ? (
                           <span className="viewer-location-name">{locationName}</span>
                         ) : (
                           <>

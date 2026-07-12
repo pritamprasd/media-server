@@ -2,6 +2,8 @@ export const icon = '🎨';
 export const name = 'Photo Editor';
 export const description = 'Upload, edit and download images with filters, adjustments, crop and more';
 
+import { getPref, setPref } from '../services/db.js';
+
 const FILTERS = [
   { name: 'normal', label: 'Normal', css: '' },
   { name: 'vivid', label: 'Vivid', css: 'saturate(1.4) contrast(1.25)' },
@@ -108,8 +110,17 @@ export function init(container) {
     exportFormat: 'jpeg',
     exportQuality: 90,
     showOriginal: false,
+    showHistogram: true,
     currentTab: 'filters',
   };
+
+  getPref('photoEditorHistogram', true).then((v) => {
+    S.showHistogram = v !== false;
+    histCanvas.style.display = S.showHistogram ? '' : 'none';
+    if (histToggleBtn) {
+      histToggleBtn.textContent = S.showHistogram ? '📊 Histogram' : '📊 Show Histogram';
+    }
+  });
 
   let imgEl = null;
   let imgSrc = null;
@@ -253,6 +264,16 @@ export function init(container) {
   const dlBtn = el('button', BTN_PRIMARY, toolbar);
   dlBtn.innerHTML = '⬇ Download';
   dlBtn.addEventListener('click', download);
+  el('div', '', toolbar).className = 'pe-sep';
+  const histToggleBtn = el('button', BTN_RAISED, toolbar);
+  histToggleBtn.innerHTML = '📊 Histogram';
+  histToggleBtn.addEventListener('click', () => {
+    S.showHistogram = !S.showHistogram;
+    histCanvas.style.display = S.showHistogram ? '' : 'none';
+    histToggleBtn.textContent = S.showHistogram ? '📊 Histogram' : '📊 Show Histogram';
+    setPref('photoEditorHistogram', S.showHistogram);
+    if (S.showHistogram) scheduleHistogram();
+  });
 
   const mainArea = el('div', '', editor);
   mainArea.className = 'pe-main';
@@ -673,6 +694,7 @@ export function init(container) {
   }
 
   function scheduleHistogram() {
+    if (!S.showHistogram) return;
     if (histTimer) cancelAnimationFrame(histTimer);
     histTimer = requestAnimationFrame(drawHistogram);
   }

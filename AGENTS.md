@@ -167,6 +167,19 @@
 - **7 tabs**: Filters (preset grid with thumbnail previews), Adjust (7 sliders), Light (5 sliders), Effects (vignette/grain/colorize/grayscale), Details (clarity/dehaze), Colors (selective color picker with tolerance), Crop (aspect ratios + rotate/flip + drag handles).
 - **Crop preview**: CSS `clip-path: inset()` + `box-shadow: 0 0 0 9999px` overlay dimming + 4 corner drag handles with aspect ratio locking. Same mouse event handling as FileViewer.jsx crop.
 
+### Video Editor Tool
+- **FE-only video editor**: `frontend/src/tools/video-editor.js` — upload, preview, trim, and adjust videos entirely in the browser.
+- **Architecture mirrors photo-editor.js**: Same `el()` DOM helper, same tab system, same toolbar + preview + panel layout, same toast notifications, same resetAll pattern.
+- **WebGL GPU-accelerated rendering**: Hidden `<video>` element plays source; a `<canvas>` with WebGL context renders each frame via fragment shader. All adjustments (brightness, contrast, saturation, vibrance, warmth, tint, exposure, highlights, shadows, whites, blacks, grayscale, sepia) are applied as GLSL uniforms — edits apply live during playback with zero CSS filter overhead.
+- **Fragment shader pipeline**: Vertex shader passes UV coords; fragment shader applies exposure (exponential), brightness (composite of shadows/highlights/blacks/whites), contrast, luminance-weighted saturation, vibrance (saturation-of-saturation boost), warmth (color temperature), tint (blue/red shift), grayscale, and sepia (luminance-matrix blend). Rotate/flip via UV coordinate transform.
+- **2D canvas fallback**: When WebGL is unavailable, falls back to plain `drawImage` on 2D canvas (no filters, preview only). GPU badge shows ⚡ GPU or ⚗ CPU.
+- **HTML5 video preview**: `<video>` element with `playsInline`, hidden; `<canvas>` displays rendered output. Click on either toggles play/pause.
+- **Timeline**: Progress bar with seek, draggable trim handles (start/end), trim region visualization. Render loop syncs with `requestAnimationFrame` — each tick uploads the current video frame to the WebGL texture and draws.
+- **Trim**: Set start/end via timeline handles or "Set to Current" buttons. Preview trim plays from start to end, auto-stops at trim end.
+- **6 tabs**: Trim (timeline + time inputs + info), Adjust (7 sliders), Light (4 sliders), Effects (grayscale toggle + sepia slider), Speed (playback rate 0.25×–4× with presets), Rotate (4 buttons: rotate L/R, flip H/V — applied via UV transform in shader).
+- **Frame extraction**: Renders current frame through WebGL pipeline (or 2D fallback) to `<canvas>` → PNG download with applied filters.
+- **No save-as**: No backend API calls. Download button saves the original video file. All filter effects are preview-only (GPU-rendered on canvas).
+
 ### Ingredient Scanner — Nutrition Facts
 - **Auto-detect from OCR text**: `runAnalysis()` searches for `nutrition (information|facts|label|values?|data)` in the OCR text and splits it: text before is treated as ingredients, text from the match onwards as nutrition data. Both sections parsed independently.
 - **Indian FSSAI format**: `parseNutritionFacts()` handles dual-column (per serving + per 100g) and single-column (per 100g) Indian nutrition labels. Parses 11 nutrients via regex line-by-line. kJ→kcal conversion via divide by 4.184.
