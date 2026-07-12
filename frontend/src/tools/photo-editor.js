@@ -515,21 +515,22 @@ export function init(container) {
     hint.textContent = S.selectedColors.length > 0
       ? 'Selected colors remain; everything else turns grayscale.'
       : 'Pick colors to keep; other areas become grayscale.';
-    if (S.selectedColors.length > 0) {
-      const clearBtn = el('button', '', tabContent);
-      clearBtn.className = 'pe-colors-clear';
-      clearBtn.textContent = 'Clear all (' + S.selectedColors.length + ')';
-      clearBtn.addEventListener('click', () => { S.selectedColors = []; updateSelectiveColor(); renderColorsTab(); });
-    }
+    const clearInfo = el('div', '', tabContent);
+    clearInfo.className = 'pe-colors-clear-wrap';
+    const clearBtn = el('button', '', clearInfo);
+    clearBtn.className = 'pe-colors-clear';
+    clearBtn.style.display = S.selectedColors.length > 0 ? '' : 'none';
+    clearBtn.textContent = 'Clear all (' + S.selectedColors.length + ')';
+    clearBtn.addEventListener('click', () => { S.selectedColors = []; updateSelectiveColor(); renderColorsTab(); });
     const grid = el('div', '', tabContent);
     grid.className = 'pe-colors-grid';
     if (prominentColors.length === 0) {
       el('div', 'grid-column:1/-1;text-align:center;padding:1rem;color:var(--color-text-muted);font-size:0.8rem;', grid).textContent = 'Analyzing colors...';
     }
     prominentColors.forEach((c) => {
-      const isActive = S.selectedColors.some(sc => sc.r === c.r && sc.g === c.g && sc.b === c.b);
+      const isSelected = S.selectedColors.some(sc => sc.r === c.r && sc.g === c.g && sc.b === c.b);
       const swatch = el('button', '', grid);
-      swatch.className = 'pe-colors-swatch' + (isActive ? ' pe-colors-swatch--active' : '');
+      swatch.className = 'pe-colors-swatch' + (isSelected ? ' pe-colors-swatch--active' : '');
       const colorDiv = el('div', '', swatch);
       colorDiv.className = 'pe-colors-swatch-color';
       colorDiv.style.background = 'rgb(' + c.r + ',' + c.g + ',' + c.b + ')';
@@ -537,10 +538,13 @@ export function init(container) {
       lbl.className = 'pe-colors-swatch-label';
       lbl.textContent = '#' + c.r.toString(16).padStart(2, '0') + c.g.toString(16).padStart(2, '0') + c.b.toString(16).padStart(2, '0') + (c.pct != null ? ' ' + c.pct + '%' : '');
       swatch.addEventListener('click', () => {
-        if (isActive) S.selectedColors = S.selectedColors.filter(sc => sc.r !== c.r || sc.g !== c.g || sc.b !== c.b);
+        const wasSelected = S.selectedColors.some(sc => sc.r === c.r && sc.g === c.g && sc.b === c.b);
+        if (wasSelected) S.selectedColors = S.selectedColors.filter(sc => sc.r !== c.r || sc.g !== c.g || sc.b !== c.b);
         else S.selectedColors.push(c);
+        swatch.classList.toggle('pe-colors-swatch--active', !wasSelected);
+        clearBtn.textContent = 'Clear all (' + S.selectedColors.length + ')';
+        clearBtn.style.display = S.selectedColors.length > 0 ? '' : 'none';
         updateSelectiveColor();
-        renderColorsTab();
       });
     });
   }

@@ -167,6 +167,16 @@ self.addEventListener("message", (e) => {
       clients.forEach((c) => c.postMessage({ type: "CACHES_CLEARED" }));
     })();
   }
+  if (e.data.type === "CLEAR_SINGLE_CACHE") {
+    (async () => {
+      const cacheName = e.data.cacheName;
+      if (cacheName && CACHES[cacheName]) {
+        await caches.delete(CACHES[cacheName]);
+      }
+      const clients = await self.clients.matchAll({ type: "window" });
+      clients.forEach((c) => c.postMessage({ type: "SINGLE_CACHE_CLEARED", cacheName }));
+    })();
+  }
   if (e.data.type === "CLAIM") {
     self.skipWaiting().then(() => self.clients.claim());
   }

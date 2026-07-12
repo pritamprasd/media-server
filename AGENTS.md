@@ -133,6 +133,7 @@
 - **Mobile dialog**: On screens ≤768px, dialog slides up from bottom (sheet style) instead of centering.
 - **Accent color independence**: Accent color (`--color-primary` override via `document.documentElement.style`) persists across theme style changes. User can reset to theme default via Settings.
 - **Portrait mode lock**: "Screen Orientation" setting uses `screen.orientation.lock("portrait")` API. Only effective in standalone PWA mode (installed to home screen). Preference stored in IndexedDB as `orientationLock`, applied on app load in `App.jsx`. Manifest default is `"portrait"`. Fails silently on unsupported browsers/fullscreen-only restrictions.
+- **Per-cache clearing**: Cache breakdown rows each have an individual "Clear" button that sends `CLEAR_SINGLE_CACHE` to the SW. SW deletes only the named cache and replies `SINGLE_CACHE_CLEARED`, triggering a fresh `GET_CACHE_STATUS` to update counts. Each cache has a short description (App Shell, API Responses, Media, Map Tiles, MUI Fonts). Key mapping uses SW's CACHES object keys (`shell`, `api`, `media`, `tiles`, `mui`).
 
 ### Faces Tab
 - **Case-insensitive name grouping**: `displayPersons` computed via `useMemo` groups persons by `(p.name || "").toLowerCase()`. Combined entries have `_combined: true`, `id: number[]`, `_persons: original[]`, `thumbnails: string[]`.
@@ -169,6 +170,7 @@
 - **7 tabs**: Filters (preset grid with thumbnail previews), Adjust (7 sliders), Light (5 sliders), Effects (vignette/grain/colorize/grayscale), Details (clarity/dehaze), Colors (selective color picker with tolerance), Crop (aspect ratios + rotate/flip + drag handles).
 - **Crop preview**: CSS `clip-path: inset()` + `box-shadow: 0 0 0 9999px` overlay dimming + 4 corner drag handles with aspect ratio locking. Same mouse event handling as FileViewer.jsx crop.
 - **Presets**: Save/apply/delete named presets capturing all edits (excluding crop). Stored in IndexedDB as `photoEditorPresets`. Preset captures: `adjust`, `activeFilter`, `operations`, `selectedColors`, `colorTolerance`. Toggle "💾 Presets" button in toolbar to show preset bar with "+ Save" chip and named preset chips (click to apply, × to delete). Uses `window.prompt()` for preset name.
+- **Color grid no-rerender**: Swatch click toggles `.pe-colors-swatch--active` class in-place and updates the "Clear all" counter text directly — does NOT call `renderColorsTab()` to avoid destroying/recreating the entire DOM. Full re-render only happens on `extractColors()` (tolerance change) and "Clear all" button.
 
 ### Video Editor Tool
 - **FE-only video editor**: `frontend/src/tools/video-editor.js` — upload, preview, trim, and adjust videos entirely in the browser.

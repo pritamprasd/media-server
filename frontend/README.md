@@ -112,7 +112,7 @@ A scalable, semantic-searchable media viewer for your home media collection. Fea
 - **Nickname** — edit default upload nickname
 - **Editor Tab Order** — reorder image and video editor tabs via move-up/move-down; persisted to IndexedDB and reflected in the viewer
 - **Settings Row Order** — reorder settings rows via drag-and-drop with grip handle; persisted to IndexedDB
-- **Cache clear** — clear all IndexedDB caches and service worker caches; uses `navigator.serviceWorker.ready` for Chrome PWA compatibility; shows per-cache entry breakdown
+- **Cache clear** — clear all IndexedDB caches and service worker caches; uses `navigator.serviceWorker.ready` for Chrome PWA compatibility; per-cache breakdown with individual "Clear" buttons and short descriptions
 - **Shortcuts** — YAML-driven browser shortcut links; click to copy URL to clipboard with toast confirmation; source file is git-ignored for local customization
 - **Screen Orientation** — lock screen to portrait mode in standalone PWA mode; preference stored in IndexedDB
 

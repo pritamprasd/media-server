@@ -77,6 +77,7 @@ function Settings() {
   const [settingsDragIdx, setSettingsDragIdx] = useState(null);
   const [settingsDropIdx, setSettingsDropIdx] = useState(null);
   const [cacheBreakdown, setCacheBreakdown] = useState(null);
+  const [clearingCache, setClearingCache] = useState(null);
   const [orientationLock, setOrientationLock] = useState(false);
   const navigate = useNavigate();
 
@@ -239,11 +240,30 @@ function Settings() {
     }
   };
 
+  const handleClearSingleCache = async (cacheName) => {
+    if (!("serviceWorker" in navigator)) return;
+    setClearingCache(cacheName);
+    try {
+      const reg = await navigator.serviceWorker.ready;
+      if (reg.active) {
+        reg.active.postMessage({ type: "CLEAR_SINGLE_CACHE", cacheName });
+      }
+    } catch {
+      setClearingCache(null);
+    }
+  };
+
   useEffect(() => {
     const onMsg = (e) => {
       if (e.data.type === "CACHES_CLEARED") {
         setCacheStatus("done");
         setTimeout(() => setCacheStatus("idle"), 2000);
+      }
+      if (e.data.type === "SINGLE_CACHE_CLEARED") {
+        setClearingCache(null);
+        if ("serviceWorker" in navigator && navigator.serviceWorker.controller) {
+          navigator.serviceWorker.controller.postMessage({ type: "GET_CACHE_STATUS" });
+        }
       }
     };
     navigator.serviceWorker.addEventListener("message", onMsg);
@@ -499,16 +519,25 @@ function Settings() {
                 <span className="settings__cache-breakdown-title">Cache Breakdown</span>
                 <div className="settings__cache-breakdown-list">
                   {[
-                    ["App Shell", cacheBreakdown.app_shell],
-                    ["API Responses", cacheBreakdown.api],
-                    ["Media", cacheBreakdown.media],
-                    ["Map Tiles", cacheBreakdown.map_tiles],
-                    ["MUI Fonts", cacheBreakdown.mui_fonts],
-                  ].map(([label, count]) => (
-                    <span key={label} className="settings__cache-breakdown-item">
-                      <span className="settings__cache-breakdown-label">{label}</span>
-                      <span className="settings__cache-breakdown-count">{count ?? 0}</span>
-                    </span>
+                    ["shell", "App Shell", "HTML, CSS, JS, and icons loaded by the app", cacheBreakdown.shell],
+                    ["api", "API Responses", "Saved backend API data for offline use", cacheBreakdown.api],
+                    ["media", "Media", "Viewed photos and video thumbnails cached locally", cacheBreakdown.media],
+                    ["tiles", "Map Tiles", "OpenStreetMap map tiles for the Map tab", cacheBreakdown.tiles],
+                    ["mui", "MUI Fonts", "Roboto/Noto font files for Material UI theme", cacheBreakdown.mui],
+                  ].map(([key, label, desc, count]) => (
+                    <div key={key} className="settings__cache-breakdown-row">
+                      <div className="settings__cache-breakdown-info">
+                        <span className="settings__cache-breakdown-label">{label} <span className="settings__cache-breakdown-count">{count ?? 0}</span></span>
+                        <span className="settings__cache-breakdown-desc">{desc}</span>
+                      </div>
+                      <button
+                        className="settings__cache-breakdown-clear"
+                        onClick={() => handleClearSingleCache(key)}
+                        disabled={clearingCache === key || (count ?? 0) === 0}
+                      >
+                        {clearingCache === key ? "..." : "Clear"}
+                      </button>
+                    </div>
                   ))}
                 </div>
               </div>

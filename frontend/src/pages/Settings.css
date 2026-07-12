@@ -317,14 +317,62 @@
   font-size: 0.82rem;
 }
 
+.settings__cache-breakdown-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.35rem 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.settings__cache-breakdown-row:last-child {
+  border-bottom: none;
+}
+
+.settings__cache-breakdown-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
 .settings__cache-breakdown-label {
   color: var(--color-text-muted);
+  font-size: 0.82rem;
 }
 
 .settings__cache-breakdown-count {
   font-weight: 600;
   color: var(--color-text);
   font-variant-numeric: tabular-nums;
+}
+
+.settings__cache-breakdown-desc {
+  font-size: 0.72rem;
+  color: var(--color-text-muted);
+  opacity: 0.7;
+}
+
+.settings__cache-breakdown-clear {
+  font-size: 0.72rem;
+  padding: 0.2rem 0.5rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-bg);
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: all 0.15s;
+  flex-shrink: 0;
+  margin-left: 0.5rem;
+}
+
+.settings__cache-breakdown-clear:hover:not(:disabled) {
+  color: var(--color-danger, #e74c3c);
+  border-color: var(--color-danger, #e74c3c);
+}
+
+.settings__cache-breakdown-clear:disabled {
+  opacity: 0.4;
+  cursor: default;
 }
 
 .settings__airplane-btn {

@@ -405,7 +405,7 @@ mkdir -p ~/media-server-edited /uploads
 - **Editor Tab Order** — reorder image and video editor tabs via move-up/move-down; persisted to IndexedDB and reflected in the viewer
 - **Navbar Tab Order** — reorder navbar tabs via drag-and-drop; persisted to IndexedDB
 - **Settings Row Order** — reorder settings rows via drag-and-drop; grip handle appears on hover; persisted to IndexedDB
-- **Cache clear** — clear all IndexedDB caches and service worker caches; uses `navigator.serviceWorker.ready` for Chrome PWA compatibility; broadcasts `CLEAR_CACHES` message to all window clients; shows per-cache entry breakdown (App Shell, API, Media, Map Tiles, MUI Fonts)
+- **Cache clear** — clear all IndexedDB caches and service worker caches; uses `navigator.serviceWorker.ready` for Chrome PWA compatibility; broadcasts `CLEAR_CACHES` message to all window clients; shows per-cache entry breakdown with individual "Clear" buttons and short descriptions (App Shell: HTML/CSS/JS/icons, API Responses: backend data, Media: photos/thumbnails, Map Tiles: OpenStreetMap tiles, MUI Fonts: Material UI fonts)
 - **Map Zoom Level** — slider (10–19) with explicit Save button; persisted to IndexedDB and consumed by the Map tab's Zoom In button
 - **Shortcuts** — YAML-driven browser shortcut links (`chrome://` URLs); click to copy URL to clipboard with toast confirmation; source file `frontend/src/data/shortcuts.yaml` is git-ignored for local customization
 - **Screen Orientation** — lock screen to portrait mode in standalone PWA mode (installed to home screen); preference stored in IndexedDB; uses `screen.orientation.lock()` API; fails silently on unsupported browsers
