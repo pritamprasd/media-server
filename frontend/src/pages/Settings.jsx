@@ -142,12 +142,14 @@ function Settings() {
   const handleMapZoomSave = () => {
     setPref("mapZoomLevel", mapZoomLevel);
     setMapZoomSaved(true);
+    setOpenDialog(null);
     setTimeout(() => setMapZoomSaved(false), 2000);
   };
 
   const handleFacesPerPageSave = () => {
     setPref("facesPerPage", facesPerPage);
     setFacesPerPageSaved(true);
+    setOpenDialog(null);
     setTimeout(() => setFacesPerPageSaved(false), 2000);
   };
 
@@ -170,6 +172,7 @@ function Settings() {
 
   const handleNicknameSave = () => {
     setPref("nickname", savedNickname.trim());
+    setOpenDialog(null);
   };
 
   const handleClearCache = async () => {

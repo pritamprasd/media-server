@@ -1738,6 +1738,7 @@
   color: #fff;
   padding: 0.1875rem 0.5rem;
   border-radius: 6px;
+  align-self: flex-start;
 }
 
 .viewer-mem-btn--save:hover {

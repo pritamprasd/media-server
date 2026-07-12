@@ -1,3 +1,3 @@
-- url: "chrome://flags/#dns-over-https"
-  label: "DNS-over-HTTPS"
-  description: "Add the hostname to the trust agents list for secure DNS resolution."
+- url: "chrome://flags"
+  label: "Chrome Flags"
+  description: "All the chrome flags, Useful in allowing server.local"

@@ -2126,7 +2126,7 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete, onN
                             onClick={handleAddMemory}
                             disabled={memSaving || !memContent.trim()}
                           >
-                            {memSaving ? <Spinner size={12} /> : "Add Note"}
+                            {memSaving ? <Spinner size={12} /> : "+ Add"}
                           </button>
                         </div>
                       </>

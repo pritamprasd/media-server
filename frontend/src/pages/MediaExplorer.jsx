@@ -62,6 +62,7 @@ function MediaExplorer() {
   const folderInputRef = useRef(null);
   const newMenuRef = useRef(null);
   const sentinelRef = useRef(null);
+  const nicknameInputRef = useRef(null);
   const nicknameId = "explorer-nickname-input";
 
   const refreshItems = useCallback(async (prefix) => {
@@ -113,6 +114,12 @@ function MediaExplorer() {
       .then((d) => setNicknames(d.nicknames || []))
       .catch(() => {});
   }, [refreshItems, loadFavorites]);
+
+  useEffect(() => {
+    if (!result) return;
+    const t = setTimeout(() => setResult(null), 4000);
+    return () => clearTimeout(t);
+  }, [result]);
 
   useEffect(() => {
     if (!showNewMenu) return;
@@ -245,6 +252,10 @@ function MediaExplorer() {
     setResult(null);
     setError("");
     setShowNewMenu(false);
+    setTimeout(() => {
+      const el = nicknameInputRef.current;
+      if (el) { el.focus(); el.select(); }
+    }, 100);
   }, []);
 
   const handleFileChange = (e) => handleFilesPicked(e.target.files);
@@ -508,6 +519,7 @@ function MediaExplorer() {
           <div className="explorer__header-actions">
             <div className="explorer__nickname-wrap">
               <input
+                ref={nicknameInputRef}
                 id={nicknameId}
                 className="explorer__input explorer__input--nickname"
                 type="text"
@@ -749,7 +761,7 @@ function MediaExplorer() {
                   onBlur={() => handleRenameSubmit(it)}
                   onClick={(e) => e.stopPropagation()} autoFocus />
               ) : (
-                <div className="explorer__tile-name" title={it.filename || it.name}>{it.filename || it.name}</div>
+                viewMode === "list" && <div className="explorer__tile-name" title={it.filename || it.name}>{it.filename || it.name}</div>
               )}
               <div className={`explorer__tile-check ${sel ? "explorer__tile-check--visible" : ""}`}
                 onClick={(e) => { e.stopPropagation(); toggleSelect(id, e); }}>
