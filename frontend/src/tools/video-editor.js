@@ -280,6 +280,7 @@ export function init(container) {
   let trimDragging = null;
   let animFrame = null;
   let webgl = null;
+  let isRecording = false;
 
   const style = document.createElement('style');
   style.textContent = `
@@ -297,6 +298,8 @@ export function init(container) {
     .ve-gpu-badge{position:absolute;top:8px;right:8px;padding:0.2rem 0.5rem;border-radius:4px;font-size:0.62rem;font-weight:600;pointer-events:none;z-index:10;letter-spacing:0.03em}
     .ve-gpu-badge--ok{background:rgba(46,204,113,0.15);color:#2ecc71;border:1px solid rgba(46,204,113,0.3)}
     .ve-gpu-badge--fail{background:rgba(231,76,60,0.15);color:#e74c3c;border:1px solid rgba(231,76,60,0.3)}
+    .ve-rec-badge{position:absolute;top:8px;left:8px;padding:0.2rem 0.6rem;border-radius:4px;font-size:0.68rem;font-weight:600;pointer-events:none;z-index:10;background:rgba(231,76,60,0.85);color:#fff;animation:ve-rec-pulse 1s ease-in-out infinite}
+    @keyframes ve-rec-pulse{0%,100%{opacity:1}50%{opacity:0.5}}
     .ve-canvas{display:block;max-width:100%;max-height:calc(100vh - 230px);border-radius:4px;object-fit:contain}
     .ve-timeline{width:100%;max-width:600px;margin-top:0.5rem}
     .ve-progress-wrap{position:relative;height:28px;cursor:pointer;background:var(--color-surface);border-radius:6px;overflow:hidden;box-shadow:var(--neu-inset-sm)}
@@ -412,6 +415,11 @@ export function init(container) {
   const gpuBadge = el('span', '', previewArea);
   gpuBadge.className = 've-gpu-badge';
   gpuBadge.style.display = 'none';
+
+  const recBadge = el('span', '', previewArea);
+  recBadge.className = 've-rec-badge';
+  recBadge.textContent = '⏺ REC';
+  recBadge.style.display = 'none';
 
   const renderCanvas = el('canvas', 'display:block;max-width:100%;max-height:calc(100vh - 230px);border-radius:4px;object-fit:contain', previewArea);
   renderCanvas.className = 've-canvas';
@@ -767,7 +775,7 @@ export function init(container) {
   }
 
   function togglePlay() {
-    if (!videoEl.src) return;
+    if (!videoEl.src || isRecording) return;
     if (videoEl.paused) {
       if (S.trimApplied && videoEl.currentTime >= S.trimEnd) {
         videoEl.currentTime = S.trimStart;
@@ -904,7 +912,7 @@ export function init(container) {
   }
 
   function extractFrame() {
-    if (!videoEl.src || !videoEl.videoWidth) return;
+    if (!videoEl.src || !videoEl.videoWidth || isRecording) return;
 
     if (webgl) {
       renderFrame();
@@ -942,14 +950,122 @@ export function init(container) {
   }
 
   function download() {
-    if (!videoSrc) return;
-    const a = document.createElement('a');
-    a.href = videoSrc;
-    a.download = 'video.' + S.exportFormat;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    showToast('Downloaded');
+    if (!videoSrc || isRecording) return;
+
+    const canvasFps = 30;
+    let canvasStream;
+    try {
+      canvasStream = renderCanvas.captureStream(canvasFps);
+    } catch {
+      showToast('captureStream not supported');
+      return;
+    }
+
+    let compositeStream;
+    try {
+      const audioStream = videoEl.captureStream ? videoEl.captureStream() : null;
+      const hasAudio = audioStream && audioStream.getAudioTracks().length > 0;
+      if (hasAudio) {
+        compositeStream = new MediaStream([
+          ...canvasStream.getVideoTracks(),
+          ...audioStream.getAudioTracks(),
+        ]);
+      } else {
+        compositeStream = canvasStream;
+      }
+    } catch {
+      compositeStream = canvasStream;
+    }
+
+    const mimeCandidates = [
+      'video/webm;codecs=vp9,opus',
+      'video/webm;codecs=vp9',
+      'video/webm;codecs=vp8,opus',
+      'video/webm;codecs=vp8',
+      'video/webm',
+    ];
+    let selectedMime = '';
+    for (const mime of mimeCandidates) {
+      if (typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported(mime)) {
+        selectedMime = mime;
+        break;
+      }
+    }
+    if (!selectedMime && typeof MediaRecorder !== 'undefined') {
+      selectedMime = MediaRecorder.mimeType || 'video/webm';
+    }
+
+    let recorder;
+    try {
+      recorder = new MediaRecorder(compositeStream, {
+        mimeType: selectedMime,
+        videoBitsPerSecond: 8000000,
+      });
+    } catch {
+      try {
+        recorder = new MediaRecorder(compositeStream);
+      } catch {
+        showToast('MediaRecorder not supported');
+        return;
+      }
+    }
+
+    const chunks = [];
+    recorder.ondataavailable = (e) => { if (e.data && e.data.size > 0) chunks.push(e.data); };
+    recorder.onstop = () => {
+      isRecording = false;
+      recBadge.style.display = 'none';
+      dlBtn.innerHTML = '⬇ Download';
+      dlBtn.disabled = false;
+
+      const blob = new Blob(chunks, { type: recorder.mimeType || 'video/webm' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'edited_video.webm';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 5000);
+      showToast('Downloaded edited video');
+    };
+
+    isRecording = true;
+    recBadge.style.display = '';
+    dlBtn.innerHTML = '⏺ Recording...';
+    dlBtn.disabled = true;
+
+    const startAt = S.trimApplied ? S.trimStart : 0;
+    const endAt = S.trimApplied ? S.trimEnd : videoDuration;
+    const prevSpeed = S.speed;
+
+    videoEl.currentTime = startAt;
+    videoEl.playbackRate = 1;
+
+    const onSeeked = () => {
+      videoEl.removeEventListener('seeked', onSeeked);
+      renderFrame();
+      recorder.start(1000);
+      videoEl.play();
+      startRenderLoop();
+      playBtn.textContent = '⏸';
+
+      const checkEnd = () => {
+        if (!isRecording) return;
+        if (videoEl.currentTime >= endAt || videoEl.ended) {
+          videoEl.pause();
+          stopRenderLoop();
+          playBtn.textContent = '▶';
+          renderFrame();
+          if (recorder.state === 'recording') recorder.stop();
+          videoEl.playbackRate = prevSpeed;
+          return;
+        }
+        requestAnimationFrame(checkEnd);
+      };
+      requestAnimationFrame(checkEnd);
+    };
+    videoEl.addEventListener('seeked', onSeeked);
   }
 
   function resetAll() {

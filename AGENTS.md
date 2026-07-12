@@ -178,7 +178,7 @@
 - **Trim**: Set start/end via timeline handles or "Set to Current" buttons. Preview trim plays from start to end, auto-stops at trim end.
 - **6 tabs**: Trim (timeline + time inputs + info), Adjust (7 sliders), Light (4 sliders), Effects (grayscale toggle + sepia slider), Speed (playback rate 0.25×–4× with presets), Rotate (4 buttons: rotate L/R, flip H/V — applied via UV transform in shader).
 - **Frame extraction**: Renders current frame through WebGL pipeline (or 2D fallback) to `<canvas>` → PNG download with applied filters.
-- **No save-as**: No backend API calls. Download button saves the original video file. All filter effects are preview-only (GPU-rendered on canvas).
+- **Download with filters**: Uses `MediaRecorder` + `canvas.captureStream()` to record the GPU-rendered canvas output while video plays through, producing a new WebM video file with all adjustments baked in. Audio from the original video is mixed in via `videoEl.captureStream()`. Recording badge shows during export; play/pause/extract disabled while recording.
 
 ### Ingredient Scanner — Nutrition Facts
 - **Auto-detect from OCR text**: `runAnalysis()` searches for `nutrition (information|facts|label|values?|data)` in the OCR text and splits it: text before is treated as ingredients, text from the match onwards as nutrition data. Both sections parsed independently.
