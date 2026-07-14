@@ -90,15 +90,45 @@ def browse_explorer(prefix, page=1, per_page=100):
             for entry in sorted(os.listdir(scan_dir)):
                 full = os.path.join(scan_dir, entry)
                 if os.path.isdir(full):
+                    try:
+                        entries = os.listdir(full)
+                        udir_count = sum(1 for e in entries if os.path.isdir(os.path.join(full, e)))
+                        ufile_count = len(entries) - udir_count
+                    except OSError:
+                        udir_count = 0
+                        ufile_count = 0
                     upload_dirs.append({
                         "name": entry,
                         "path": os.path.join(browse_prefix, entry) if browse_prefix else entry,
                         "session_id": upload_session_id,
                         "is_upload": True,
+                        "file_count": ufile_count,
+                        "dir_count": udir_count,
                     })
 
     dir_result = []
     seen_paths = set()
+    dir_ids = [d.id for d in db_dirs]
+    file_counts = {}
+    child_dir_counts = {}
+    if dir_ids:
+        fc_rows = db.session.query(
+            ImportedFile.directory_id, func.count(ImportedFile.id)
+        ).filter(
+            ImportedFile.directory_id.in_(dir_ids),
+            ImportedFile.deleted != True,
+            ImportedFile.is_hidden != True,
+        ).group_by(ImportedFile.directory_id).all()
+        file_counts = {r[0]: r[1] for r in fc_rows}
+
+        dc_rows = db.session.query(
+            ImportedDirectory.parent_path, func.count(ImportedDirectory.id)
+        ).filter(
+            ImportedDirectory.parent_path.in_([d.path for d in db_dirs]),
+            ImportedDirectory.deleted != True,
+        ).group_by(ImportedDirectory.parent_path).all()
+        child_dir_counts = {r[0]: r[1] for r in dc_rows}
+
     for d in db_dirs:
         if d.path not in seen_paths:
             seen_paths.add(d.path)
@@ -107,6 +137,8 @@ def browse_explorer(prefix, page=1, per_page=100):
                 "path": d.path,
                 "session_id": d.session_id,
                 "is_upload": False,
+                "file_count": file_counts.get(d.id, 0),
+                "dir_count": child_dir_counts.get(d.path, 0),
             })
 
     if not browse_prefix and synthetic_session_id is None:
@@ -133,11 +165,18 @@ def browse_explorer(prefix, page=1, per_page=100):
             dir_basename = os.path.basename(s.root_path.rstrip("/"))
             if dir_basename and dir_basename not in seen_paths:
                 seen_paths.add(dir_basename)
+                sub_dir_count = ImportedDirectory.query.filter(
+                    ImportedDirectory.session_id == s.id,
+                    ImportedDirectory.parent_path == "",
+                    ImportedDirectory.deleted != True,
+                ).count()
                 dir_result.append({
                     "name": dir_basename,
                     "path": f"__session_{s.id}__",
                     "session_id": s.id,
                     "is_upload": False,
+                    "file_count": file_count,
+                    "dir_count": sub_dir_count,
                 })
 
         if edited_session:
@@ -145,11 +184,22 @@ def browse_explorer(prefix, page=1, per_page=100):
             edited_key = f"__session_{edited_session.id}__"
             if edited_key not in seen_paths and edited_name not in seen_paths:
                 seen_paths.add(edited_key)
+                edited_file_count = ImportedFile.query.filter(
+                    ImportedFile.directory_id == _root_dir_id(edited_session, edited_dir),
+                    ImportedFile.deleted != True,
+                ).count() if _root_dir_id(edited_session, edited_dir) else 0
+                edited_dir_count = ImportedDirectory.query.filter(
+                    ImportedDirectory.session_id == edited_session.id,
+                    ImportedDirectory.parent_path == "",
+                    ImportedDirectory.deleted != True,
+                ).count()
                 dir_result.insert(0, {
                     "name": edited_name,
                     "path": edited_key,
                     "session_id": edited_session.id,
                     "is_upload": False,
+                    "file_count": edited_file_count,
+                    "dir_count": edited_dir_count,
                 })
 
     for ud in upload_dirs:

@@ -5,12 +5,12 @@ This document is the complete feature reference. For a short highlight, see the 
 ## 📂 Media Import & Management
 - **Recursive directory scan** — import folders without copying files; filters by MIME type groups (image, video, audio, document)
 - **Import sessions** — each import creates a session; re-importing the same folder updates in-place (removes stale files, adds new ones)
-- **Upload** — drag-and-drop zone + file picker; nickname field persisted to IndexedDB; multi-file upload with progress bars; optional subdirectory selection
+- **Upload** — drag-and-drop zone + file picker; nickname field persisted to IndexedDB; multi-file upload with progress bars; optional subdirectory selection; duplicate detection (same filename + size in target folder) skips redundant files and shows a summary with skipped count
 - **Upload directory management** — browse, create, rename, move, copy, and delete directories and files within the upload area; clipboard (cut/copy/paste) and inline rename
 - **Local filesystem browser** — navigate the host filesystem from the import dialog to select folders
 - **Trash** — soft-delete files (library-only or library + disk)
 - **Nickname persistence** — default nickname stored in IndexedDB, editable from Settings
-- **Media Explorer** — unified file-browser-style page (grid/list view) across all sessions with breadcrumb navigation; paginated browsing (100 per page, load-more button + IntersectionObserver infinite scroll); strict folder hierarchy enforced via `directory_id` FK (not `relative_path` string matching); centered layout capped at 1600px / 90% viewport width; batch edit (date taken + notes) via toolbar modal when files selected; folder deletion removes both DB records and filesystem files/directories
+- **Media Explorer** — unified file-browser-style page (grid/list view) across all sessions with breadcrumb navigation; paginated browsing (100 per page, load-more button + IntersectionObserver infinite scroll); strict folder hierarchy enforced via `directory_id` FK (not `relative_path` string matching); centered layout capped at 1600px / 90% viewport width; batch edit (date taken + notes) via toolbar modal when files selected; folder deletion removes both DB records and filesystem files/directories; folder tile shows file+folder count badge (top-left) with tooltip breakdown on hover
 - **Folder favorites** — star-toggle any folder in the explorer and see favorites as quick-navigation chips above the breadcrumbs; persisted via `FavoriteFolder` model (DB-backed)
 - **Folder customization** — click the pencil hint on any folder tile to choose from 13 Lucide icons and 10 colors, persisted per-folder in IndexedDB (`explorer_folder_styles`)
 - **Synthetic session folders** — non-upload sessions with root-only files get a synthetic directory entry (`__session_{id}__`) in the explorer

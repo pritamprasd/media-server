@@ -138,8 +138,17 @@ def upload_files():
     parent_dir = _ensure_upload_subdir(session, subdir) if subdir else root_dir
 
     saved = []
+    skipped = []
     errors = []
     face_batch = []
+
+    existing_names_sizes = set()
+    if parent_dir.id:
+        existing = ImportedFile.query.filter(
+            ImportedFile.directory_id == parent_dir.id,
+            ImportedFile.deleted != True,
+        ).with_entities(ImportedFile.filename, ImportedFile.size).all()
+        existing_names_sizes = {(e.filename, e.size) for e in existing}
 
     for f in files:
         if not f.filename:
@@ -161,8 +170,18 @@ def upload_files():
             continue
 
         stat = os.stat(save_path)
+        file_size = stat.st_size
+
+        if (safe, file_size) in existing_names_sizes:
+            try:
+                os.remove(save_path)
+            except OSError:
+                pass
+            skipped.append(safe)
+            continue
+
         uploads_total.inc()
-        upload_bytes_total.inc(stat.st_size)
+        upload_bytes_total.inc(file_size)
         rel_path = os.path.join(subdir, safe) if subdir else safe
 
         file_record = ImportedFile(
@@ -173,7 +192,7 @@ def upload_files():
             relative_path=rel_path,
             mime_type=mime,
             nickname=nickname,
-            size=stat.st_size,
+            size=file_size,
             modified=datetime.fromtimestamp(stat.st_mtime),
         )
         db.session.add(file_record)
@@ -204,6 +223,7 @@ def upload_files():
                 face_batch = []
 
         saved.append(file_record.to_dict())
+        existing_names_sizes.add((safe, file_size))
 
     if face_batch:
         detect_faces.delay(face_batch)
@@ -212,7 +232,7 @@ def upload_files():
         from app.metrics import update_library_stats
         update_library_stats()
 
-    return jsonify({"saved": saved, "errors": errors}), 201
+    return jsonify({"saved": saved, "skipped": skipped, "errors": errors}), 201
 
 @upload_bp.route("/upload/files/delete", methods=["POST"])
 def soft_delete_upload_files():

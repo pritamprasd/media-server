@@ -751,6 +751,12 @@ function MediaExplorer() {
             const folderStyle = folderStyles[it.path];
             const FolderIconComp = FOLDER_ICONS[folderStyle?.icon] || Folder;
             const folderColor = folderStyle?.color;
+            const fc = it.file_count || 0;
+            const dc = it.dir_count || 0;
+            const totalItems = fc + dc;
+            const countLabel = totalItems > 0
+              ? `${fc} file${fc !== 1 ? "s" : ""}${dc > 0 ? `, ${dc} folder${dc !== 1 ? "s" : ""}` : ""}`
+              : "Empty folder";
             return (
               <div key={id}
                 className={`explorer__tile ${viewMode === "grid" ? "explorer__tile--grid" : "explorer__tile--list"} ${sel ? "explorer__tile--sel" : ""} ${isDropTarget ? "explorer__tile--drop-target" : ""}`}
@@ -761,8 +767,11 @@ function MediaExplorer() {
                 onDragOver={(e) => handleTileDragOver(e, it)}
                 onDragLeave={(e) => handleTileDragLeave(e, it)}
                 onDrop={(e) => handleTileDrop(e, it)}>
-                <div className="explorer__tile-thumb" style={folderColor ? { color: folderColor } : undefined}>
+                <div className="explorer__tile-thumb" style={folderColor ? { color: folderColor } : undefined} title={countLabel}>
                   <FolderIconComp size={viewMode === "grid" ? 48 : 20} />
+                  {viewMode === "grid" && totalItems > 0 && (
+                    <span className="explorer__tile-count">{totalItems}</span>
+                  )}
                   <span className="explorer__tile-customize-hint" title="Customize folder icon"
                     onClick={(e) => { e.stopPropagation(); setIconPicker(it.path); }}>
                     <Pencil size={viewMode === "grid" ? 10 : 8} />
@@ -789,7 +798,7 @@ function MediaExplorer() {
                   title={favoriteFolders.some((f) => f.path === it.path) ? "Remove from favorites" : "Add to favorites"}>
                   <Star size={12} />
                 </button>
-                {viewMode === "list" && <div className="explorer__tile-meta">Folder</div>}
+                {viewMode === "list" && <div className="explorer__tile-meta">{countLabel}</div>}
               </div>
             );
           }
@@ -941,6 +950,7 @@ function MediaExplorer() {
         <div className="explorer__result">
           <p className="explorer__result-ok">
             Uploaded {result.saved?.length || 0} file(s)
+            {result.skipped?.length > 0 && `, ${result.skipped.length} skipped (duplicate)`}
             {result.errors?.length > 0 && `, ${result.errors.length} error(s)`}
           </p>
         </div>
