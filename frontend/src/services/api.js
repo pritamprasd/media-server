@@ -587,11 +587,8 @@ export async function changeAdminPin(oldPin, newPin) {
   return data;
 }
 
-export async function listAdminTags(pin, page = 1, perPage = 50, q = "") {
-  const params = { page, per_page: perPage };
-  if (q) params.q = q;
+export async function listAdminTags(pin) {
   const { data } = await client.get("/admin/tags", {
-    params,
     headers: { "X-Admin-Pin": pin },
   });
   return data;

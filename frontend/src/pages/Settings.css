@@ -793,6 +793,8 @@
   display: flex;
   flex-direction: column;
   gap: 2px;
+  max-height: 400px;
+  overflow-y: auto;
 }
 
 .settings__tag-row {

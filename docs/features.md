@@ -164,7 +164,7 @@ See also [docs/face-detection.md](face-detection.md) for the in-depth pipeline.
   - **Generate EXIF Data** — queues metadata extraction for all files missing EXIF/metadata
   - **Generate Thumbnails** — queues thumbnail generation for all files missing a thumbnail
   - **Detect & Save Faces** — queues face detection for all image files not yet scanned
-  - **Manage Tags** — paginated, searchable tag list with rename/delete actions; search-as-you-type filters the list; "Load More" for lazy loading; inline rename (input + save) and delete (with confirmation) actions
+  - **Manage Tags** — searchable tag list with rename/delete actions; all tags loaded from backend on dialog open; search-as-you-type filters client-side; scrollable list with max-height; inline rename (input + save) and delete (with confirmation) actions
   - **Manage Tools** — enable/disable individual tools in the Tools tab; disabled tools are hidden from the grid and persisted to IndexedDB (`disabledTools`)
   - **Admin Tasks PIN** — 6-digit PIN gate for the Admin Tasks section; PIN stored in backend config (`ADMIN_PIN` env var); verified server-side via `POST /admin/verify-pin`; all admin endpoints require `X-Admin-Pin` header; lock/unlock state is session-only (resets on page refresh); Change PIN flow validates current PIN against backend then updates in-memory config
 

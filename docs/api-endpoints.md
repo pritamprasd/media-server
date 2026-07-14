@@ -47,9 +47,9 @@ All endpoints are prefixed with `/api` unless noted. Authentication is via the h
 | POST | `/api/admin/tags/delete` | Remove a tag from all files: `{ "tag": "..." }` → `{ "deleted": <count> }` |
 | POST | `/api/admin/verify-pin` | Verify admin PIN: sends `X-Admin-Pin` header → `{ "valid": true }` or 403 |
 | POST | `/api/admin/change-pin` | Change admin PIN: `{ "old_pin": "...", "new_pin": "..." }` (validates old, updates in-memory) |
-| GET | `/api/admin/tags` | Paginated tag list for admin: `?q=search&page=1&per_page=50` with `X-Admin-Pin` header |
+| GET | `/api/admin/tags` | All tags with frequency counts (requires `X-Admin-Pin` header); frontend filters client-side |
 
-The bulk tasks return `{ "queued": <count> }` (HTTP 202). The heavy work is fanned out to the existing Celery workers; the response only reports how many files were queued. All admin endpoints require `X-Admin-Pin` header (verified server-side against `ADMIN_PIN` config). Tag operations use raw SQL `jsonb_agg` for atomic bulk updates. The paginated `/admin/tags` endpoint returns `{ tags, total, page, per_page, has_more }`.
+The bulk tasks return `{ "queued": <count> }` (HTTP 202). The heavy work is fanned out to the existing Celery workers; the response only reports how many files were queued. All admin endpoints require `X-Admin-Pin` header (verified server-side against `ADMIN_PIN` config). Tag operations use raw SQL `jsonb_agg` for atomic bulk updates. The `/admin/tags` endpoint returns all tags with frequency counts; frontend filters client-side.
 
 ## Import & Upload
 | Method | Path | Description |

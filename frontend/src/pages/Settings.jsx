@@ -105,8 +105,6 @@ function Settings() {
   const [adminTagsBusy, setAdminTagsBusy] = useState(false);
   const [adminTagsMessage, setAdminTagsMessage] = useState(null);
   const [adminTagsSearch, setAdminTagsSearch] = useState("");
-  const [adminTagsPage, setAdminTagsPage] = useState(1);
-  const [adminTagsHasMore, setAdminTagsHasMore] = useState(false);
   const [disabledTools, setDisabledTools] = useState(() => new Set());
   const [allTools, setAllTools] = useState([]);
   const navigate = useNavigate();
@@ -154,21 +152,15 @@ function Settings() {
       .catch(() => {});
   }, []);
 
-  const loadAdminTags = useCallback(async (page = 1, search = "") => {
+  const loadAdminTags = useCallback(async () => {
     const pin = sessionStorage.getItem("admin_pin") || "";
     if (!pin) return;
     setAdminTagsLoading(true);
     try {
-      const data = await listAdminTags(pin, page, 50, search);
-      if (page === 1) {
-        setAdminTags(data.tags || []);
-      } else {
-        setAdminTags((prev) => [...prev, ...(data.tags || [])]);
-      }
-      setAdminTagsPage(data.page || 1);
-      setAdminTagsHasMore(data.has_more || false);
+      const data = await listAdminTags(pin);
+      setAdminTags(data.tags || []);
     } catch {
-      if (page === 1) setAdminTags([]);
+      setAdminTags([]);
     } finally {
       setAdminTagsLoading(false);
     }
@@ -179,7 +171,7 @@ function Settings() {
     if (openDialog === "offline-cache") requestCacheStatus();
     if (openDialog === "admin-tags") {
       setAdminTagsSearch("");
-      loadAdminTags(1, "");
+      loadAdminTags();
     }
   }, [openDialog, requestCacheStatus, loadAdminTags]);
 
@@ -1043,10 +1035,10 @@ function Settings() {
       }
 
       case "admin-tags": {
-        const handleSearchTags = (val) => {
-          setAdminTagsSearch(val);
-          loadAdminTags(1, val);
-        };
+        const q = adminTagsSearch.toLowerCase();
+        const filteredTags = q
+          ? adminTags.filter((t) => t.tag.includes(q))
+          : adminTags;
         return (
           <div className="settings__admin-tags">
             <div className="settings__tag-search">
@@ -1055,19 +1047,19 @@ function Settings() {
                 type="text"
                 placeholder="Search tags..."
                 value={adminTagsSearch}
-                onChange={(e) => handleSearchTags(e.target.value)}
+                onChange={(e) => setAdminTagsSearch(e.target.value)}
                 style={{ width: "100%", marginBottom: "0.5rem" }}
               />
             </div>
-            {adminTagsLoading && adminTags.length === 0 ? (
+            {adminTagsLoading ? (
               <p style={{ color: "var(--color-text-muted)", fontSize: "0.8125rem" }}><Spinner size={14} /> Loading tags...</p>
-            ) : adminTags.length === 0 ? (
-              <p style={{ color: "var(--color-text-muted)", fontSize: "0.8125rem" }}>No tags found.</p>
+            ) : filteredTags.length === 0 ? (
+              <p style={{ color: "var(--color-text-muted)", fontSize: "0.8125rem" }}>{q ? "No matching tags." : "No tags found."}</p>
             ) : (
               <div className="settings__tag-list">
-                {adminTags.map((t, idx) => (
+                {filteredTags.map((t, idx) => (
                   <div key={t.tag} className="settings__tag-row">
-                    {renamingTagIdx === idx ? (
+                    {renamingTagIdx === t.tag ? (
                       <div className="settings__tag-rename">
                         <input
                           className="settings__input"
@@ -1091,7 +1083,7 @@ function Settings() {
                         <button
                           className="settings__btn settings__btn--small"
                           disabled={adminTagsBusy}
-                          onClick={() => { setRenamingTagIdx(idx); setRenameValue(t.tag); }}
+                          onClick={() => { setRenamingTagIdx(t.tag); setRenameValue(t.tag); }}
                           title="Rename tag"
                         >
                           <ArrowUp size={12} style={{ transform: "rotate(45deg)" }} />
@@ -1108,16 +1100,6 @@ function Settings() {
                     )}
                   </div>
                 ))}
-                {adminTagsHasMore && (
-                  <button
-                    className="settings__btn settings__btn--small"
-                    style={{ width: "100%", marginTop: "0.5rem" }}
-                    disabled={adminTagsLoading}
-                    onClick={() => loadAdminTags(adminTagsPage + 1, adminTagsSearch)}
-                  >
-                    {adminTagsLoading ? <><Spinner size={12} /> Loading...</> : "Load More"}
-                  </button>
-                )}
               </div>
             )}
             {adminTagsMessage && (

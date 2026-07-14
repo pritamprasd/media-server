@@ -197,47 +197,22 @@ def admin_delete_tag():
 @admin_bp.route("/admin/tags", methods=["GET"])
 @require_admin_pin
 def admin_list_tags():
-    """Paginated, searchable tag list for admin management."""
-    q = request.args.get("q", "").strip().lower()
-    page = request.args.get("page", 1, type=int)
-    per_page = request.args.get("per_page", 50, type=int)
-    per_page = min(per_page, 200)
-
-    base_q = text("""
-        SELECT elem AS tag, count(*) AS cnt
-        FROM file_metadata, jsonb_array_elements_text(tags) AS elem
-        WHERE file_metadata.tags IS NOT NULL
-          AND file_metadata.tags != 'null'::jsonb
-          AND file_metadata.file_id IN (
-              SELECT id FROM imported_files WHERE deleted = false
-          )
-        GROUP BY elem
-    """)
-
-    if q:
-        rows = db.session.execute(
-            text(str(base_q) + " HAVING lower(elem) LIKE :q ORDER BY cnt DESC, tag ASC LIMIT :lim OFFSET :off"),
-            {"q": f"%{q}%", "lim": per_page, "off": (page - 1) * per_page},
-        ).fetchall()
-        count_rows = db.session.execute(
-            text("SELECT count(*) FROM (SELECT 1 FROM file_metadata, jsonb_array_elements_text(tags) AS elem WHERE file_metadata.tags IS NOT NULL AND file_metadata.tags != 'null'::jsonb AND file_metadata.file_id IN (SELECT id FROM imported_files WHERE deleted = false) GROUP BY elem HAVING lower(elem) LIKE :q) sub"),
-            {"q": f"%{q}%"},
-        ).fetchone()
-    else:
-        rows = db.session.execute(
-            text(str(base_q) + " ORDER BY cnt DESC, tag ASC LIMIT :lim OFFSET :off"),
-            {"lim": per_page, "off": (page - 1) * per_page},
-        ).fetchall()
-        count_rows = db.session.execute(
-            text("SELECT count(*) FROM (SELECT 1 FROM file_metadata, jsonb_array_elements_text(tags) AS elem WHERE file_metadata.tags IS NOT NULL AND file_metadata.tags != 'null'::jsonb AND file_metadata.file_id IN (SELECT id FROM imported_files WHERE deleted = false) GROUP BY elem) sub"),
-            {},
-        ).fetchone()
-
-    total = count_rows[0] if count_rows else 0
-    return jsonify({
-        "tags": [{"tag": r[0], "count": r[1]} for r in rows],
-        "total": total,
-        "page": page,
-        "per_page": per_page,
-        "has_more": page * per_page < total,
-    }), 200
+    """Return all tags with frequency counts for admin management."""
+    metas = FileMetadata.query.join(
+        ImportedFile, FileMetadata.file_id == ImportedFile.id
+    ).filter(
+        ImportedFile.deleted != True,
+        FileMetadata.tags.isnot(None),
+        db.cast(FileMetadata.tags, db.String) != "[]",
+    ).with_entities(FileMetadata.tags).all()
+    freq = {}
+    for (tags,) in metas:
+        if tags and isinstance(tags, list):
+            seen = set()
+            for t in tags:
+                t = t.strip().lower()
+                if t and t not in seen:
+                    seen.add(t)
+                    freq[t] = freq.get(t, 0) + 1
+    sorted_tags = sorted(freq.items(), key=lambda x: (-x[1], x[0]))
+    return jsonify({"tags": [{"tag": t, "count": c} for t, c in sorted_tags]}), 200
