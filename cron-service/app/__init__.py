@@ -1,10 +1,25 @@
 import os
+import sqlite3
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
 from flask_socketio import SocketIO
 
 db = SQLAlchemy()
 socketio = SocketIO()
+
+
+def _schema_needs_update(db_path):
+    """Check if the SQLite schema is missing columns from the current model."""
+    if not os.path.exists(db_path):
+        return False
+    try:
+        conn = sqlite3.connect(db_path)
+        cursor = conn.execute("PRAGMA table_info(cron_job)")
+        columns = {row[1] for row in cursor.fetchall()}
+        conn.close()
+        return "task_type" not in columns or "params" not in columns
+    except Exception:
+        return False
 
 
 def create_app():
@@ -27,6 +42,10 @@ def create_app():
 
     with app.app_context():
         from app import models
+
+        if _schema_needs_update(db_path):
+            db.drop_all()
+
         db.create_all()
 
         from app.config_loader import load_jobs_from_config
