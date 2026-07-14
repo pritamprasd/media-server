@@ -3,11 +3,9 @@ import logging
 from app import db
 from app.celery_app import celery
 from app.models.imported_file import ImportedFile
-from app.tasks import (
-    generate_thumbnail,
-    extract_file_metadata,
-    detect_faces,
-)
+from app.tasks.metadata_tasks import extract_file_metadata
+from app.tasks.thumbnail_tasks import generate_thumbnail
+from app.tasks.face_tasks import detect_faces
 
 logger = logging.getLogger(__name__)
 

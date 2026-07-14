@@ -32,6 +32,9 @@ celery.conf.update(
         "app.tasks.generate_ai_metadata": {"queue": _Q_AI},
         "app.tasks.generate_thumbnail": {"queue": _Q_THUMB},
         "app.tasks.detect_faces": {"queue": _Q_FACE},
+        "app.tasks.bulk_generate_exif": {"queue": _Q_IMPORT},
+        "app.tasks.bulk_generate_thumbnails": {"queue": _Q_THUMB},
+        "app.tasks.bulk_detect_faces": {"queue": _Q_FACE},
     },
 )
 
