@@ -14,7 +14,7 @@ services:
       - CRON_DB_PATH=/app/data/cron.db
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:5010/"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5010/')"]
       interval: 30s
       timeout: 5s
       retries: 3

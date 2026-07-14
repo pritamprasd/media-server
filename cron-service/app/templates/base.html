@@ -10,13 +10,23 @@
 <body>
   <nav class="sidebar">
     <div class="sidebar__brand">Cron</div>
-    <a href="/" class="sidebar__link {% if request.path == '/' %}sidebar__link--active{% endif %}">Dashboard</a>
-    <a href="/jobs" class="sidebar__link {% if request.path == '/jobs' %}sidebar__link--active{% endif %}">Jobs</a>
-    <a href="/tasks" class="sidebar__link {% if request.path == '/tasks' %}sidebar__link--active{% endif %}">Tasks</a>
+    <a href="/" class="sidebar__link {% if request.path == '/' %}sidebar__link--active{% endif %}">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+      Dashboard
+    </a>
+    <a href="/jobs" class="sidebar__link {% if request.path == '/jobs' %}sidebar__link--active{% endif %}">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+      Jobs
+    </a>
+    <a href="/tasks" class="sidebar__link {% if request.path == '/tasks' %}sidebar__link--active{% endif %}">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+      Tasks
+    </a>
   </nav>
   <main class="content">
     <header class="topbar">
       <h1>{% block page_title %}Dashboard{% endblock %}</h1>
+      {% block topbar_actions %}{% endblock %}
     </header>
     <section class="page">
       {% with messages = get_flashed_messages(with_categories=true) %}

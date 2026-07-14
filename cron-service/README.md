@@ -1,6 +1,6 @@
 # Cron Service
 
-Standalone container for scheduling and monitoring rsync folder sync jobs.
+Standalone container for scheduling and running arbitrary tasks via cron jobs. Pluggable task type system — add new task types by creating a Python file in `app/task_types/`.
 
 ## Quick Start
 
@@ -16,13 +16,53 @@ make cron-setup   # creates venv + installs dependencies
 make cron-service  # starts dev server on :5010
 ```
 
+> **Schema change:** If upgrading from the original rsync-only version, delete `data/cron.db` before starting. The schema has changed to support pluggable task types.
+
 ## Features
 
-- **Rsync incremental sync** — copies only changed files; skipped files reported
-- **Live progress** — WebSocket streams rsync output with filename and percentage
-- **Cron scheduling** — APScheduler with cron expressions; YAML + UI config
-- **Task history** — SQLite-backed log of all runs with full output
-- **Cancellation** — kill running rsync processes from the UI
+- **Pluggable task types** — rsync built-in; add more by creating `app/task_types/<name>.py`
+- **Dynamic job forms** — UI auto-generates form fields from task type schema
+- **File browser** — browse the host filesystem when entering path parameters
+- **Cron helper** — human-readable description + next 5 run times as you type
+- **Live progress** — WebSocket streams task output in real time
+- **Dark theme** — full dark UI with responsive sidebar
+- **YAML + UI config** — jobs defined in YAML or created via the web interface
+
+## Task Types
+
+Each task type is a Python module in `app/task_types/` that registers itself:
+
+```python
+from app.task_types import register
+
+FIELDS = [
+    {"key": "source", "label": "Source Path", "type": "path", "required": True},
+    {"key": "destination", "label": "Destination Path", "type": "path", "required": True},
+    {"key": "extra_flags", "label": "Extra Flags", "type": "text", "required": False},
+]
+
+def validate(data):
+    return True, None
+
+def execute(task):
+    # Run the task, stream output via socketio.emit("task_progress", ...)
+    pass
+
+def cancel(task_id):
+    # Kill the running process
+    pass
+
+register("rsync", {
+    "name": "Rsync Sync",
+    "description": "Incremental file synchronization",
+    "fields": FIELDS,
+    "validate": validate,
+    "execute": execute,
+    "cancel": cancel,
+})
+```
+
+Field types: `path` (with browse button), `text`, `textarea`, `select`, `number`.
 
 ## Configuration
 
@@ -30,14 +70,14 @@ make cron-service  # starts dev server on :5010
 ```yaml
 jobs:
   - name: "Backup Photos"
-    source: "/media/photos"
-    destination: "/backup/photos"
-    schedule: "0 2 * * *"        # cron: min hour day month weekday
+    task_type: "rsync"
+    params:
+      source: "/media/photos"
+      destination: "/backup/photos"
+      extra_flags: "--compress"
+    schedule: "0 2 * * *"
     enabled: true
-    extra_flags: "--compress"    # optional rsync flags
 ```
-
-Jobs sync bidirectionally with the SQLite database. UI edits update both.
 
 ### Environment Variables
 | Variable | Default | Description |
@@ -62,16 +102,24 @@ Jobs sync bidirectionally with the SQLite database. UI edits update both.
 | `GET` | `/api/tasks/<id>` | Get task detail + output |
 | `POST` | `/api/tasks/<id>/cancel` | Cancel running task |
 | `DELETE` | `/api/tasks/<id>` | Delete task history |
+| `GET` | `/api/task-types` | List available task types |
+| `GET` | `/api/task-types/<key>` | Get task type schema (fields) |
+| `GET` | `/api/browse?path=` | Browse host filesystem |
+| `GET` | `/api/cron/parse?expr=` | Parse cron expression |
+| `POST` | `/api/run` | Run a task without creating a job |
 
 ## Architecture
 
 ```
 Flask App (port 5010)
-├── APScheduler (cron triggers)
-├── Flask-SocketIO (gevent async)
-├── SQLite (cron_job + task_run tables)
-├── Rsync subprocess (per task, with progress parsing)
-└── YAML config (bidirectional sync with SQLite)
+├── task_types/         # Pluggable task type registry
+│   ├── __init__.py     # Registry (register, get, list_types)
+│   └── rsync.py        # Rsync task type with progress parsing
+├── APScheduler         # Cron triggers
+├── Flask-SocketIO      # Live progress via WebSocket
+├── SQLite              # cron_job + task_run tables
+├── cron_parser.py      # Cron expression → human-readable + next runs
+└── YAML config         # Bidirectional sync with SQLite
 ```
 
 ## Makefile Targets

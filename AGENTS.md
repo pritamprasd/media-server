@@ -241,14 +241,19 @@
 
 ### Cron Service (Standalone Container)
 - **Location**: `cron-service/` directory, separate from the main media-server codebase.
-- **Stack**: Flask + Flask-SocketIO + APScheduler + SQLite + rsync subprocess. Jinja2 templates (no React). Deployed via `cron-service/docker-compose.cron.yml`.
+- **Stack**: Flask + Flask-SocketIO + APScheduler + SQLite + subprocess tasks. Jinja2 templates (no React). Deployed via `cron-service/docker-compose.cron.yml`.
 - **Port**: 5010. No shared network with the main media-server Docker services.
-- **Database**: SQLite at `cron-service/data/cron.db`. Two tables: `cron_job` (schedule definitions) and `task_run` (execution history + output logs).
-- **Rsync runner**: Spawns `rsync -avz --progress --stats` as a subprocess. Parses `--progress` lines for live filename/percent streaming and `--stats` output for transfer summaries. Cancellation via `os.kill(pid, SIGTERM)`.
+- **Database**: SQLite at `cron-service/data/cron.db`. Two tables: `cron_job` (schedule definitions with `task_type` + `params` JSON) and `task_run` (execution history + output logs).
+- **Pluggable task types**: `app/task_types/` package with registry. Each type is a Python module that calls `register()` with name, description, form fields, validate, execute, and cancel functions. Currently only `rsync` is built-in. Add new types by creating `app/task_types/<name>.py`.
+- **Field types**: `path` (with filesystem browser), `text`, `textarea`, `select`, `number`. Task type schemas are served via `/api/task-types/<key>`.
+- **File browser**: `/api/browse?path=` lists host directory contents. Paths shown to user are real host paths (without `/host` prefix); backend prepends `/host` for container access.
+- **Cron helper**: `/api/cron/parse?expr=` returns human-readable description + next 5 run times. Frontend shows live preview as user types cron expression.
 - **Live updates**: Flask-SocketIO with gevent async mode. Clients join `task_{id}` rooms; server emits `task_progress`, `task_complete` events per line.
 - **YAML config**: `config/jobs.yaml` is the source of truth on startup (synced into SQLite via upsert-by-name). UI edits write back to both SQLite and YAML (bidirectional sync).
 - **Makefile targets**: `make cron-setup`, `make cron-service`, `make cron-docker`, `make cron-docker-down`.
 - **No Postgres, no Redis**: entirely self-contained. Uses gevent for concurrent WebSocket + subprocess handling.
+- **Dark theme**: Full dark CSS with GitHub-inspired color palette (--bg: #0d1117, --surface: #1c2128, --primary: #58a6ff).
+- **Schema note**: Upgrading from the original rsync-only version requires deleting `data/cron.db` — the schema changed to support pluggable task types (added `task_type`, `params` columns; removed `source`, `destination`, `extra_flags`).
 
 ## Production Deployment
 - Nginx reverse proxy with HTTPS, HTTP/2 support

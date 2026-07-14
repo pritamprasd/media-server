@@ -9,16 +9,29 @@
 
 <table class="table">
   <thead>
-    <tr><th>Name</th><th>Schedule</th><th>Source</th><th>Destination</th><th>Flags</th><th>Status</th><th>Actions</th></tr>
+    <tr>
+      <th>Name</th>
+      <th>Type</th>
+      <th>Schedule</th>
+      <th>Parameters</th>
+      <th>Status</th>
+      <th>Actions</th>
+    </tr>
   </thead>
   <tbody>
     {% for job in jobs %}
     <tr>
       <td><strong>{{ job.name }}</strong></td>
+      <td><span class="badge badge--muted">{{ job.task_type }}</span></td>
       <td><code>{{ job.schedule }}</code></td>
-      <td class="path-cell">{{ job.source }}</td>
-      <td class="path-cell">{{ job.destination }}</td>
-      <td><code>{{ job.extra_flags or '-' }}</code></td>
+      <td>
+        {% set tt = job.task_type %}
+        {% if job.params %}
+          {% for key, val in job.params.items() %}
+            {% if val %}<span class="path-cell" title="{{ key }}: {{ val }}">{{ key }}: {{ val }}</span>{% if not loop.last %}<br>{% endif %}{% endif %}
+          {% endfor %}
+        {% else %}-{% endif %}
+      </td>
       <td>
         <span class="badge badge--{{ 'success' if job.enabled else 'muted' }}">
           {{ 'Enabled' if job.enabled else 'Disabled' }}
@@ -30,11 +43,11 @@
           {{ 'Disable' if job.enabled else 'Enable' }}
         </button>
         <button class="btn btn--sm" onclick="editJob(this)" data-job="{{ job.to_dict() | tojson | e }}">Edit</button>
-        <button class="btn btn--sm btn--danger" onclick="deleteJob({{ job.id }}, '{{ job.name }}')">Delete</button>
+        <button class="btn btn--sm btn--danger" onclick="deleteJob({{ job.id }}, '{{ job.name }}')">&times;</button>
       </td>
     </tr>
     {% else %}
-    <tr><td colspan="7" class="empty">No jobs configured. Click "+ New Job" to create one.</td></tr>
+    <tr><td colspan="6" class="empty">No jobs configured. Click "+ New Job" to create one.</td></tr>
     {% endfor %}
   </tbody>
 </table>
@@ -47,34 +60,42 @@
     </div>
     <form id="job-form" onsubmit="submitJob(event)">
       <input type="hidden" id="job-id" value="">
+
       <div class="form-group">
-        <label for="job-name">Name</label>
+        <label for="job-name">Job Name</label>
         <input type="text" id="job-name" required placeholder="e.g. Backup Photos">
       </div>
+
       <div class="form-row">
         <div class="form-group">
-          <label for="job-source">Source Path</label>
-          <input type="text" id="job-source" required placeholder="/mnt/photos or user@host:/path">
+          <label for="job-type">Task Type</label>
+          <select id="job-type" onchange="onTaskTypeChange()" required>
+            {% for tt in task_types %}
+            <option value="{{ tt.key }}">{{ tt.name }}</option>
+            {% endfor %}
+          </select>
+          <small id="task-type-desc"></small>
         </div>
-        <div class="form-group">
-          <label for="job-dest">Destination Path</label>
-          <input type="text" id="job-dest" required placeholder="/backup/photos or user@host:/path">
-        </div>
-      </div>
-      <div class="form-row">
         <div class="form-group">
           <label for="job-schedule">Schedule (cron)</label>
-          <input type="text" id="job-schedule" value="0 2 * * *" required placeholder="0 2 * * *">
-          <small>min hour day month weekday</small>
-        </div>
-        <div class="form-group">
-          <label for="job-flags">Extra Rsync Flags</label>
-          <input type="text" id="job-flags" placeholder="--compress --delete">
+          <input type="text" id="job-schedule" value="0 2 * * *" required placeholder="0 2 * * *"
+                 oninput="updateCronHelper()" onfocus="updateCronHelper()">
+          <div class="cron-helper" id="cron-helper">
+            <div class="cron-helper__text" id="cron-helper-text"></div>
+            <div class="cron-helper__next" id="cron-helper-next"></div>
+          </div>
         </div>
       </div>
+
+      <div class="form-section">
+        <div class="form-section__title">Task Parameters</div>
+        <div id="task-fields"></div>
+      </div>
+
       <div class="form-group">
         <label><input type="checkbox" id="job-enabled" checked> Enabled</label>
       </div>
+
       <div class="form-actions">
         <button type="button" class="btn" onclick="closeModal()">Cancel</button>
         <button type="submit" class="btn btn--primary">Save</button>
@@ -83,17 +104,53 @@
   </div>
 </div>
 
+<!-- File Browser Modal -->
+<div class="modal-overlay" id="browse-overlay" onclick="closeBrowser()">
+  <div class="modal" onclick="event.stopPropagation()" style="max-width:550px">
+    <div class="modal__header">
+      <h3>Browse File System</h3>
+      <button class="modal__close" onclick="closeBrowser()">&times;</button>
+    </div>
+    <div class="file-browser" id="file-browser">
+      <div class="file-browser__header">
+        <div class="file-browser__nav">
+          <button class="btn--icon" onclick="browseUp()" title="Up">
+            <svg width="14" height="14" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg>
+          </button>
+          <button class="btn--icon" onclick="browseRoot()" title="Root">
+            <svg width="14" height="14" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+          </button>
+        </div>
+        <div class="file-browser__path" id="browse-path">/</div>
+      </div>
+      <div class="file-browser__list" id="browse-list"></div>
+      <div class="file-browser__actions">
+        <button class="btn btn--sm" onclick="closeBrowser()">Cancel</button>
+        <button class="btn btn--sm btn--primary" onclick="selectBrowsedPath()" id="browse-select-btn" disabled>Select</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script>
+const TASK_TYPES = {{ task_types | tojson }};
+let currentBrowserTarget = null;
+let browsedPath = '';
+
 function openModal(job) {
   document.getElementById('modal-title').textContent = job ? 'Edit Job' : 'New Job';
   document.getElementById('job-id').value = job ? job.id : '';
   document.getElementById('job-name').value = job ? job.name : '';
-  document.getElementById('job-source').value = job ? job.source : '';
-  document.getElementById('job-dest').value = job ? job.destination : '';
   document.getElementById('job-schedule').value = job ? job.schedule : '0 2 * * *';
-  document.getElementById('job-flags').value = job ? (job.extra_flags || '') : '';
   document.getElementById('job-enabled').checked = job ? job.enabled : true;
+
+  const typeSelect = document.getElementById('job-type');
+  typeSelect.value = job ? job.task_type : TASK_TYPES[0].key;
+  typeSelect.disabled = !!job;
+  onTaskTypeChange(job ? job.params : {});
+
   document.getElementById('modal-overlay').classList.add('modal-overlay--visible');
+  updateCronHelper();
 }
 
 function closeModal() {
@@ -105,19 +162,84 @@ function editJob(btn) {
   openModal(job);
 }
 
+function onTaskTypeChange(existingParams) {
+  const typeKey = document.getElementById('job-type').value;
+  const tt = TASK_TYPES.find(t => t.key === typeKey);
+  document.getElementById('task-type-desc').textContent = tt ? tt.description : '';
+
+  const fieldsContainer = document.getElementById('task-fields');
+  fieldsContainer.innerHTML = '';
+
+  fetch('/api/task-types/' + typeKey)
+    .then(r => r.json())
+    .then(schema => {
+      schema.fields.forEach(field => {
+        const val = existingParams && existingParams[field.key] ? existingParams[field.key] : '';
+        const group = document.createElement('div');
+        group.className = 'form-group';
+
+        if (field.type === 'path') {
+          group.innerHTML = `
+            <label>${field.label}${field.required ? ' *' : ''}</label>
+            <div class="path-input">
+              <input type="text" id="param-${field.key}" data-key="${field.key}"
+                     value="${escapeHtml(val)}" placeholder="${escapeHtml(field.placeholder || '')}"
+                     ${field.required ? 'required' : ''}>
+              <button type="button" class="btn btn--sm" onclick="openBrowser('param-${field.key}')">Browse</button>
+            </div>
+            ${field.help ? '<small>' + escapeHtml(field.help) + '</small>' : ''}
+          `;
+        } else if (field.type === 'textarea') {
+          group.innerHTML = `
+            <label>${field.label}${field.required ? ' *' : ''}</label>
+            <textarea id="param-${field.key}" data-key="${field.key}"
+                      placeholder="${escapeHtml(field.placeholder || '')}"
+                      ${field.required ? 'required' : ''}>${escapeHtml(val)}</textarea>
+            ${field.help ? '<small>' + escapeHtml(field.help) + '</small>' : ''}
+          `;
+        } else if (field.type === 'select') {
+          const options = (field.options || []).map(o =>
+            `<option value="${o.value}" ${val === o.value ? 'selected' : ''}>${o.label}</option>`
+          ).join('');
+          group.innerHTML = `
+            <label>${field.label}${field.required ? ' *' : ''}</label>
+            <select id="param-${field.key}" data-key="${field.key}" ${field.required ? 'required' : ''}>${options}</select>
+            ${field.help ? '<small>' + escapeHtml(field.help) + '</small>' : ''}
+          `;
+        } else {
+          group.innerHTML = `
+            <label>${field.label}${field.required ? ' *' : ''}</label>
+            <input type="text" id="param-${field.key}" data-key="${field.key}"
+                   value="${escapeHtml(val)}" placeholder="${escapeHtml(field.placeholder || '')}"
+                   ${field.required ? 'required' : ''}>
+            ${field.help ? '<small>' + escapeHtml(field.help) + '</small>' : ''}
+          `;
+        }
+        fieldsContainer.appendChild(group);
+      });
+    });
+}
+
 function submitJob(e) {
   e.preventDefault();
   const id = document.getElementById('job-id').value;
+
+  const params = {};
+  document.querySelectorAll('#task-fields [data-key]').forEach(el => {
+    params[el.dataset.key] = el.value;
+  });
+
   const data = {
     name: document.getElementById('job-name').value,
-    source: document.getElementById('job-source').value,
-    destination: document.getElementById('job-dest').value,
+    task_type: document.getElementById('job-type').value,
     schedule: document.getElementById('job-schedule').value,
-    extra_flags: document.getElementById('job-flags').value,
+    params: params,
     enabled: document.getElementById('job-enabled').checked,
   };
+
   const url = id ? '/api/jobs/' + id : '/api/jobs';
   const method = id ? 'PUT' : 'POST';
+
   fetch(url, {
     method,
     headers: { 'Content-Type': 'application/json' },
@@ -143,6 +265,135 @@ function deleteJob(id, name) {
   if (!confirm('Delete job "' + name + '"?')) return;
   fetch('/api/jobs/' + id, { method: 'DELETE' })
     .then(() => window.location.reload());
+}
+
+/* ── Cron Helper ─────────────────────────────────────── */
+let cronTimer = null;
+function updateCronHelper() {
+  clearTimeout(cronTimer);
+  cronTimer = setTimeout(() => {
+    const expr = document.getElementById('job-schedule').value.trim();
+    if (!expr || expr.split(/\s+/).length !== 5) {
+      document.getElementById('cron-helper').classList.remove('cron-helper--visible');
+      return;
+    }
+    fetch('/api/cron/parse?expr=' + encodeURIComponent(expr))
+      .then(r => r.json())
+      .then(data => {
+        const el = document.getElementById('cron-helper');
+        document.getElementById('cron-helper-text').textContent = data.human || '';
+        if (data.next_runs && data.next_runs.length) {
+          const runs = data.next_runs.slice(0, 3).map(r => {
+            const d = new Date(r);
+            return '<span>' + d.toLocaleString() + '</span>';
+          }).join(', ');
+          document.getElementById('cron-helper-next').innerHTML = 'Next runs: ' + runs;
+        } else {
+          document.getElementById('cron-helper-next').innerHTML = '';
+        }
+        el.classList.add('cron-helper--visible');
+      });
+  }, 300);
+}
+
+/* ── File Browser ────────────────────────────────────── */
+function openBrowser(inputId) {
+  currentBrowserTarget = inputId;
+  const currentVal = document.getElementById(inputId).value || '/';
+  browsedPath = currentVal;
+  document.getElementById('browse-overlay').classList.add('modal-overlay--visible');
+  browseTo(currentVal);
+}
+
+function closeBrowser() {
+  document.getElementById('browse-overlay').classList.remove('modal-overlay--visible');
+  currentBrowserTarget = null;
+}
+
+function selectBrowsedPath() {
+  if (currentBrowserTarget && browsedPath) {
+    document.getElementById(currentBrowserTarget).value = browsedPath;
+  }
+  closeBrowser();
+}
+
+function browseTo(path) {
+  fetch('/api/browse?path=' + encodeURIComponent(path))
+    .then(r => r.json())
+    .then(data => {
+      if (data.error) {
+        document.getElementById('browse-list').innerHTML = '<div class="empty">' + data.error + '</div>';
+        return;
+      }
+      browsedPath = data.path;
+      document.getElementById('browse-path').textContent = data.path;
+      document.getElementById('browse-select-btn').disabled = false;
+
+      const list = document.getElementById('browse-list');
+      list.innerHTML = '';
+
+      const dirs = data.items.filter(i => i.type === 'dir');
+      const files = data.items.filter(i => i.type !== 'dir');
+
+      dirs.forEach(item => {
+        const el = document.createElement('div');
+        el.className = 'file-browser__item';
+        el.innerHTML = `
+          <span class="file-browser__item-icon file-browser__item-icon--dir">&#128193;</span>
+          <span class="file-browser__item-name">${escapeHtml(item.name)}</span>
+        `;
+        el.onclick = () => {
+          const sep = browsedPath === '/' ? '' : '/';
+          browseTo(browsedPath + sep + item.name);
+        };
+        list.appendChild(el);
+      });
+
+      files.forEach(item => {
+        const el = document.createElement('div');
+        el.className = 'file-browser__item';
+        const sizeStr = item.size != null ? formatSize(item.size) : '';
+        el.innerHTML = `
+          <span class="file-browser__item-icon">&#128196;</span>
+          <span class="file-browser__item-name">${escapeHtml(item.name)}</span>
+          <span class="file-browser__item-size">${sizeStr}</span>
+        `;
+        el.onclick = () => {
+          browsedPath = data.path === '/' ? '/' + item.name : data.path + '/' + item.name;
+          document.getElementById('browse-path').textContent = browsedPath;
+          list.querySelectorAll('.file-browser__item').forEach(i => i.classList.remove('file-browser__item--selected'));
+          el.classList.add('file-browser__item--selected');
+        };
+        list.appendChild(el);
+      });
+
+      if (!data.items.length) {
+        list.innerHTML = '<div class="empty">Empty directory</div>';
+      }
+    });
+}
+
+function browseUp() {
+  const parts = browsedPath.split('/').filter(Boolean);
+  parts.pop();
+  browseTo('/' + parts.join('/') || '/');
+}
+
+function browseRoot() {
+  browseTo('/');
+}
+
+function escapeHtml(str) {
+  const d = document.createElement('div');
+  d.textContent = str || '';
+  return d.innerHTML;
+}
+
+function formatSize(bytes) {
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+  if (bytes < 1073741824) return (bytes / 1048576).toFixed(1) + ' MB';
+  return (bytes / 1073741824).toFixed(1) + ' GB';
 }
 </script>
 {% endblock %}

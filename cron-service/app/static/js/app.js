@@ -38,7 +38,6 @@ socket.on('task_complete', function(data) {
     if (cancelBtn) cancelBtn.remove();
   }
 
-  // Show summary if available
   if (data.summary) {
     const summaryEl = document.createElement('div');
     summaryEl.className = 'task-card__paths';

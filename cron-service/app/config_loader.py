@@ -34,22 +34,23 @@ def load_jobs_from_config(app):
         if not name:
             continue
 
+        task_type = job_data.get("task_type", "rsync")
+        params = job_data.get("params", {})
+
         if name in existing:
             job = existing[name]
-            job.source = job_data.get("source", job.source)
-            job.destination = job_data.get("destination", job.destination)
+            job.task_type = task_type
+            job.params = params
             job.schedule = job_data.get("schedule", job.schedule)
             job.enabled = job_data.get("enabled", job.enabled)
-            job.extra_flags = job_data.get("extra_flags", job.extra_flags)
             job.updated_at = datetime.now(timezone.utc)
         else:
             job = CronJob(
                 name=name,
-                source=job_data.get("source", ""),
-                destination=job_data.get("destination", ""),
+                task_type=task_type,
+                params=params,
                 schedule=job_data.get("schedule", "0 * * * *"),
                 enabled=job_data.get("enabled", True),
-                extra_flags=job_data.get("extra_flags", ""),
             )
             db.session.add(job)
 
@@ -58,18 +59,16 @@ def load_jobs_from_config(app):
 
 def save_config():
     """Write all CronJob rows back to the YAML config file."""
-    from app.models import CronJob
     jobs = CronJob.query.order_by(CronJob.name).all()
 
     data = {
         "jobs": [
             {
                 "name": j.name,
-                "source": j.source,
-                "destination": j.destination,
+                "task_type": j.task_type,
+                "params": j.params or {},
                 "schedule": j.schedule,
                 "enabled": j.enabled,
-                "extra_flags": j.extra_flags or "",
             }
             for j in jobs
         ]

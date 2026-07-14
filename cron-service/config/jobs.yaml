@@ -1,7 +1,9 @@
 jobs: []
   # - name: "Backup Photos"
-  #   source: "/media/photos"
-  #   destination: "/backup/photos"
+  #   task_type: "rsync"
+  #   params:
+  #     source: "/media/photos"
+  #     destination: "/backup/photos"
+  #     extra_flags: "--compress"
   #   schedule: "0 2 * * *"
   #   enabled: true
-  #   extra_flags: "--compress"

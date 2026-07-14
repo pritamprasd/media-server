@@ -48,7 +48,7 @@ def _sync_jobs(app):
 
 
 def _run_scheduled(app, job_id):
-    """Callback invoked by APScheduler for a scheduled rsync job."""
+    """Callback invoked by APScheduler for a scheduled job."""
     with app.app_context():
         from app.routes import trigger_job_run
         trigger_job_run(job_id)

@@ -3,22 +3,24 @@
 {% block page_title %}Tasks{% endblock %}
 
 {% block content %}
-<h2>Running</h2>
+<h2>Running <span class="count" id="running-count">{{ running|length }}</span></h2>
 <div id="running-tasks">
   {% for task in running %}
   <div class="task-card task-card--running" id="task-{{ task.id }}" data-task-id="{{ task.id }}">
     <div class="task-card__header">
       <span class="badge badge--running">Running</span>
       <strong>{{ task.job_name or 'Manual Run' }}</strong>
-      <span class="task-card__meta">PID {{ task.pid or '?' }}</span>
+      <span class="task-card__meta">
+        <span class="badge badge--muted">{{ task.task_type }}</span>
+        PID {{ task.pid or '?' }}
+      </span>
       <button class="btn btn--sm btn--danger" onclick="cancelTask({{ task.id }})">Cancel</button>
     </div>
     <div class="task-card__paths">
-      <code>{{ task.source }}</code> &rarr; <code>{{ task.destination }}</code>
+      <pre>{% for line in task.output.split('\n') %}{% if line %}{{ line }}{% endif %}{% endfor %}</pre>
     </div>
     <div class="task-card__output" id="output-{{ task.id }}">
-      <pre>{% for line in task.output.split('\n') %}{% if line %}{{ line }}
-{% endif %}{% endfor %}</pre>
+      <pre></pre>
     </div>
   </div>
   {% else %}
@@ -26,18 +28,17 @@
   {% endfor %}
 </div>
 
-<h2>History</h2>
+<h2>History <span class="count">{{ history|length }}</span></h2>
 <table class="table">
   <thead>
-    <tr><th>ID</th><th>Job</th><th>Source</th><th>Destination</th><th>Status</th><th>Started</th><th>Duration</th><th>Summary</th><th></th></tr>
+    <tr><th>ID</th><th>Job</th><th>Type</th><th>Status</th><th>Started</th><th>Duration</th><th>Summary</th><th></th></tr>
   </thead>
   <tbody>
     {% for task in history %}
     <tr class="task-row" id="task-{{ task.id }}">
       <td>#{{ task.id }}</td>
       <td>{{ task.job_name or 'Manual' }}</td>
-      <td class="path-cell">{{ task.source }}</td>
-      <td class="path-cell">{{ task.destination }}</td>
+      <td><span class="badge badge--muted">{{ task.task_type }}</span></td>
       <td><span class="badge badge--{{ task.status }}">{{ task.status }}</span></td>
       <td>{{ task.started_at.strftime('%Y-%m-%d %H:%M') if task.started_at else '-' }}</td>
       <td>
@@ -46,20 +47,20 @@
         {% else %}-{% endif %}
       </td>
       <td>{{ task.summary or '-' }}</td>
-      <td>
+      <td class="actions">
         <button class="btn btn--sm btn--ghost" onclick="toggleOutput({{ task.id }})">Log</button>
         <button class="btn btn--sm btn--danger" onclick="deleteTask({{ task.id }})">&times;</button>
       </td>
     </tr>
     <tr class="task-output-row" id="output-row-{{ task.id }}" style="display:none">
-      <td colspan="9">
+      <td colspan="8">
         <div class="task-card__output task-card__output--static">
           <pre>{{ task.output or 'No output' }}</pre>
         </div>
       </td>
     </tr>
     {% else %}
-    <tr><td colspan="9" class="empty">No completed tasks</td></tr>
+    <tr><td colspan="8" class="empty">No completed tasks</td></tr>
     {% endfor %}
   </tbody>
 </table>

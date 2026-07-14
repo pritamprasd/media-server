@@ -229,9 +229,13 @@ See [docs/monitoring.md](monitoring.md) for metrics details.
 ## Cron Service (Standalone Container)
 
 - **Separate container** — Flask + Jinja2 + SQLite service running on port 5010, deployed via `cron-service/docker-compose.cron.yml`
-- **Rsync-based sync** — incremental copy using `rsync -avz --progress --stats`; skips identical files automatically; supports local-to-local and remote SSH sync
-- **Live progress** — WebSocket (Flask-SocketIO) streams rsync output line-by-line to the browser with filename and percentage updates
+- **Pluggable task types** — add new task types by creating a Python file in `app/task_types/`; each type defines its form schema, validation, execution, and cancellation
+- **Dynamic job forms** — UI auto-generates form fields from task type schema; supports path, text, textarea, select, and number field types
+- **File browser** — browse the host filesystem when entering path parameters; paths shown are real host paths, backend resolves `/host` mount internally
+- **Cron expression helper** — live human-readable description + next 5 run times as you type the cron expression
+- **Rsync task type (built-in)** — incremental copy using `rsync -avz --progress --stats`; parses progress lines for live streaming; cancellation via SIGTERM
+- **Live progress** — WebSocket (Flask-SocketIO) streams task output line-by-line to the browser
 - **Cron scheduling** — APScheduler with cron expressions; jobs defined in `config/jobs.yaml` and synced bidirectionally with SQLite
 - **Tasks page** — running tasks show live terminal output; history table with status, duration, and full log expand
 - **Job management** — create, edit, enable/disable, delete, and manually trigger jobs from the web UI
-- **Task cancellation** — running rsync processes can be cancelled via SIGTERM from the UI
+- **Dark theme** — full dark UI with GitHub-inspired color palette and responsive sidebar

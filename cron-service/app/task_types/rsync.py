@@ -1,3 +1,5 @@
+"""Rsync task type — incremental file synchronization."""
+
 import os
 import re
 import subprocess
@@ -5,16 +7,62 @@ import signal
 from datetime import datetime, timezone
 from flask import current_app
 from app import db, socketio
-from app.models import TaskRun
+from app.task_types import register
 
 
-def parse_rsync_line(line):
-    """Parse a single rsync --progress line to extract filename and percentage.
+FIELDS = [
+    {
+        "key": "source",
+        "label": "Source Path",
+        "type": "path",
+        "required": True,
+        "placeholder": "/home/user/photos or user@host:/path",
+    },
+    {
+        "key": "destination",
+        "label": "Destination Path",
+        "type": "path",
+        "required": True,
+        "placeholder": "/backup/photos or user@host:/path",
+    },
+    {
+        "key": "extra_flags",
+        "label": "Extra Flags",
+        "type": "text",
+        "required": False,
+        "placeholder": "--delete --compress",
+        "help": "Additional rsync flags (space-separated)",
+    },
+    {
+        "key": "exclude",
+        "label": "Exclude Patterns",
+        "type": "text",
+        "required": False,
+        "placeholder": "*.log .cache/",
+        "help": "Space-separated glob patterns to exclude",
+    },
+]
 
-    Rsync output lines look like:
-        filename.jpg
-          1,234,567  45%  12.34MB/s  0:00:03
-    """
+
+def validate(data):
+    source = (data.get("source") or "").strip()
+    dest = (data.get("destination") or "").strip()
+    if not source:
+        return False, "Source path is required"
+    if not dest:
+        return False, "Destination path is required"
+    return True, None
+
+
+def _host_path(user_path):
+    """Convert a user-facing host path to the container-visible path."""
+    if user_path.startswith("/host"):
+        return user_path
+    return "/host" + user_path
+
+
+def _parse_rsync_line(line):
+    """Parse a single rsync --progress line for filename and percentage."""
     percent = None
     filename = None
 
@@ -31,20 +79,8 @@ def parse_rsync_line(line):
     return filename, percent
 
 
-def parse_stats_output(output):
-    """Parse rsync --stats final output to extract transfer summary.
-
-    Looks for lines like:
-        Number of files: 123
-        Number of files transferred: 45
-        Total file size: 1,234,567 bytes
-        Total transferred file size: 567,890 bytes
-        Literal data: 567,890 bytes
-        Matched data: 0 bytes
-        File list size: 1,234
-        Total bytes sent: 567,890
-        Total bytes received: 456
-    """
+def _parse_stats_output(output):
+    """Parse rsync --stats final output for a human-readable summary."""
     summary = {}
     for line in output.split("\n"):
         line = line.strip()
@@ -89,41 +125,45 @@ def parse_stats_output(output):
     return summary
 
 
-def run_task(task_id):
-    """Execute rsync for a given TaskRun and stream output via SocketIO.
+def execute(task):
+    """Run rsync for a TaskRun row and stream output via SocketIO."""
+    from app.models import TaskRun
 
-    This function runs in a background greenlet. It:
-    1. Spawns rsync with -avz --progress --stats
-    2. Reads stdout line by line
-    3. Emits each line to the task's SocketIO room
-    4. Parses the final stats for a human-readable summary
-    5. Updates the TaskRun record in SQLite
-    """
     with current_app.app_context():
-        task = db.session.get(TaskRun, task_id)
+        task = db.session.get(TaskRun, task.id) if isinstance(task.id, int) else task
         if not task:
             return
+
+        params = task.params or {}
+        source = params.get("source", "")
+        destination = params.get("destination", "")
+        extra_flags = params.get("extra_flags", "")
+        exclude = params.get("exclude", "")
 
         task.status = "running"
         db.session.commit()
 
         socketio.emit("task_progress", {
-            "task_id": task_id,
-            "line": f"Starting rsync: {task.source} -> {task.destination}",
+            "task_id": task.id,
+            "line": f"Starting rsync: {source} -> {destination}",
             "filename": None,
             "percent": None,
             "status": "running",
-        }, room=f"task_{task_id}")
+        }, room=f"task_{task.id}")
 
         cmd = [
             "rsync", "-avz", "--progress", "--stats",
             "--human-readable",
         ]
 
-        if task.extra_flags:
-            cmd.extend(task.extra_flags.split())
+        if extra_flags:
+            cmd.extend(extra_flags.split())
 
-        cmd.extend([task.source, task.destination])
+        if exclude:
+            for pat in exclude.split():
+                cmd.extend(["--exclude", pat])
+
+        cmd.extend([_host_path(source), _host_path(destination)])
 
         try:
             proc = subprocess.Popen(
@@ -142,24 +182,24 @@ def run_task(task_id):
                 if not line:
                     break
                 output_lines.append(line)
-                filename, percent = parse_rsync_line(line)
+                filename, percent = _parse_rsync_line(line)
 
                 socketio.emit("task_progress", {
-                    "task_id": task_id,
+                    "task_id": task.id,
                     "line": line.rstrip("\n"),
                     "filename": filename,
                     "percent": percent,
                     "status": "running",
-                }, room=f"task_{task_id}")
+                }, room=f"task_{task.id}")
 
             proc.wait()
             full_output = "".join(output_lines)
 
             if proc.returncode == 0:
-                stats = parse_stats_output(full_output)
+                stats = _parse_stats_output(full_output)
                 task.status = "completed"
                 task.summary = stats.get("message", "Sync complete")
-            elif proc.returncode == 20 or proc.returncode == -15:
+            elif proc.returncode in (20, -15):
                 task.status = "cancelled"
                 task.summary = "Cancelled by user"
             else:
@@ -171,10 +211,10 @@ def run_task(task_id):
             db.session.commit()
 
             socketio.emit("task_complete", {
-                "task_id": task_id,
+                "task_id": task.id,
                 "status": task.status,
                 "summary": task.summary,
-            }, room=f"task_{task_id}")
+            }, room=f"task_{task.id}")
 
         except Exception as e:
             task.status = "failed"
@@ -183,15 +223,15 @@ def run_task(task_id):
             db.session.commit()
 
             socketio.emit("task_complete", {
-                "task_id": task_id,
+                "task_id": task.id,
                 "status": "failed",
                 "summary": str(e),
-            }, room=f"task_{task_id}")
+            }, room=f"task_{task.id}")
 
 
-def cancel_task(task_id):
+def cancel(task_id):
     """Send SIGTERM to a running rsync process."""
-    from app import db
+    from app.models import TaskRun
     task = db.session.get(TaskRun, task_id)
     if not task or task.status != "running" or not task.pid:
         return False
@@ -200,3 +240,13 @@ def cancel_task(task_id):
         return True
     except (ProcessLookupError, PermissionError):
         return False
+
+
+register("rsync", {
+    "name": "Rsync Sync",
+    "description": "Incremental file synchronization using rsync",
+    "fields": FIELDS,
+    "validate": validate,
+    "execute": execute,
+    "cancel": cancel,
+})

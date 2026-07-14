@@ -32,7 +32,7 @@ flowchart LR
 | AI | Ollama + InsightFace | Vision/text inference and face detection/recognition |
 | Database | PostgreSQL 16 (prod) / SQLite (dev+test) | Persistent storage for all entities |
 | Maps | Leaflet + OpenStreetMap | GPS visualization with service-worker tile caching |
-| Cron Service | Flask + Jinja2 + SQLite + APScheduler | Standalone rsync cron job manager on :5010 with WebSocket live progress |
+| Cron Service | Flask + Jinja2 + SQLite + APScheduler | Standalone task scheduler on :5010 with pluggable task types, WebSocket live progress, file browser, and dark theme |
 
 ## Request & Data Flow
 
