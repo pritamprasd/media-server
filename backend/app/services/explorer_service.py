@@ -2,7 +2,7 @@ import os
 import shutil
 
 from flask import current_app
-from sqlalchemy import func, text
+from sqlalchemy import text
 
 from app import db
 from app.models.import_session import ImportSession
