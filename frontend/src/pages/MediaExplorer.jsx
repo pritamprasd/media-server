@@ -112,7 +112,14 @@ function MediaExplorer() {
   }, [favoriteFolders]);
 
   useEffect(() => {
-    refreshItems("");
+    const params = new URLSearchParams(window.location.search);
+    const initialPrefix = params.get("prefix") || "";
+    if (initialPrefix) {
+      setCurrentPrefix(initialPrefix);
+      refreshItems(initialPrefix);
+    } else {
+      refreshItems("");
+    }
     loadFavorites();
     getPref("nickname", "").then((v) => setNickname(v));
     getPref("explorer_folder_styles", {}).then((v) => setFolderStyles(v || {}));
@@ -136,6 +143,16 @@ function MediaExplorer() {
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, [showNewMenu]);
+
+  useEffect(() => {
+    const handlePopState = () => {
+      const params = new URLSearchParams(window.location.search);
+      const prefix = params.get("prefix") || "";
+      navigateTo(prefix, { pushHistory: false });
+    };
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, []);
 
   const handleThumbSizeChange = (e) => {
     const val = Number(e.target.value);
@@ -186,7 +203,7 @@ function MediaExplorer() {
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
-  const navigateTo = (path) => {
+  const navigateTo = (path, { pushHistory = true } = {}) => {
     setCurrentPrefix(path);
     refreshItems(path);
     setShowNewFolderInput(false);
@@ -194,6 +211,10 @@ function MediaExplorer() {
     setContextMenu(null);
     setRenamingId(null);
     setDropTarget(null);
+    if (pushHistory) {
+      const url = path ? `/explorer?prefix=${encodeURIComponent(path)}` : "/explorer";
+      window.history.pushState({ prefix: path }, "", url);
+    }
   };
 
   const handleBack = () => {

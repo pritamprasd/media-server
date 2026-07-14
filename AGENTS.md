@@ -2,6 +2,10 @@
 
 > **MUST**: Before making any feature change or feature addition, read this file in full and ensure the change is consistent with all documented patterns and decisions below. Add a new entry under the relevant section for every decision made during the change.
 
+## MUST DOs:
+1. Update README.md and the relevant `docs/*.md` file on each feature addition/update — add new features to `docs/features.md`, update API endpoints in `docs/api-endpoints.md`, configuration in `docs/configuration.md`, developer productivity in `docs/developer-guide.md`, and architecture in `docs/architecture.md` as needed.
+2. Provide a one line commit message as last line of the output.
+
 ## Quick Setup
 - `make backend-setup` - Complete backend setup (venv + pip install + migrations)
 - `make frontend-setup` - Frontend setup and dependencies
@@ -239,7 +243,3 @@
 - Keep `docs/developer-guide.md` up to date with all Makefile targets, scripts, helper files, and utility commands. The README links to it from its Documentation table.
 - When adding a new feature, check if any new Makefile targets, scripts, Docker compose changes, or developer helper files are needed and document them there.
 - See `docs/developer-guide.md` for the current reference.
-
-## MUST DOs:
-1. Update README.md and the relevant `docs/*.md` file on each feature addition/update — add new features to `docs/features.md`, update API endpoints in `docs/api-endpoints.md`, configuration in `docs/configuration.md`, developer productivity in `docs/developer-guide.md`, and architecture in `docs/architecture.md` as needed.
-2. Provide a one line commit message as last line of the output.
