@@ -222,6 +222,7 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete, onN
   const [editingMemId, setEditingMemId] = useState(null);
   const [editMemContent, setEditMemContent] = useState("");
   const [editMemTags, setEditMemTags] = useState("");
+  const [notesOpen, setNotesOpen] = useState(false);
   const originalBtnRef = useRef(null);
   const videoRef = useRef(null);
   const exportRef = useRef(null);
@@ -2109,95 +2110,110 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete, onN
                       </span>
                     </div>
                   )}
-                  <div className="viewer-meta-row viewer-meta-row--block">
-                    <span className="viewer-meta-label"><StickyNote size={12} /> My Notes</span>
-                    {memLoading ? (
-                      <div className="viewer-mem-loading"><Spinner size={14} color="var(--color-text-muted)" /></div>
-                    ) : (
-                      <>
-                        {memories.length > 0 && (
-                          <div className="viewer-mem-list">
-                            {memories.map((m) => (
-                              <div key={m.id} className="viewer-mem-item">
-                                {editingMemId === m.id ? (
-                                  <div className="viewer-mem-edit">
-                                    <textarea
-                                      className="viewer-mem-textarea"
-                                      rows={3}
-                                      value={editMemContent}
-                                      onChange={(e) => setEditMemContent(e.target.value)}
-                                    />
-                                    <input
-                                      className="viewer-mem-input"
-                                      type="text"
-                                      placeholder="Tags (comma-separated)"
-                                      value={editMemTags}
-                                      onChange={(e) => setEditMemTags(e.target.value)}
-                                    />
-                                    <div className="viewer-mem-actions">
-                                      <button className="viewer-mem-btn viewer-mem-btn--save" onClick={() => handleUpdateMemory(m.id)} disabled={memSaving}>Save</button>
-                                      <button className="viewer-mem-btn" onClick={() => setEditingMemId(null)}>Cancel</button>
-                                    </div>
-                                  </div>
-                                ) : (
-                                  <>
-                                    <span className="viewer-mem-content">{m.content}</span>
-                                    {m.tags?.length > 0 && (
-                                      <div className="viewer-mem-tags">
-                                        {m.tags.map((t) => <span key={t} className="viewer-mem-tag">{t}</span>)}
-                                      </div>
-                                    )}
-                                    <div className="viewer-mem-actions">
-                                      <button
-                                        className="viewer-mem-btn"
-                                        onClick={() => { setEditingMemId(m.id); setEditMemContent(m.content); setEditMemTags((m.tags || []).join(", ")); }}
-                                        title="Edit"
-                                      >
-                                        <Pencil size={11} />
-                                      </button>
-                                      <button className="viewer-mem-btn viewer-mem-btn--del" onClick={() => handleDeleteMemory(m.id)} title="Delete">
-                                        <X size={11} />
-                                      </button>
-                                    </div>
-                                  </>
-                                )}
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                        {memories.length === 0 || showAddMem ? (
-                          <div className="viewer-mem-add">
-                            <textarea
-                              className="viewer-mem-textarea"
-                              rows={2}
-                              placeholder="Add a note about this file..."
-                              value={memContent}
-                              onChange={(e) => setMemContent(e.target.value)}
-                            />
-                            <input
-                              className="viewer-mem-input"
-                              type="text"
-                              placeholder="Tags (comma-separated)"
-                              value={memTags}
-                              onChange={(e) => setMemTags(e.target.value)}
-                            />
-                            <button
-                              className="viewer-mem-btn viewer-mem-btn--save"
-                              onClick={handleAddMemory}
-                              disabled={memSaving || !memContent.trim()}
-                            >
-                              {memSaving ? <Spinner size={12} /> : "+ Add"}
-                            </button>
-                          </div>
+                  <div className="viewer-meta-row viewer-meta-row--block viewer-mem-section">
+                    <button
+                      className={`viewer-mem-toggle ${notesOpen ? "viewer-mem-toggle--open" : ""}`}
+                      onClick={() => setNotesOpen((o) => !o)}
+                    >
+                      <span className="viewer-mem-toggle-left">
+                        <StickyNote size={12} /> My Notes
+                      </span>
+                      <span className="viewer-mem-toggle-right">
+                        {memories.length > 0 && <span className="viewer-mem-count">{memories.length}</span>}
+                        <ChevronDown size={14} className="viewer-mem-chevron" />
+                      </span>
+                    </button>
+                    {notesOpen && (
+                      <div className="viewer-mem-body">
+                        {memLoading ? (
+                          <div className="viewer-mem-loading"><Spinner size={14} color="var(--color-text-muted)" /></div>
                         ) : (
-                          <button
-                            className="viewer-mem-btn viewer-mem-btn--add"
-                            onClick={() => setShowAddMem(true)}
-                          >
-                            + Add note
-                          </button>
+                          <>
+                            {memories.length > 0 && (
+                              <div className="viewer-mem-list">
+                                {memories.map((m) => (
+                                  <div key={m.id} className="viewer-mem-item">
+                                    {editingMemId === m.id ? (
+                                      <div className="viewer-mem-edit">
+                                        <textarea
+                                          className="viewer-mem-textarea"
+                                          rows={3}
+                                          value={editMemContent}
+                                          onChange={(e) => setEditMemContent(e.target.value)}
+                                        />
+                                        <input
+                                          className="viewer-mem-input"
+                                          type="text"
+                                          placeholder="Tags (comma-separated)"
+                                          value={editMemTags}
+                                          onChange={(e) => setEditMemTags(e.target.value)}
+                                        />
+                                        <div className="viewer-mem-actions">
+                                          <button className="viewer-mem-btn viewer-mem-btn--save" onClick={() => handleUpdateMemory(m.id)} disabled={memSaving}>Save</button>
+                                          <button className="viewer-mem-btn" onClick={() => setEditingMemId(null)}>Cancel</button>
+                                        </div>
+                                      </div>
+                                    ) : (
+                                      <>
+                                        <span className="viewer-mem-content">{m.content}</span>
+                                        {m.tags?.length > 0 && (
+                                          <div className="viewer-mem-tags">
+                                            {m.tags.map((t) => <span key={t} className="viewer-mem-tag">{t}</span>)}
+                                          </div>
+                                        )}
+                                        <div className="viewer-mem-actions">
+                                          <button
+                                            className="viewer-mem-btn"
+                                            onClick={() => { setEditingMemId(m.id); setEditMemContent(m.content); setEditMemTags((m.tags || []).join(", ")); }}
+                                            title="Edit"
+                                          >
+                                            <Pencil size={11} />
+                                          </button>
+                                          <button className="viewer-mem-btn viewer-mem-btn--del" onClick={() => handleDeleteMemory(m.id)} title="Delete">
+                                            <X size={11} />
+                                          </button>
+                                        </div>
+                                      </>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                            {memories.length === 0 || showAddMem ? (
+                              <div className="viewer-mem-add">
+                                <textarea
+                                  className="viewer-mem-textarea"
+                                  rows={2}
+                                  placeholder="Add a note about this file..."
+                                  value={memContent}
+                                  onChange={(e) => setMemContent(e.target.value)}
+                                />
+                                <input
+                                  className="viewer-mem-input"
+                                  type="text"
+                                  placeholder="Tags (comma-separated)"
+                                  value={memTags}
+                                  onChange={(e) => setMemTags(e.target.value)}
+                                />
+                                <button
+                                  className="viewer-mem-btn viewer-mem-btn--save"
+                                  onClick={handleAddMemory}
+                                  disabled={memSaving || !memContent.trim()}
+                                >
+                                  {memSaving ? <Spinner size={12} /> : "+ Add"}
+                                </button>
+                              </div>
+                            ) : (
+                              <button
+                                className="viewer-mem-btn viewer-mem-btn--add"
+                                onClick={() => setShowAddMem(true)}
+                              >
+                                + Add note
+                              </button>
+                            )}
+                          </>
                         )}
-                      </>
+                      </div>
                     )}
                   </div>
                   {meta.description && (
