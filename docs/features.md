@@ -5,8 +5,8 @@ This document is the complete feature reference. For a short highlight, see the 
 ## 📂 Media Import & Management
 - **Recursive directory scan** — import folders without copying files; filters by MIME type groups (image, video, audio, document)
 - **Import sessions** — each import creates a session; re-importing the same folder updates in-place (removes stale files, adds new ones)
-- **Upload** — drag-and-drop zone + file picker; nickname field persisted to IndexedDB; multi-file upload with progress bars; optional subdirectory selection; duplicate detection (same filename + size in target folder) skips redundant files and shows a summary with skipped count
-- **Upload directory management** — browse, create, rename, move, copy, and delete directories and files within the upload area; clipboard (cut/copy/paste) and inline rename
+- **Upload** — drag-and-drop zone + file picker; nickname field persisted to IndexedDB; multi-file upload with progress bars; optional subdirectory selection; duplicate detection (same filename + size in target folder) skips redundant files and shows a summary with skipped count; image/video MIME type filter (All / Images / Videos) in toolbar
+- **Upload directory management** — browse, create, rename, move, copy, and delete directories and files within the upload area; clipboard (cut/copy/paste) and inline rename; video thumbnails show a play icon overlay to distinguish from images
 - **Local filesystem browser** — navigate the host filesystem from the import dialog to select folders
 - **Trash** — soft-delete files (library-only or library + disk)
 - **Nickname persistence** — default nickname stored in IndexedDB, editable from Settings

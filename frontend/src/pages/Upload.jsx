@@ -4,7 +4,7 @@ import {
   Folder, FolderOpen, File, Image, Video, Search, X,
   Grid3X3, List, ChevronDown, Plus, FileUp, Eye,
   MoreVertical, Scissors, Copy, ClipboardPaste, Pencil, ArrowRight,
-  ArrowLeft, Loader2,
+  ArrowLeft, Loader2, Play,
 } from "lucide-react";
 import {
   uploadFiles, listUploadDirs, createUploadDir, listNicknames, softDeleteFiles, softDeleteDir, listRecentFiles,
@@ -39,6 +39,7 @@ function Upload() {
   const [renameValue, setRenameValue] = useState("");
   const [dropTarget, setDropTarget] = useState(null);
   const [pasteLoading, setPasteLoading] = useState(false);
+  const [mimeGroup, setMimeGroup] = useState("");
   const inputRef = useRef(null);
   const fileInputRef = useRef(null);
   const folderInputRef = useRef(null);
@@ -78,6 +79,12 @@ function Upload() {
     const q = searchQuery.toLowerCase().trim();
     let list = items;
     if (q) list = list.filter((it) => it.name?.toLowerCase().includes(q));
+    if (mimeGroup) {
+      list = list.filter((it) => {
+        if (it.kind === "dir") return true;
+        return it.mime_type?.startsWith(mimeGroup + "/");
+      });
+    }
     return [...list].sort((a, b) => {
       if (a.kind !== b.kind) return a.kind === "dir" ? -1 : 1;
       const dir = sortBy === "date" ? -1 : 1;
@@ -86,7 +93,7 @@ function Upload() {
       if (sortBy === "date") return (new Date(a.created_at || 0) - new Date(b.created_at || 0)) * dir;
       return 0;
     });
-  }, [items, searchQuery, sortBy]);
+  }, [items, searchQuery, sortBy, mimeGroup]);
 
   const navigateTo = (path) => {
     setCurrentPrefix(path);
@@ -468,6 +475,29 @@ function Upload() {
           {searchQuery && <button className="upload__search-clear" onClick={() => setSearchQuery("")}><X size={14} /></button>}
         </div>
         <div className="upload__toolbar-right">
+          <div className="upload__mime-filters">
+            <button
+              className={`upload__mime-btn ${mimeGroup === "" ? "upload__mime-btn--active" : ""}`}
+              onClick={() => setMimeGroup("")}
+              title="All"
+            >
+              <List size={14} />
+            </button>
+            <button
+              className={`upload__mime-btn ${mimeGroup === "image" ? "upload__mime-btn--active" : ""}`}
+              onClick={() => setMimeGroup("image")}
+              title="Images"
+            >
+              <Image size={14} />
+            </button>
+            <button
+              className={`upload__mime-btn ${mimeGroup === "video" ? "upload__mime-btn--active" : ""}`}
+              onClick={() => setMimeGroup("video")}
+              title="Videos"
+            >
+              <Video size={14} />
+            </button>
+          </div>
           {clipboard && (
             <button className="upload__paste-btn" onClick={(e) => { e.stopPropagation(); handlePaste(); }}
               disabled={pasteLoading}
@@ -608,7 +638,10 @@ function Upload() {
               onDragStart={(e) => handleDragStart(e, it)}>
               <div className="upload__tile-thumb">
                 {thumbUrl ? (
-                  <img src={thumbUrl} alt="" className="upload__tile-img" loading="lazy" />
+                  <>
+                    <img src={thumbUrl} alt="" className="upload__tile-img" loading="lazy" />
+                    {isVideo && <span className="upload__tile-play"><Play size={16} fill="currentColor" /></span>}
+                  </>
                 ) : isVideo ? (
                   <Video size={viewMode === "grid" ? 48 : 20} />
                 ) : (

@@ -104,6 +104,10 @@
 - **Multi-select with toggle**: `selectedColors` is an array of `{r,g,b}` objects; clicking a swatch toggles it in/out. Backwards compatibility maintained: backend `_apply_selective_color` checks for `colors` array first, falls back to legacy single `color`.
 - **Swatch display**: CSS `auto-fill, minmax(120px, 1fr)` grid with vertical swatch layout; each swatch shows an area percentage (`pct`) label.
 
+### Upload Tab
+- **MIME type filter**: Compact icon-only button group (All / Images / Videos) in toolbar right area. Filter is client-side — directories always pass through; files are filtered by `mime_type` prefix. State: `mimeGroup` (`""`, `"image"`, `"video"`).
+- **Video play overlay**: When a video file has a generated thumbnail, a small circular play icon (`.upload__tile-play`) is overlaid at bottom-left of the thumbnail to distinguish videos from images. Uses `Play` Lucide icon with `fill="currentColor"` inside a `rgba(0,0,0,0.6)` circle.
+
 ### Media Explorer
 - **Strict folder hierarchy**: `directory_id` FK on `ImportedFile` is the source of truth. `relative_path` is NOT used for tree traversal. The `explorer_browse()` endpoint enforces root-level = directories only (no files); files only appear when browsing into a subdirectory.
 - **Synthetic session folders**: Non-upload sessions with root-only files get a synthetic directory entry with `path = "__session_{session.id}__"`. Parsed by `prefix.startswith("__session_")` → `int(prefix.split("_")[2])` to get the session ID.
