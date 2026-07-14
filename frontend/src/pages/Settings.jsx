@@ -156,6 +156,18 @@ function Settings() {
       .catch(() => {});
   }, []);
 
+  const loadAdminTags = useCallback(async () => {
+    setAdminTagsLoading(true);
+    try {
+      const data = await getAllTags();
+      setAdminTags(data.tags || []);
+    } catch {
+      setAdminTags([]);
+    } finally {
+      setAdminTagsLoading(false);
+    }
+  }, []);
+
   // Refresh cache status every time the Offline Cache dialog is opened.
   useEffect(() => {
     if (openDialog === "offline-cache") requestCacheStatus();
@@ -492,18 +504,6 @@ function Settings() {
     setAdminPinError(false);
     setAdminPinMode("unlock");
   };
-
-  const loadAdminTags = useCallback(async () => {
-    setAdminTagsLoading(true);
-    try {
-      const data = await getAllTags();
-      setAdminTags(data.tags || []);
-    } catch {
-      setAdminTags([]);
-    } finally {
-      setAdminTagsLoading(false);
-    }
-  }, []);
 
   const handleRenameTag = async (oldTag) => {
     const newTag = renameValue.trim();
