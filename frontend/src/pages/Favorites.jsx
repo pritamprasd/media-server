@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Heart } from "lucide-react";
-import { listFavorites, toggleFavorite, getFileThumbnail } from "../services/api";
+import { listFavorites, toggleFavorite } from "../services/api";
 import FileViewer from "../components/FileViewer";
 import CollectionMenuButton from "../components/CollectionMenuButton";
 import Spinner from "../components/Spinner";
@@ -8,7 +8,6 @@ import "./Favorites.css";
 
 function Favorites() {
   const [files, setFiles] = useState([]);
-  const [thumbnails, setThumbnails] = useState({});
   const [loading, setLoading] = useState(true);
   const [viewerFile, setViewerFile] = useState(null);
   const viewerOpenRef = useRef(false);
@@ -44,13 +43,6 @@ function Favorites() {
     try {
       const data = await listFavorites();
       setFiles(data);
-      data.forEach(async (f) => {
-        try {
-          const thumbUrl = await getFileThumbnail(f.id);
-          setThumbnails((prev) => ({ ...prev, [f.id]: thumbUrl }));
-        } catch {
-        }
-      });
     } catch {
     } finally {
       setLoading(false);
@@ -99,7 +91,7 @@ function Favorites() {
             >
               <img
                 className="favorites__thumb"
-                src={thumbnails[file.id] || `/api/files/${file.id}/serve`}
+                src={`/api/files/${file.id}/thumbnail`}
                 alt={file.filename}
               />
               <div className="favorites__info">

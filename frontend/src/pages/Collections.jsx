@@ -20,7 +20,6 @@ function Collections() {
   const [coverSearch, setCoverSearch] = useState("");
   const [coverResults, setCoverResults] = useState([]);
   const [searchingCover, setSearchingCover] = useState(false);
-  const [thumbnails, setThumbnails] = useState({});
   const searchTimer = useRef(null);
 
   const fetchCollections = useCallback(async () => {
@@ -28,17 +27,6 @@ function Collections() {
     try {
       const data = await listCollections();
       setCollections(data);
-      data.forEach((c) => {
-        if (c.cover_thumbnail) {
-          fetch(c.cover_thumbnail)
-            .then((r) => r.blob())
-            .then((blob) => {
-              const url = URL.createObjectURL(blob);
-              setThumbnails((prev) => ({ ...prev, [`cover-${c.id}`]: url }));
-            })
-            .catch(() => {});
-        }
-      });
     } catch { /* ignored */ } finally {
       setLoading(false);
     }
@@ -142,8 +130,8 @@ function Collections() {
           {collections.map((c) => (
             <Link key={c.id} to={`/collections/${c.id}`} className="collections__card">
               <div className="collections__card-cover">
-                {thumbnails[`cover-${c.id}`] ? (
-                  <img src={thumbnails[`cover-${c.id}`]} alt={c.name} className="collections__card-img" />
+                {c.cover_thumbnail ? (
+                  <img src={c.cover_thumbnail} alt={c.name} className="collections__card-img" />
                 ) : (
                   <div className="collections__card-placeholder">
                     <FolderOpen size={32} />

@@ -5,7 +5,7 @@ import {
 } from "lucide-react";
 import {
   getCollection, removeFilesFromCollection, addFilesToCollection,
-  listFiles, getFileThumbnail,
+  listFiles,
 } from "../services/api";
 import FileViewer from "../components/FileViewer";
 import Spinner from "../components/Spinner";
@@ -16,7 +16,6 @@ function CollectionDetail() {
   const navigate = useNavigate();
   const [collection, setCollection] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [thumbnails, setThumbnails] = useState({});
   const [viewerFile, setViewerFile] = useState(null);
   const [viewerIndex, setViewerIndex] = useState(-1);
   const viewerOpenRef = useRef(false);
@@ -26,23 +25,12 @@ function CollectionDetail() {
   const [searching, setSearching] = useState(false);
   const [selectedIds, setSelectedIds] = useState(new Set());
   const searchTimer = useRef(null);
-  const fetchedRef = useRef(new Set());
 
   const fetchCollection = useCallback(async () => {
     setLoading(true);
     try {
       const data = await getCollection(id);
       setCollection(data);
-      (data.files || []).forEach((f) => {
-        if (!fetchedRef.current.has(f.id)) {
-          fetchedRef.current.add(f.id);
-          getFileThumbnail(f.id)
-            .then((thumbUrl) => {
-              setThumbnails((prev) => ({ ...prev, [f.id]: thumbUrl }));
-            })
-            .catch(() => { fetchedRef.current.delete(f.id); });
-        }
-      });
     } catch { /* ignored */ } finally {
       setLoading(false);
     }
@@ -213,7 +201,7 @@ function CollectionDetail() {
               <div className="cdetail__thumb-wrap">
                 <img
                   className="cdetail__thumb"
-                  src={thumbnails[file.id] || `/api/files/${file.id}/serve`}
+                  src={`/api/files/${file.id}/thumbnail`}
                   alt={file.filename}
                 />
                 {file.mime_type && file.mime_type.startsWith("video/") && (
