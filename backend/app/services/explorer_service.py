@@ -112,21 +112,21 @@ def browse_explorer(prefix, page=1, per_page=100):
     file_counts = {}
     child_dir_counts = {}
     if dir_ids:
-        fc_rows = db.session.query(
-            ImportedFile.directory_id, func.count(ImportedFile.id)
-        ).filter(
-            ImportedFile.directory_id.in_(dir_ids),
-            ImportedFile.deleted != True,
-            ImportedFile.is_hidden != True,
-        ).group_by(ImportedFile.directory_id).all()
-        file_counts = {r[0]: r[1] for r in fc_rows}
+        path_to_ids = {}
+        for d in db_dirs:
+            path_to_ids.setdefault(d.path, []).append(d.id)
 
-        dc_rows = db.session.query(
-            ImportedDirectory.parent_path, func.count(ImportedDirectory.id)
-        ).filter(
-            ImportedDirectory.parent_path.in_([d.path for d in db_dirs]),
-            ImportedDirectory.deleted != True,
-        ).group_by(ImportedDirectory.parent_path).all()
+        fc_rows = db.session.execute(
+            text("SELECT directory_id, count(*) FROM imported_files WHERE directory_id = ANY(:ids) AND deleted = false AND is_hidden = false GROUP BY directory_id"),
+            {"ids": dir_ids},
+        ).fetchall()
+        raw_file_counts = {r[0]: r[1] for r in fc_rows}
+        file_counts = {path: sum(raw_file_counts.get(i, 0) for i in ids) for path, ids in path_to_ids.items()}
+
+        dc_rows = db.session.execute(
+            text("SELECT parent_path, count(DISTINCT path) FROM imported_directories WHERE parent_path = ANY(:paths) AND deleted = false GROUP BY parent_path"),
+            {"paths": [d.path for d in db_dirs]},
+        ).fetchall()
         child_dir_counts = {r[0]: r[1] for r in dc_rows}
 
     for d in db_dirs:
@@ -137,7 +137,7 @@ def browse_explorer(prefix, page=1, per_page=100):
                 "path": d.path,
                 "session_id": d.session_id,
                 "is_upload": False,
-                "file_count": file_counts.get(d.id, 0),
+                "file_count": file_counts.get(d.path, 0),
                 "dir_count": child_dir_counts.get(d.path, 0),
             })
 
