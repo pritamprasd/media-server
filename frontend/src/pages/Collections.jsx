@@ -31,8 +31,11 @@ function Collections() {
       data.forEach((c) => {
         if (c.cover_thumbnail) {
           fetch(c.cover_thumbnail)
-            .then((r) => r.json())
-            .then((d) => setThumbnails((prev) => ({ ...prev, [`cover-${c.id}`]: d.thumbnail })))
+            .then((r) => r.blob())
+            .then((blob) => {
+              const url = URL.createObjectURL(blob);
+              setThumbnails((prev) => ({ ...prev, [`cover-${c.id}`]: url }));
+            })
             .catch(() => {});
         }
       });

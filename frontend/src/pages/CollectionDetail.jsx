@@ -37,11 +37,8 @@ function CollectionDetail() {
         if (!fetchedRef.current.has(f.id)) {
           fetchedRef.current.add(f.id);
           getFileThumbnail(f.id)
-            .then((t) => {
-              setThumbnails((prev) => ({ ...prev, [f.id]: t.thumbnail }));
-              if (t.thumbnail && navigator.serviceWorker?.controller) {
-                navigator.serviceWorker.controller.postMessage({ type: "PRECACHE_URLS", urls: [t.thumbnail] });
-              }
+            .then((thumbUrl) => {
+              setThumbnails((prev) => ({ ...prev, [f.id]: thumbUrl }));
             })
             .catch(() => { fetchedRef.current.delete(f.id); });
         }

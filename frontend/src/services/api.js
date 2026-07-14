@@ -116,8 +116,8 @@ export async function getFileMetadata(fileId) {
 }
 
 export async function getFileThumbnail(fileId) {
-  const { data } = await client.get(`/files/${fileId}/thumbnail`);
-  return data;
+  const { data } = await client.get(`/files/${fileId}/thumbnail`, { responseType: 'blob' });
+  return URL.createObjectURL(data);
 }
 
 export async function listDirectories() {

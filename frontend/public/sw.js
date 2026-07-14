@@ -1,7 +1,7 @@
 const CACHES = {
   shell: "media-server-shell-v1",
   api: "media-server-api-v1",
-  thumbs: "media-server-thumbs-v1",
+  thumbs: "media-server-thumbs-v2",
   media: "media-server-media-v1",
   tiles: "media-server-tiles-v1",
   mui: "media-server-mui-v1",

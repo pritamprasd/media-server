@@ -1,3 +1,4 @@
+import base64
 import io
 import os
 import shutil
@@ -432,10 +433,11 @@ def get_file_thumbnail(file_id):
     if not meta or not meta.thumbnail:
         return jsonify({"error": "Thumbnail not available"}), 404
     header, _, b64data = meta.thumbnail.partition(",")
-    return jsonify({
-        "thumbnail": meta.thumbnail,
-        "thumbnail_status": meta.thumbnail_status,
-    }), 200
+    mime = "image/jpeg"
+    if "data:" in header:
+        mime = header.split(";")[0].replace("data:", "") or mime
+    img_bytes = base64.b64decode(b64data)
+    return Response(img_bytes, mimetype=mime)
 
 @files_bp.route("/files/<int:file_id>/regenerate-ai", methods=["POST"])
 def regenerate_ai_metadata(file_id):
