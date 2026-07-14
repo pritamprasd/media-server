@@ -236,6 +236,17 @@
 - **FileViewer UI**: "My Notes" section appears above the AI Description in the sidebar. Supports inline add, edit, and delete. Tags render as small pill badges. Uses `StickyNote` icon from lucide-react.
 - **CSS classes**: `.viewer-mem-*` namespace in `FileViewer.css` — all use neumorphic variables for theme consistency.
 
+### Cron Service (Standalone Container)
+- **Location**: `cron-service/` directory, separate from the main media-server codebase.
+- **Stack**: Flask + Flask-SocketIO + APScheduler + SQLite + rsync subprocess. Jinja2 templates (no React). Deployed via `cron-service/docker-compose.cron.yml`.
+- **Port**: 5010. No shared network with the main media-server Docker services.
+- **Database**: SQLite at `cron-service/data/cron.db`. Two tables: `cron_job` (schedule definitions) and `task_run` (execution history + output logs).
+- **Rsync runner**: Spawns `rsync -avz --progress --stats` as a subprocess. Parses `--progress` lines for live filename/percent streaming and `--stats` output for transfer summaries. Cancellation via `os.kill(pid, SIGTERM)`.
+- **Live updates**: Flask-SocketIO with gevent async mode. Clients join `task_{id}` rooms; server emits `task_progress`, `task_complete` events per line.
+- **YAML config**: `config/jobs.yaml` is the source of truth on startup (synced into SQLite via upsert-by-name). UI edits write back to both SQLite and YAML (bidirectional sync).
+- **Makefile targets**: `make cron-setup`, `make cron-service`, `make cron-docker`, `make cron-docker-down`.
+- **No Postgres, no Redis**: entirely self-contained. Uses gevent for concurrent WebSocket + subprocess handling.
+
 ## Production Deployment
 - Nginx reverse proxy with HTTPS, HTTP/2 support
 - Auto-generated SSL certificates at build time

@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% block title %}Dashboard - Cron Service{% endblock %}
+{% block page_title %}Dashboard{% endblock %}
+
+{% block content %}
+<div class="stats">
+  <div class="stat-card">
+    <div class="stat-card__value">{{ total_jobs }}</div>
+    <div class="stat-card__label">Total Jobs</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-card__value">{{ active_jobs }}</div>
+    <div class="stat-card__label">Active</div>
+  </div>
+  <div class="stat-card stat-card--accent">
+    <div class="stat-card__value">{{ running_tasks }}</div>
+    <div class="stat-card__label">Running</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-card__value">{{ completed_today }}</div>
+    <div class="stat-card__label">Completed Today</div>
+  </div>
+</div>
+
+<h2>Jobs</h2>
+<table class="table">
+  <thead>
+    <tr><th>Name</th><th>Schedule</th><th>Source</th><th>Destination</th><th>Status</th><th>Actions</th></tr>
+  </thead>
+  <tbody>
+    {% for job in jobs %}
+    <tr>
+      <td><strong>{{ job.name }}</strong></td>
+      <td><code>{{ job.schedule }}</code></td>
+      <td class="path-cell">{{ job.source }}</td>
+      <td class="path-cell">{{ job.destination }}</td>
+      <td>
+        <span class="badge badge--{{ 'success' if job.enabled else 'muted' }}">
+          {{ 'Enabled' if job.enabled else 'Disabled' }}
+        </span>
+      </td>
+      <td>
+        <button class="btn btn--sm btn--primary" onclick="runJob({{ job.id }})">Run Now</button>
+      </td>
+    </tr>
+    {% else %}
+    <tr><td colspan="6" class="empty">No jobs configured. <a href="/jobs">Create one</a></td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<h2>Recent Tasks</h2>
+<table class="table">
+  <thead>
+    <tr><th>Job</th><th>Source</th><th>Destination</th><th>Status</th><th>Started</th><th>Summary</th></tr>
+  </thead>
+  <tbody>
+    {% for task in recent_tasks %}
+    <tr class="task-row" data-task-id="{{ task.id }}" onclick="window.location='/tasks#task-{{ task.id }}'">
+      <td>{{ task.job_name or 'Manual' }}</td>
+      <td class="path-cell">{{ task.source }}</td>
+      <td class="path-cell">{{ task.destination }}</td>
+      <td><span class="badge badge--{{ task.status }}">{{ task.status }}</span></td>
+      <td>{{ task.started_at.strftime('%Y-%m-%d %H:%M') if task.started_at else '-' }}</td>
+      <td>{{ task.summary or '-' }}</td>
+    </tr>
+    {% else %}
+    <tr><td colspan="6" class="empty">No tasks yet</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<script>
+function runJob(jobId) {
+  fetch('/api/jobs/' + jobId + '/run', { method: 'POST' })
+    .then(r => r.json())
+    .then(data => {
+      if (data.id) window.location = '/tasks#task-' + data.id;
+    });
+}
+</script>
+{% endblock %}

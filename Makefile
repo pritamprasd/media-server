@@ -220,6 +220,35 @@ logs:
 	fi
 
 # ──────────────────────────────────────────────
+# Cron Service
+# ──────────────────────────────────────────────
+
+CRON_DIR := cron-service
+CRON_VENV := $(CRON_DIR)/.venv
+CRON_PIP := $(CRON_VENV)/bin/pip
+CRON_PYTHON := $(CRON_VENV)/bin/python
+
+.PHONY: cron-setup
+cron-setup:
+	python3 -m venv $(CRON_VENV)
+	$(CRON_PIP) install -r $(CRON_DIR)/requirements.txt
+	@echo 'Cron service ready — run "make cron-service" to start'
+
+.PHONY: cron-service
+cron-service:
+	CRON_DB_PATH=$(CRON_DIR)/data/cron.db \
+	CRON_CONFIG_PATH=$(CRON_DIR)/config/jobs.yaml \
+	$(CRON_PYTHON) $(CRON_DIR)/run.py
+
+.PHONY: cron-docker
+cron-docker:
+	docker compose -f $(CRON_DIR)/docker-compose.cron.yml up --build
+
+.PHONY: cron-docker-down
+cron-docker-down:
+	docker compose -f $(CRON_DIR)/docker-compose.cron.yml down
+
+# ──────────────────────────────────────────────
 # Utility
 # ──────────────────────────────────────────────
 

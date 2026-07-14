@@ -53,6 +53,8 @@ Open **http://localhost:5173** (proxies `/api` to the backend on :5000).
 - **Duplicates** — exact (SHA-256) and near-duplicate (dhash) detection with keep flags.
 - **Collections, favorites, hidden files, user memories, statistics, tools, PWA offline.**
 
+- **Cron Service** — standalone container (:5010) for scheduling rsync folder syncs with live WebSocket progress; SQLite-backed task history; YAML + UI configuration.
+
 See [docs/features.md](docs/features.md) for the complete feature reference.
 
 ## Architecture
@@ -99,6 +101,7 @@ Detailed reference material lives in [`docs/`](docs/):
 | [docs/pwa.md](docs/pwa.md) | PWA / offline behavior and cache stores |
 | [docs/writing-a-tool.md](docs/writing-a-tool.md) | How to build a new auto-discovered tool |
 | [docs/face-detection.md](docs/face-detection.md) | In-depth face detection pipeline |
+| [cron-service/README.md](cron-service/README.md) | Cron service setup, API reference, and configuration |
 
 ## Developer Notes
 

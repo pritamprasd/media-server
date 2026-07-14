@@ -1,0 +1,7 @@
+jobs: []
+  # - name: "Backup Photos"
+  #   source: "/media/photos"
+  #   destination: "/backup/photos"
+  #   schedule: "0 2 * * *"
+  #   enabled: true
+  #   extra_flags: "--compress"

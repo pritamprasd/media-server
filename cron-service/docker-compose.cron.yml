@@ -1,0 +1,20 @@
+services:
+  cron-service:
+    build: ./cron-service
+    container_name: cron-service
+    ports:
+      - "15010:5010"
+    volumes:
+      - ./cron-service/data:/app/data
+      - ./cron-service/config:/app/config
+      - /:/host:ro
+    environment:
+      - FLASK_SECRET_KEY=${CRON_SECRET_KEY:-cron-service-secret-change-me}
+      - CRON_CONFIG_PATH=/app/config/jobs.yaml
+      - CRON_DB_PATH=/app/data/cron.db
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5010/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3

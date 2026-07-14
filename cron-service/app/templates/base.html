@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}Cron Service{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('main.static', filename='css/style.css') }}">
+  {% block head %}{% endblock %}
+</head>
+<body>
+  <nav class="sidebar">
+    <div class="sidebar__brand">Cron</div>
+    <a href="/" class="sidebar__link {% if request.path == '/' %}sidebar__link--active{% endif %}">Dashboard</a>
+    <a href="/jobs" class="sidebar__link {% if request.path == '/jobs' %}sidebar__link--active{% endif %}">Jobs</a>
+    <a href="/tasks" class="sidebar__link {% if request.path == '/tasks' %}sidebar__link--active{% endif %}">Tasks</a>
+  </nav>
+  <main class="content">
+    <header class="topbar">
+      <h1>{% block page_title %}Dashboard{% endblock %}</h1>
+    </header>
+    <section class="page">
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+          {% for cat, msg in messages %}
+            <div class="alert alert--{{ cat }}">{{ msg }}</div>
+          {% endfor %}
+        {% endif %}
+      {% endwith %}
+      {% block content %}{% endblock %}
+    </section>
+  </main>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.5/socket.io.min.js"></script>
+  <script src="{{ url_for('main.static', filename='js/app.js') }}"></script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

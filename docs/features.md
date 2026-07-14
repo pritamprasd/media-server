@@ -223,3 +223,13 @@ See also [docs/face-detection.md](face-detection.md) for the in-depth pipeline.
 - **Persistent volumes** — PostgreSQL data, Redis data, edited images, media files, uploads, SSL certificates
 
 See [docs/monitoring.md](monitoring.md) for metrics details.
+
+## Cron Service (Standalone Container)
+
+- **Separate container** — Flask + Jinja2 + SQLite service running on port 5010, deployed via `cron-service/docker-compose.cron.yml`
+- **Rsync-based sync** — incremental copy using `rsync -avz --progress --stats`; skips identical files automatically; supports local-to-local and remote SSH sync
+- **Live progress** — WebSocket (Flask-SocketIO) streams rsync output line-by-line to the browser with filename and percentage updates
+- **Cron scheduling** — APScheduler with cron expressions; jobs defined in `config/jobs.yaml` and synced bidirectionally with SQLite
+- **Tasks page** — running tasks show live terminal output; history table with status, duration, and full log expand
+- **Job management** — create, edit, enable/disable, delete, and manually trigger jobs from the web UI
+- **Task cancellation** — running rsync processes can be cancelled via SIGTERM from the UI

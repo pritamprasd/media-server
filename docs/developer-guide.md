@@ -51,6 +51,14 @@ The project provides a comprehensive Makefile for common development tasks.
 | `make restart` | Interactive menu to rebuild/restart a single Docker service |
 | `make logs` | Interactive menu to tail logs for a Docker service |
 
+### Cron Service
+| Target | Description |
+|--------|-------------|
+| `make cron-setup` | Create Python venv + install cron-service dependencies |
+| `make cron-service` | Start cron-service dev server on :5010 |
+| `make cron-docker` | Build and run cron-service via docker-compose.cron.yml |
+| `make cron-docker-down` | Stop cron-service Docker container |
+
 ### Utility
 | Target | Description |
 |--------|-------------|
@@ -77,6 +85,7 @@ Celery queue names are dynamically read from `backend/.env` at build time. Confi
 docker compose up -d                          # Start all services
 docker compose -f docker-compose.infra.yml up -d  # Start infra (PG + Redis)
 docker compose -f docker-compose.workers.yml up -d  # Combined worker
+docker compose -f cron-service/docker-compose.cron.yml up -d  # Cron service (:5010)
 docker compose exec backend python scripts/regenerate_heic_thumbnails.py  # Run script
 ```
 

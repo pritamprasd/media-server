@@ -32,6 +32,7 @@ flowchart LR
 | AI | Ollama + InsightFace | Vision/text inference and face detection/recognition |
 | Database | PostgreSQL 16 (prod) / SQLite (dev+test) | Persistent storage for all entities |
 | Maps | Leaflet + OpenStreetMap | GPS visualization with service-worker tile caching |
+| Cron Service | Flask + Jinja2 + SQLite + APScheduler | Standalone rsync cron job manager on :5010 with WebSocket live progress |
 
 ## Request & Data Flow
 
@@ -86,4 +87,4 @@ Queue names are read from `backend/.env` (`CELERY_QUEUE_IMPORT`, `CELERY_QUEUE_M
 ## Deployment Topology
 
 - **Manual:** run the Flask dev server, Celery workers, Vite dev server, PostgreSQL, and Redis directly on the host.
-- **Docker:** 9 services via `docker-compose.yml` (backend, 5 workers, frontend/Nginx, PostgreSQL, Redis). SSL is generated at build time; metrics exposed on ports 9200–9205. A combined-worker variant is available in `docker-compose.workers.yml`. See [docs/developer-guide.md](developer-guide.md) and [docs/getting-started.md](getting-started.md).
+- **Docker:** 9 services via `docker-compose.yml` (backend, 5 workers, frontend/Nginx, PostgreSQL, Redis). SSL is generated at build time; metrics exposed on ports 9200–9205. A combined-worker variant is available in `docker-compose.workers.yml`. The cron service (`cron-service/docker-compose.cron.yml`) runs separately on port 5010 with its own SQLite database. See [docs/developer-guide.md](developer-guide.md) and [docs/getting-started.md](getting-started.md).

@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% block title %}Tasks - Cron Service{% endblock %}
+{% block page_title %}Tasks{% endblock %}
+
+{% block content %}
+<h2>Running</h2>
+<div id="running-tasks">
+  {% for task in running %}
+  <div class="task-card task-card--running" id="task-{{ task.id }}" data-task-id="{{ task.id }}">
+    <div class="task-card__header">
+      <span class="badge badge--running">Running</span>
+      <strong>{{ task.job_name or 'Manual Run' }}</strong>
+      <span class="task-card__meta">PID {{ task.pid or '?' }}</span>
+      <button class="btn btn--sm btn--danger" onclick="cancelTask({{ task.id }})">Cancel</button>
+    </div>
+    <div class="task-card__paths">
+      <code>{{ task.source }}</code> &rarr; <code>{{ task.destination }}</code>
+    </div>
+    <div class="task-card__output" id="output-{{ task.id }}">
+      <pre>{% for line in task.output.split('\n') %}{% if line %}{{ line }}
+{% endif %}{% endfor %}</pre>
+    </div>
+  </div>
+  {% else %}
+  <p class="empty">No tasks running</p>
+  {% endfor %}
+</div>
+
+<h2>History</h2>
+<table class="table">
+  <thead>
+    <tr><th>ID</th><th>Job</th><th>Source</th><th>Destination</th><th>Status</th><th>Started</th><th>Duration</th><th>Summary</th><th></th></tr>
+  </thead>
+  <tbody>
+    {% for task in history %}
+    <tr class="task-row" id="task-{{ task.id }}">
+      <td>#{{ task.id }}</td>
+      <td>{{ task.job_name or 'Manual' }}</td>
+      <td class="path-cell">{{ task.source }}</td>
+      <td class="path-cell">{{ task.destination }}</td>
+      <td><span class="badge badge--{{ task.status }}">{{ task.status }}</span></td>
+      <td>{{ task.started_at.strftime('%Y-%m-%d %H:%M') if task.started_at else '-' }}</td>
+      <td>
+        {% if task.ended_at and task.started_at %}
+          {{ ((task.ended_at - task.started_at).total_seconds() | int) }}s
+        {% else %}-{% endif %}
+      </td>
+      <td>{{ task.summary or '-' }}</td>
+      <td>
+        <button class="btn btn--sm btn--ghost" onclick="toggleOutput({{ task.id }})">Log</button>
+        <button class="btn btn--sm btn--danger" onclick="deleteTask({{ task.id }})">&times;</button>
+      </td>
+    </tr>
+    <tr class="task-output-row" id="output-row-{{ task.id }}" style="display:none">
+      <td colspan="9">
+        <div class="task-card__output task-card__output--static">
+          <pre>{{ task.output or 'No output' }}</pre>
+        </div>
+      </td>
+    </tr>
+    {% else %}
+    <tr><td colspan="9" class="empty">No completed tasks</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<script>
+function toggleOutput(taskId) {
+  const row = document.getElementById('output-row-' + taskId);
+  if (row) row.style.display = row.style.display === 'none' ? '' : 'none';
+}
+
+function cancelTask(taskId) {
+  fetch('/api/tasks/' + taskId + '/cancel', { method: 'POST' })
+    .then(() => window.location.reload());
+}
+
+function deleteTask(taskId) {
+  fetch('/api/tasks/' + taskId, { method: 'DELETE' })
+    .then(() => window.location.reload());
+}
+
+function scrollToHash() {
+  if (window.location.hash) {
+    const el = document.querySelector(window.location.hash);
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+}
+window.addEventListener('load', scrollToHash);
+</script>
+{% endblock %}

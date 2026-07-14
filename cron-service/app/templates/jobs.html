@@ -1,0 +1,148 @@
+{% extends "base.html" %}
+{% block title %}Jobs - Cron Service{% endblock %}
+{% block page_title %}Cron Jobs{% endblock %}
+
+{% block content %}
+<div class="toolbar">
+  <button class="btn btn--primary" onclick="openModal()">+ New Job</button>
+</div>
+
+<table class="table">
+  <thead>
+    <tr><th>Name</th><th>Schedule</th><th>Source</th><th>Destination</th><th>Flags</th><th>Status</th><th>Actions</th></tr>
+  </thead>
+  <tbody>
+    {% for job in jobs %}
+    <tr>
+      <td><strong>{{ job.name }}</strong></td>
+      <td><code>{{ job.schedule }}</code></td>
+      <td class="path-cell">{{ job.source }}</td>
+      <td class="path-cell">{{ job.destination }}</td>
+      <td><code>{{ job.extra_flags or '-' }}</code></td>
+      <td>
+        <span class="badge badge--{{ 'success' if job.enabled else 'muted' }}">
+          {{ 'Enabled' if job.enabled else 'Disabled' }}
+        </span>
+      </td>
+      <td class="actions">
+        <button class="btn btn--sm btn--primary" onclick="runJob({{ job.id }})">Run</button>
+        <button class="btn btn--sm" onclick="toggleJob({{ job.id }})">
+          {{ 'Disable' if job.enabled else 'Enable' }}
+        </button>
+        <button class="btn btn--sm" onclick="editJob(this)" data-job="{{ job.to_dict() | tojson | e }}">Edit</button>
+        <button class="btn btn--sm btn--danger" onclick="deleteJob({{ job.id }}, '{{ job.name }}')">Delete</button>
+      </td>
+    </tr>
+    {% else %}
+    <tr><td colspan="7" class="empty">No jobs configured. Click "+ New Job" to create one.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<div class="modal-overlay" id="modal-overlay" onclick="closeModal()">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal__header">
+      <h3 id="modal-title">New Job</h3>
+      <button class="modal__close" onclick="closeModal()">&times;</button>
+    </div>
+    <form id="job-form" onsubmit="submitJob(event)">
+      <input type="hidden" id="job-id" value="">
+      <div class="form-group">
+        <label for="job-name">Name</label>
+        <input type="text" id="job-name" required placeholder="e.g. Backup Photos">
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label for="job-source">Source Path</label>
+          <input type="text" id="job-source" required placeholder="/mnt/photos or user@host:/path">
+        </div>
+        <div class="form-group">
+          <label for="job-dest">Destination Path</label>
+          <input type="text" id="job-dest" required placeholder="/backup/photos or user@host:/path">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label for="job-schedule">Schedule (cron)</label>
+          <input type="text" id="job-schedule" value="0 2 * * *" required placeholder="0 2 * * *">
+          <small>min hour day month weekday</small>
+        </div>
+        <div class="form-group">
+          <label for="job-flags">Extra Rsync Flags</label>
+          <input type="text" id="job-flags" placeholder="--compress --delete">
+        </div>
+      </div>
+      <div class="form-group">
+        <label><input type="checkbox" id="job-enabled" checked> Enabled</label>
+      </div>
+      <div class="form-actions">
+        <button type="button" class="btn" onclick="closeModal()">Cancel</button>
+        <button type="submit" class="btn btn--primary">Save</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+function openModal(job) {
+  document.getElementById('modal-title').textContent = job ? 'Edit Job' : 'New Job';
+  document.getElementById('job-id').value = job ? job.id : '';
+  document.getElementById('job-name').value = job ? job.name : '';
+  document.getElementById('job-source').value = job ? job.source : '';
+  document.getElementById('job-dest').value = job ? job.destination : '';
+  document.getElementById('job-schedule').value = job ? job.schedule : '0 2 * * *';
+  document.getElementById('job-flags').value = job ? (job.extra_flags || '') : '';
+  document.getElementById('job-enabled').checked = job ? job.enabled : true;
+  document.getElementById('modal-overlay').classList.add('modal-overlay--visible');
+}
+
+function closeModal() {
+  document.getElementById('modal-overlay').classList.remove('modal-overlay--visible');
+}
+
+function editJob(btn) {
+  const job = JSON.parse(btn.dataset.job);
+  openModal(job);
+}
+
+function submitJob(e) {
+  e.preventDefault();
+  const id = document.getElementById('job-id').value;
+  const data = {
+    name: document.getElementById('job-name').value,
+    source: document.getElementById('job-source').value,
+    destination: document.getElementById('job-dest').value,
+    schedule: document.getElementById('job-schedule').value,
+    extra_flags: document.getElementById('job-flags').value,
+    enabled: document.getElementById('job-enabled').checked,
+  };
+  const url = id ? '/api/jobs/' + id : '/api/jobs';
+  const method = id ? 'PUT' : 'POST';
+  fetch(url, {
+    method,
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  }).then(r => {
+    if (r.ok) window.location.reload();
+    else r.json().then(d => alert(d.error || 'Error'));
+  });
+}
+
+function runJob(id) {
+  fetch('/api/jobs/' + id + '/run', { method: 'POST' })
+    .then(r => r.json())
+    .then(data => { if (data.id) window.location = '/tasks#task-' + data.id; });
+}
+
+function toggleJob(id) {
+  fetch('/api/jobs/' + id + '/toggle', { method: 'POST' })
+    .then(() => window.location.reload());
+}
+
+function deleteJob(id, name) {
+  if (!confirm('Delete job "' + name + '"?')) return;
+  fetch('/api/jobs/' + id, { method: 'DELETE' })
+    .then(() => window.location.reload());
+}
+</script>
+{% endblock %}
