@@ -64,7 +64,7 @@ class Config:
     # Minimum confidence score for InsightFace to report a detection. Lower
     # values detect more faces (including blurry/occluded ones) but increase
     # false positives. Range: 0.0–1.0. Default 0.3.
-    FACE_DET_THRESH = float(os.environ.get("FACE_DET_THRESH", "0.5"))
+    FACE_DET_THRESH = float(os.environ.get("FACE_DET_THRESH", "0.75"))
     # Number of images to batch together into a single detect_faces Celery task.
     # Larger batches reuse the loaded FaceAnalysis model for more images per
     # invocation, reducing per-image overhead. Higher values use more memory.
