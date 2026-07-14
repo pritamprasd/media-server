@@ -6,7 +6,7 @@ from app.rsync_runner import run_task, cancel_task
 from app.config_loader import save_config
 from app.scheduler import resync_scheduler
 
-bp = Blueprint("main", __name__)
+bp = Blueprint("main", __name__, static_folder="static")
 
 
 def trigger_job_run(job_id):
