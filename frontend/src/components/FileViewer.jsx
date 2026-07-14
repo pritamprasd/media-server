@@ -152,7 +152,7 @@ function FileViewer({ file, onClose, onToggleFavorite, onEditSave, onDelete, onN
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [exifExpanded, setExifExpanded] = useState(window.innerWidth > 768);
+  const [exifExpanded, setExifExpanded] = useState(false);
   const [editingDateTaken, setEditingDateTaken] = useState(false);
   const [dateTakenInput, setDateTakenInput] = useState("");
   const [dateSaving, setDateSaving] = useState(false);

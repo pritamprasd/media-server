@@ -233,6 +233,7 @@
 
 ### FileViewer — AI Description Regeneration
 - **"Delete & Regenerate" button**: Shown when `meta.description` exists AND `metadata_status === "completed"`. Calls `regenerateAiMetadata(file.id)` then polls `getFileMetadata(file.id)` every 2 seconds (max 30 attempts) until `metadata_status` becomes `"completed"` or `"failed"`. Uses `pollRef.current` for cleanup.
+- **EXIF data collapsed by default**: `exifExpanded` state defaults to `false`. The EXIF section (`.viewer-exif-toggle`) is collapsed with a `▶` arrow; clicking toggles `max-height` between 0 and 300px via `.viewer-exif-content--expanded`. Previously defaulted to `true` on desktop.
 - **Location loading state**: `locationLoading` state set to `true` while `reverseGeocode` is in-flight. Shows a Spinner icon next to "Location" label in the meta sidebar while geocoding is pending. Backend `reverse_geocode` in `routes.py` only caches successful results (no `None` cache entries).
 - **Float buttons mobile UX**: On screens ≤768px, float buttons reduced to 34px (from 40px), gap to 0.35rem, icon SVGs scaled to 14px via CSS. Close button retains 16px. `.viewer-float-btn--zoom` is always 34px.
 - **Zoom hover buttons**: `.viewer-zoom-controls` div positioned absolutely at bottom-right of `.viewer-body`. Hidden by default (`opacity: 0`), shown on `.viewer-body:hover` (`opacity: 1`). Contains ZoomOut button, percentage label, and ZoomIn button. Uses existing `zoom` state (0.25–5x range, step via ×1.2/÷1.2). On mobile (≤768px), always visible and centered at bottom.
