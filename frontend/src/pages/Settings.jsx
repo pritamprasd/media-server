@@ -559,7 +559,7 @@ function Settings() {
 
   const summaryFor = (id) => {
     switch (id) {
-      case "appearance": return `${style === "material" ? "Material" : "Neumorphic"} / ${mode === "dark" ? "Dark" : "Light"}`;
+      case "appearance": return `${style === "material" ? "Material" : style === "offbeat" ? "Offbeat" : "Neumorphic"} / ${mode === "dark" ? "Dark" : "Light"}`;
       case "airplane-mode": return airplaneModeState ? "ON" : "OFF";
       case "hidden-files": return hiddenUnlocked ? "Unlocked" : "Locked";
       case "home-columns": return COLUMN_OPTIONS.find((o) => o.value === columns)?.label || "Auto";
@@ -585,7 +585,7 @@ function Settings() {
             <div className="settings__appearance-section">
               <span className="settings__appearance-label">Style</span>
               <div className="settings__appearance-options">
-                {[{ id: "neumorphic", label: "Neumorphic", desc: "Soft shadows with depth" }, { id: "material", label: "Material", desc: "Flat design with elevation" }].map((s) => (
+                {[{ id: "neumorphic", label: "Neumorphic", desc: "Soft shadows with depth" }, { id: "material", label: "Material", desc: "Flat design with elevation" }, { id: "offbeat", label: "Offbeat", desc: "Warm earthy tones with accent tints" }].map((s) => (
                   <button
                     key={s.id}
                     className={`settings__appearance-card ${style === s.id ? "settings__appearance-card--active" : ""}`}

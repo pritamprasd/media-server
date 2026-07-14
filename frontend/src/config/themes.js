@@ -9,6 +9,11 @@ export const THEMES = {
     modes: ["dark", "light"],
     description: "Flat design with clean elevation",
   },
+  offbeat: {
+    label: "Offbeat",
+    modes: ["dark", "light"],
+    description: "Warm earthy tones with subtle accent tints",
+  },
 };
 
 export const DEFAULT_THEME = { style: "neumorphic", mode: "dark" };

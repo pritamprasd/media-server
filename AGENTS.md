@@ -134,13 +134,15 @@
 - **Adding shortcuts**: Append entries to `shortcuts.yaml`. `chrome://` and related browser-internal links belong here (they copy to clipboard); same-site HTTP links (e.g. `/docs`) are also allowed and will open in a new tab.
 
 ### Theme System (Style + Mode)
-- **Two-axis theme**: `data-style` (neumorphic|material) × `data-mode` (dark|light) on `<html>` gives 4 theme combinations. Persisted to IndexedDB as `themeStyle` and `themeMode`.
-- **ThemeContext API**: `useTheme()` returns `{ style, mode, setStyle, setMode, toggleMode }`. `toggleMode` flips dark/light (used by Navbar button). `setStyle` switches between neumorphic and material.
+- **Two-axis theme**: `data-style` (neumorphic|material|offbeat) × `data-mode` (dark|light) on `<html>` gives 6 theme combinations. Persisted to IndexedDB as `themeStyle` and `themeMode`.
+- **ThemeContext API**: `useTheme()` returns `{ style, mode, setStyle, setMode, toggleMode }`. `toggleMode` flips dark/light (used by Navbar button). `setStyle` switches between neumorphic, material, and offbeat.
 - **CSS variable architecture**: `index.css` defines variables under `[data-style="X"][data-mode="Y"]` selectors. All components use `var(--color-*)` and `var(--neu-*)` — theme switching is instant via attribute change.
+- **`--color-accent`**: Added to all 6 theme blocks. Offbeat theme uses a distinct accent (`sage green #7a9e7e` dark / `#6b8f6b` light) for subtle button hover tints. Neumorphic and material set accent equal to primary. Global offbeat rules tint `.viewer-btn` and `.upload__btn` hover with `color-mix(in srgb, var(--color-accent) 10%, transparent)`.
+- **Offbeat theme**: Warm, earthy palette (terracotta primary, sage accent) with neumorphic-style dual shadows. Hover on non-primary buttons gets a subtle sage tint. Active nav links keep primary (terracotta).
 - **Material theme (MUI)**: `@mui/material` + `@emotion/react` + `@emotion/styled` are installed but **lazy-loaded** via `MaterialThemeWrapper.jsx` → dynamic `import("./MuiThemeProvider")`. Vite code-splits MUI into a separate chunk (~31KB gzip) that is only fetched when `style === "material"`. Service worker caches MUI chunk in `media-server-mui-v1` cache.
-- **Adding a new theme style**: Add entry to `frontend/src/config/themes.js`, add CSS variable block in `index.css` with `[data-style="newstyle"][data-mode="dark|light"]` selectors, and optionally create a lazy-loaded theme wrapper if it needs external dependencies.
-- **Missing CSS variables**: `--color-border`, `--color-surface-light`, `--color-success` are now defined in all 4 theme blocks. Use these with fallbacks: `var(--color-success, #2ecc71)`.
-- **Subtle dark mode icons**: `[data-mode="dark"] svg` gets `opacity: 0.85` and filled icons get `opacity: 0.9` to reduce visual harshness on dark backgrounds. Dark mode palettes use muted primary colors (neumorphic: `#e0525e`, material: `#a87be0`).
+- **Adding a new theme style**: Add entry to `frontend/src/config/themes.js`, add CSS variable block in `index.css` with `[data-style="newstyle"][data-mode="dark|light"]` selectors, include `--color-accent`, and optionally create a lazy-loaded theme wrapper if it needs external dependencies.
+- **Missing CSS variables**: `--color-border`, `--color-surface-light`, `--color-success`, `--color-accent` are now defined in all 6 theme blocks. Use these with fallbacks: `var(--color-success, #2ecc71)`.
+- **Subtle dark mode icons**: `[data-mode="dark"] svg` gets `opacity: 0.85` and filled icons get `opacity: 0.9` to reduce visual harshness on dark backgrounds. Dark mode palettes use muted primary colors (neumorphic: `#e0525e`, material: `#a87be0`, offbeat: `#c67a4b`).
 
 ### Settings Page Architecture
 - **Registry pattern**: `frontend/src/config/settings.js` exports `SETTINGS` array — each entry has `{ id, label, icon, description }`. Adding a new setting = adding an entry to this array + implementing `renderDialogContent(id)` case in `Settings.jsx`.

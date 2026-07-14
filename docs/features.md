@@ -205,10 +205,11 @@ See also [docs/face-detection.md](face-detection.md) for the in-depth pipeline.
 - **Airplane mode** — toggle in the app to disable all AI/network calls; sets `X-Airplane-Mode: 1` header; geocoding and AI regeneration skip when active
 
 ## 🎨 Design System
-- **Theme system (Style × Mode)** — two-axis theming: Style (Neumorphic / Material) × Mode (Dark / Light) gives 4 theme combinations; persists to IndexedDB as `themeStyle` and `themeMode`; toggle mode via navbar sun/moon button, select style from Settings
+- **Theme system (Style × Mode)** — two-axis theming: Style (Neumorphic / Material / Offbeat) × Mode (Dark / Light) gives 6 theme combinations; persists to IndexedDB as `themeStyle` and `themeMode`; toggle mode via navbar sun/moon button, select style from Settings
 - **Neumorphic UI** — custom box-shadow system (`--neu-raised`, `--neu-inset`, `--neu-flat`) across all interactive elements
 - **Material Design theme** — MUI (`@mui/material` + `@emotion`) lazy-loaded only when Material style is selected; Vite code-splits into separate ~31KB gzip chunk; service worker caches in `media-server-mui-v1` cache
-- **CSS variables** — 20+ custom properties per theme block; `--color-border`, `--color-surface-light`, `--color-success` defined across all 4 variants
+- **Offbeat theme** — warm earthy palette (terracotta primary, sage accent) with neumorphic-style shadows; `--color-accent` adds subtle sage-green hover tint to buttons; distinct from neumorphic in both palette and interactive feel
+- **CSS variables** — 20+ custom properties per theme block; `--color-border`, `--color-surface-light`, `--color-success`, `--color-accent` defined across all 6 variants
 - **Accent color** — independent accent color override (`--color-primary`) persists across theme style changes; reset to theme default via Settings
 - **Animations** — 10 CSS-only SpinKit spinner variants (ring, dual-ring, dots, pulse, bars, hourglass, ripple, infinity, grid, circle) with size/color theming
 - **Lucide icons** — every button uses a thoughtful lucide-react icon
