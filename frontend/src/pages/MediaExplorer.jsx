@@ -44,6 +44,7 @@ function MediaExplorer() {
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [contextMenu, setContextMenu] = useState(null);
   const [previewFile, setPreviewFile] = useState(null);
+  const previewFileRef = useRef(null);
   const [dragOver, setDragOver] = useState(false);
   const [showNewMenu, setShowNewMenu] = useState(false);
   const [clipboard, setClipboard] = useState(null);
@@ -499,8 +500,36 @@ function MediaExplorer() {
       navigateTo(item.path);
       return;
     }
-    setPreviewFile({ id: item.id, filename: item.name || item.filename });
+    const fileObj = { id: item.id, filename: item.name || item.filename, is_favorite: item.is_favorite };
+    previewFileRef.current = fileObj;
+    setPreviewFile(fileObj);
   };
+
+  const fileItems = useMemo(() => items.filter((it) => it.kind === "file"), [items]);
+
+  const handleNavigatePrev = useCallback(() => {
+    const currentId = previewFileRef.current?.id;
+    if (currentId == null) return;
+    const idx = fileItems.findIndex((f) => f.id === currentId);
+    if (idx > 0) {
+      const prev = fileItems[idx - 1];
+      const fileObj = { id: prev.id, filename: prev.name || prev.filename, is_favorite: prev.is_favorite };
+      previewFileRef.current = fileObj;
+      setPreviewFile(fileObj);
+    }
+  }, [fileItems]);
+
+  const handleNavigateNext = useCallback(() => {
+    const currentId = previewFileRef.current?.id;
+    if (currentId == null) return;
+    const idx = fileItems.findIndex((f) => f.id === currentId);
+    if (idx >= 0 && idx < fileItems.length - 1) {
+      const next = fileItems[idx + 1];
+      const fileObj = { id: next.id, filename: next.name || next.filename, is_favorite: next.is_favorite };
+      previewFileRef.current = fileObj;
+      setPreviewFile(fileObj);
+    }
+  }, [fileItems]);
 
   const handleDragStart = (e, item) => {
     const id = item.id || item.path;
@@ -1034,7 +1063,14 @@ function MediaExplorer() {
         </button>
       )}
 
-      {previewFile && <FileViewer file={previewFile} onClose={() => setPreviewFile(null)} />}
+      {previewFile && (
+        <FileViewer
+          file={previewFile}
+          onClose={() => { previewFileRef.current = null; setPreviewFile(null); }}
+          onNavigatePrev={fileItems.length > 1 ? handleNavigatePrev : undefined}
+          onNavigateNext={fileItems.length > 1 ? handleNavigateNext : undefined}
+        />
+      )}
     </div>
   );
 }
