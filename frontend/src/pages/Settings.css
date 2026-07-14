@@ -755,6 +755,92 @@
   transform: translateX(18px);
 }
 
+/* ── Admin PIN gate ────────────────────────────────────────────────── */
+
+.settings__admin-pin-gate {
+  margin-bottom: 0.75rem;
+}
+
+.settings__admin-pin-label {
+  margin: 0 0 0.4rem;
+  font-size: 0.8125rem;
+  color: var(--color-text-muted);
+}
+
+.settings__admin-pin-bar {
+  display: flex;
+  gap: 0.4rem;
+  margin-bottom: 0.5rem;
+}
+
+.settings__row--locked {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.settings__row--locked:hover {
+  box-shadow: none;
+}
+
+/* ── Admin tag list ────────────────────────────────────────────────── */
+
+.settings__admin-tags {
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.settings__tag-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.settings__tag-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.5rem;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+}
+
+.settings__tag-name {
+  flex: 1;
+  font-size: 0.875rem;
+  color: var(--color-text);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.settings__tag-count {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  background: var(--color-surface);
+  padding: 0.1rem 0.4rem;
+  border-radius: 9999px;
+  min-width: 1.5rem;
+  text-align: center;
+}
+
+.settings__tag-rename {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  width: 100%;
+}
+
+.settings__btn--danger {
+  color: var(--color-danger);
+}
+
+.settings__btn--danger:hover {
+  background: var(--color-danger);
+  color: #fff;
+}
+
 @media (max-width: 768px) {
   .settings {
     padding: 1rem 0.75rem;

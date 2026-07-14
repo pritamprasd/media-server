@@ -2,7 +2,7 @@ import {
   Palette, WifiOff, Lock,
   LayoutGrid, User, Database, MapPin, Scan,
   ArrowUp, ArrowDown, Navigation, ExternalLink,
-  Smartphone, Sparkles, Camera, Image, ScanFace, Wrench,
+  Smartphone, Sparkles, Camera, Image, ScanFace, Wrench, Tags,
 } from "lucide-react";
 
 export const SETTINGS = [
@@ -124,6 +124,13 @@ export const ADMIN_TASKS = [
     icon: ScanFace,
     description: "Detect and save faces in all unscanned media",
     action: "faces",
+  },
+  {
+    id: "admin-tags",
+    label: "Manage Tags",
+    icon: Tags,
+    description: "Rename or delete tags across all media",
+    action: "tags",
   },
   {
     id: "admin-tools",

@@ -17,6 +17,7 @@ All endpoints are prefixed with `/api` unless noted. Authentication is via the h
 | PATCH | `/api/files/<id>/tags` | Update tags (replaces array) |
 | PATCH | `/api/files/<id>/metadata` | Update date_taken |
 | POST | `/api/files/verify-hidden-pin` | Validate hidden files PIN |
+| POST | `/api/files/change-hidden-pin` | Change hidden files PIN: `{ "old_pin": "...", "new_pin": "..." }` |
 | POST | `/api/files/unhide` | PIN-guarded bulk unhide |
 | GET | `/api/files/<id>/serve` | Serve file (images auto-resized >1MB; HEIC/HEIF converted to JPEG) |
 | GET | `/api/files/<id>/download` | Force download (as_attachment) |
@@ -42,8 +43,10 @@ All endpoints are prefixed with `/api` unless noted. Authentication is via the h
 | POST | `/api/admin/bulk-exif` | Queue `extract_file_metadata` for all files missing EXIF/metadata |
 | POST | `/api/admin/bulk-thumbnails` | Queue `generate_thumbnail` for all files missing a thumbnail |
 | POST | `/api/admin/bulk-faces` | Queue `detect_faces` for all image files not yet scanned for faces |
+| POST | `/api/admin/tags/rename` | Rename a tag across all files: `{ "old_tag": "...", "new_tag": "..." }` → `{ "renamed": <count> }` |
+| POST | `/api/admin/tags/delete` | Remove a tag from all files: `{ "tag": "..." }` → `{ "deleted": <count> }` |
 
-All four return `{ "queued": <count> }` (HTTP 202). The heavy work is fanned out to the existing Celery workers; the response only reports how many files were queued.
+The bulk tasks return `{ "queued": <count> }` (HTTP 202). The heavy work is fanned out to the existing Celery workers; the response only reports how many files were queued. Tag operations use raw SQL `jsonb_agg` for atomic bulk updates.
 
 ## Import & Upload
 | Method | Path | Description |

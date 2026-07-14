@@ -125,7 +125,7 @@ See also [docs/face-detection.md](face-detection.md) for the in-depth pipeline.
 - **Filtered view** — dedicated Favorites page with unfavorite inline
 
 ## 👁️ Hidden Files
-- **PIN-protected access** — 6-digit PIN set via `HIDDEN_FILES_PIN` in backend `.env` (default `"000000"`); unlock in Settings to reveal the Hidden Files tab in the navbar
+- **PIN-protected access** — 6-digit PIN set via `HIDDEN_FILES_PIN` in backend `.env` (default `"000000"`); unlock in Settings to reveal the Hidden Files tab in thenavbar; Change PIN flow available (validates current PIN, updates config at runtime)
 - **Hide from any view** — EyeOff button on Home thumbnails, Explorer tiles, and FileViewer (both header bar and float actions); hides using a boolean `is_hidden` database flag — no file movement
 - **Hidden page** — dedicated `/hidden` page mirrors Home layout (grid, search, sort, mime filters, infinite scroll); requires the `X-Hidden-Pin` header for all requests
 - **Unhide** — unhide from the Hidden page or FileViewer; also PIN-guarded with bulk unhide support
@@ -164,7 +164,9 @@ See also [docs/face-detection.md](face-detection.md) for the in-depth pipeline.
   - **Generate EXIF Data** — queues metadata extraction for all files missing EXIF/metadata
   - **Generate Thumbnails** — queues thumbnail generation for all files missing a thumbnail
   - **Detect & Save Faces** — queues face detection for all image files not yet scanned
+  - **Manage Tags** — rename or delete tags across all media; lists all tags with frequency counts; inline rename (input + save) and delete (with confirmation) actions
   - **Manage Tools** — enable/disable individual tools in the Tools tab; disabled tools are hidden from the grid and persisted to IndexedDB (`disabledTools`)
+  - **Admin Tasks PIN** — optional 6-digit PIN gate for the Admin Tasks section; PIN stored in IndexedDB; validated client-side; lock/unlock state is session-only (resets on page refresh); Change PIN flow available
 
 ## 🧰 Tools
 - **Tool system** — declarative imperative DOM framework; drop a `.js` or `.html` file into `frontend/src/tools/` and it's auto-discovered via `import.meta.glob`; no route, import, or config change needed

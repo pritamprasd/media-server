@@ -388,6 +388,18 @@ def verify_hidden_pin():
         return jsonify({"error": "Invalid PIN"}), 403
     return jsonify({"valid": True}), 200
 
+@files_bp.route("/files/change-hidden-pin", methods=["POST"])
+def change_hidden_pin():
+    data = request.get_json(force=True)
+    old_pin = data.get("old_pin", "")
+    new_pin = data.get("new_pin", "")
+    if old_pin != current_app.config["HIDDEN_FILES_PIN"]:
+        return jsonify({"error": "Current PIN is incorrect"}), 403
+    if len(new_pin) != 6 or not new_pin.isdigit():
+        return jsonify({"error": "New PIN must be exactly 6 digits"}), 400
+    current_app.config["HIDDEN_FILES_PIN"] = new_pin
+    return jsonify({"success": True}), 200
+
 @files_bp.route("/files/unhide", methods=["POST"])
 def unhide_files():
     pin = request.headers.get("X-Hidden-Pin", "")

@@ -6,7 +6,7 @@ import {
 } from "lucide-react";
 import { getPref, setPref, clearApiCache, getStorageEstimate } from "../services/db";
 import Spinner from "../components/Spinner";
-import { setAirplaneMode, adminBulkAi, adminBulkExif, adminBulkThumbnails, adminBulkFaces } from "../services/api";
+import { setAirplaneMode, adminBulkAi, adminBulkExif, adminBulkThumbnails, adminBulkFaces, adminRenameTag, adminDeleteTag, getAllTags } from "../services/api";
 import { useTheme } from "../contexts/ThemeContext";
 import { SETTINGS, ADMIN_TASKS, ADMIN_TASKS_MAP } from "../config/settings";
 import shortcuts from "../data/shortcuts.yaml";
@@ -82,6 +82,7 @@ function Settings() {
   const [hiddenPinInput, setHiddenPinInput] = useState("");
   const [hiddenUnlocked, setHiddenUnlocked] = useState(false);
   const [hiddenPinError, setHiddenPinError] = useState(false);
+  const [hiddenPinMode, setHiddenPinMode] = useState("unlock");
   const [storageUsed, setStorageUsed] = useState(null);
   const [copiedUrl, setCopiedUrl] = useState(null);
   const [mapZoomSaved, setMapZoomSaved] = useState(false);
@@ -93,6 +94,17 @@ function Settings() {
   const [orientationLock, setOrientationLock] = useState(false);
   const [adminBusy, setAdminBusy] = useState(null);
   const [adminResults, setAdminResults] = useState({});
+  const [adminPin, setAdminPin] = useState(null);
+  const [adminPinUnlocked, setAdminPinUnlocked] = useState(false);
+  const [adminPinInput, setAdminPinInput] = useState("");
+  const [adminPinError, setAdminPinError] = useState(false);
+  const [adminPinMode, setAdminPinMode] = useState("unlock");
+  const [adminTags, setAdminTags] = useState([]);
+  const [adminTagsLoading, setAdminTagsLoading] = useState(false);
+  const [renamingTagIdx, setRenamingTagIdx] = useState(null);
+  const [renameValue, setRenameValue] = useState("");
+  const [adminTagsBusy, setAdminTagsBusy] = useState(false);
+  const [adminTagsMessage, setAdminTagsMessage] = useState(null);
   const [disabledTools, setDisabledTools] = useState(() => new Set());
   const [allTools, setAllTools] = useState([]);
   const navigate = useNavigate();
@@ -126,6 +138,10 @@ function Settings() {
     getPref("orientationLock", false).then(setOrientationLock);
     getPref(DISABLED_TOOLS_KEY, []).then((ids) => setDisabledTools(new Set(ids)));
     setAllTools(getTools());
+    getPref("adminPin", null).then((pin) => {
+      setAdminPin(pin);
+      if (!pin) setAdminPinUnlocked(true);
+    });
     return () => navigator.serviceWorker?.removeEventListener("message", onCacheMsg);
   }, []);
 
@@ -143,7 +159,8 @@ function Settings() {
   // Refresh cache status every time the Offline Cache dialog is opened.
   useEffect(() => {
     if (openDialog === "offline-cache") requestCacheStatus();
-  }, [openDialog, requestCacheStatus]);
+    if (openDialog === "admin-tags") loadAdminTags();
+  }, [openDialog, requestCacheStatus, loadAdminTags]);
 
   // Re-fetch once the service worker takes control of the page.
   useEffect(() => {
@@ -340,7 +357,38 @@ function Settings() {
     sessionStorage.removeItem("hidden_pin_unlocked");
     setHiddenUnlocked(false);
     setHiddenPinInput("");
+    setHiddenPinMode("unlock");
     window.dispatchEvent(new Event("hidden-pin-changed"));
+  };
+
+  const handleHiddenPinChangeNext = async () => {
+    const pin = hiddenPinInput.trim();
+    if (pin.length !== 6) { setHiddenPinError(true); return; }
+    try {
+      const { verifyHiddenPin } = await import("../services/api");
+      await verifyHiddenPin(pin);
+      setHiddenPinMode("set-new");
+      setHiddenPinInput("");
+      setHiddenPinError(false);
+    } catch {
+      setHiddenPinError(true);
+    }
+  };
+
+  const handleHiddenPinSaveNew = async () => {
+    const newPin = hiddenPinInput.trim();
+    if (newPin.length !== 6) { setHiddenPinError(true); return; }
+    try {
+      const { changeHiddenPin } = await import("../services/api");
+      const oldPin = sessionStorage.getItem("hidden_pin") || "";
+      await changeHiddenPin(oldPin, newPin);
+      sessionStorage.setItem("hidden_pin", newPin);
+      setHiddenPinMode("unlock");
+      setHiddenPinInput("");
+      setHiddenPinError(false);
+    } catch {
+      setHiddenPinError(true);
+    }
   };
 
   const handleOrientationToggle = async () => {
@@ -386,6 +434,106 @@ function Settings() {
       setAdminResults((prev) => ({ ...prev, [action]: "error" }));
     } finally {
       setAdminBusy(null);
+    }
+  };
+
+  const handleAdminPinUnlock = () => {
+    const pin = adminPinInput.trim();
+    if (pin.length !== 6 || pin !== adminPin) {
+      setAdminPinError(true);
+      return;
+    }
+    setAdminPinUnlocked(true);
+    setAdminPinError(false);
+    setAdminPinInput("");
+  };
+
+  const handleAdminPinSet = () => {
+    const pin = adminPinInput.trim();
+    if (pin.length !== 6) {
+      setAdminPinError(true);
+      return;
+    }
+    setPref("adminPin", pin);
+    setAdminPin(pin);
+    setAdminPinUnlocked(true);
+    setAdminPinError(false);
+    setAdminPinInput("");
+    setAdminPinMode("unlock");
+  };
+
+  const handleAdminPinChange = () => {
+    const current = adminPinInput.trim();
+    if (current !== adminPin) {
+      setAdminPinError(true);
+      return;
+    }
+    setAdminPinMode("set-new");
+    setAdminPinInput("");
+    setAdminPinError(false);
+  };
+
+  const handleAdminPinSaveNew = () => {
+    const pin = adminPinInput.trim();
+    if (pin.length !== 6) {
+      setAdminPinError(true);
+      return;
+    }
+    setPref("adminPin", pin);
+    setAdminPin(pin);
+    setAdminPinInput("");
+    setAdminPinMode("unlock");
+    setAdminPinError(false);
+  };
+
+  const handleAdminPinLock = () => {
+    setAdminPinUnlocked(false);
+    setAdminPinInput("");
+    setAdminPinError(false);
+    setAdminPinMode("unlock");
+  };
+
+  const loadAdminTags = useCallback(async () => {
+    setAdminTagsLoading(true);
+    try {
+      const data = await getAllTags();
+      setAdminTags(data.tags || []);
+    } catch {
+      setAdminTags([]);
+    } finally {
+      setAdminTagsLoading(false);
+    }
+  }, []);
+
+  const handleRenameTag = async (oldTag) => {
+    const newTag = renameValue.trim();
+    if (!newTag || newTag === oldTag) { setRenamingTagIdx(null); return; }
+    setAdminTagsBusy(true);
+    setAdminTagsMessage(null);
+    try {
+      await adminRenameTag(oldTag, newTag);
+      setAdminTags((prev) => prev.map((t) => t.tag === oldTag ? { tag: newTag, count: t.count } : t));
+      setAdminTagsMessage({ type: "success", text: `Renamed "${oldTag}" to "${newTag}"` });
+    } catch {
+      setAdminTagsMessage({ type: "error", text: `Failed to rename "${oldTag}"` });
+    } finally {
+      setRenamingTagIdx(null);
+      setRenameValue("");
+      setAdminTagsBusy(false);
+    }
+  };
+
+  const handleDeleteTag = async (tag) => {
+    setAdminTagsBusy(true);
+    setAdminTagsMessage(null);
+    try {
+      await adminDeleteTag(tag);
+      setAdminTags((prev) => prev.filter((t) => t.tag !== tag));
+      setAdminTagsMessage({ type: "success", text: `Deleted tag "${tag}" from all media` });
+    } catch {
+      setAdminTagsMessage({ type: "error", text: `Failed to delete "${tag}"` });
+    } finally {
+      setAdminTagsBusy(false);
     }
   };
 
@@ -508,6 +656,37 @@ function Settings() {
         );
 
       case "hidden-files":
+        if (hiddenPinMode === "set-new") {
+          return (
+            <>
+              <p style={{ color: "var(--color-text-muted)", fontSize: "0.8125rem", margin: "0 0 0.5rem" }}>Enter new 6-digit PIN:</p>
+              <div className="settings__nickname-row">
+                <input
+                  className="settings__input"
+                  type="password"
+                  maxLength={6}
+                  placeholder="New 6-digit PIN"
+                  value={hiddenPinInput}
+                  onChange={(e) => { setHiddenPinInput(e.target.value); setHiddenPinError(false); }}
+                  onKeyDown={(e) => { if (e.key === "Enter") handleHiddenPinSaveNew(); }}
+                  autoFocus
+                  style={{ width: "160px", letterSpacing: "0.25em", fontSize: "1.1rem" }}
+                />
+                <button className="settings__btn" onClick={handleHiddenPinSaveNew}>
+                  <Check size={14} /> Save
+                </button>
+                <button className="settings__btn" onClick={() => { setHiddenPinMode("unlock"); setHiddenPinInput(""); setHiddenPinError(false); }}>
+                  Cancel
+                </button>
+              </div>
+              {hiddenPinError && (
+                <p style={{ color: "var(--color-danger)", fontSize: "0.8125rem", marginTop: "0.25rem" }}>
+                  New PIN must be exactly 6 digits.
+                </p>
+              )}
+            </>
+          );
+        }
         return (
           <>
             <div className="settings__nickname-row">
@@ -515,15 +694,20 @@ function Settings() {
                 className="settings__input"
                 type="password"
                 maxLength={6}
-                placeholder="Enter 6-digit PIN"
+                placeholder={hiddenPinMode === "change" ? "Current PIN" : "Enter 6-digit PIN"}
                 value={hiddenPinInput}
                 onChange={(e) => { setHiddenPinInput(e.target.value); setHiddenPinError(false); }}
-                onKeyDown={(e) => { if (e.key === "Enter") handleHiddenPinUnlock(); }}
+                onKeyDown={(e) => { if (e.key === "Enter") hiddenPinMode === "change" ? handleHiddenPinChangeNext() : handleHiddenPinUnlock(); }}
+                autoFocus
                 style={{ width: "160px", letterSpacing: "0.25em", fontSize: "1.1rem" }}
               />
               {hiddenUnlocked ? (
                 <button className="settings__btn" onClick={handleHiddenPinLock}>
                   <Lock size={14} /> Lock
+                </button>
+              ) : hiddenPinMode === "change" ? (
+                <button className="settings__btn" onClick={handleHiddenPinChangeNext}>
+                  <ChevronRight size={14} /> Next
                 </button>
               ) : (
                 <button className="settings__btn" onClick={handleHiddenPinUnlock}>
@@ -533,13 +717,22 @@ function Settings() {
             </div>
             {hiddenPinError && (
               <p style={{ color: "var(--color-danger)", fontSize: "0.8125rem", marginTop: "0.25rem" }}>
-                Invalid PIN. Check the backend HIDDEN_FILES_PIN setting.
+                {hiddenPinMode === "change" ? "Current PIN is incorrect." : "Invalid PIN. Check the backend HIDDEN_FILES_PIN setting."}
               </p>
             )}
             {hiddenUnlocked && (
               <p style={{ color: "var(--color-success)", fontSize: "0.8125rem", marginTop: "0.25rem" }}>
                 <Check size={12} style={{ verticalAlign: "middle" }} /> Hidden Files tab is now visible in the navbar.
               </p>
+            )}
+            {hiddenUnlocked && (
+              <button
+                className="settings__btn settings__btn--small"
+                style={{ marginTop: "0.5rem" }}
+                onClick={() => { setHiddenPinMode("change"); setHiddenPinInput(""); setHiddenPinError(false); }}
+              >
+                Change PIN
+              </button>
             )}
           </>
         );
@@ -831,6 +1024,69 @@ function Settings() {
         );
       }
 
+      case "admin-tags": {
+        return (
+          <div className="settings__admin-tags">
+            {adminTagsLoading ? (
+              <p style={{ color: "var(--color-text-muted)", fontSize: "0.8125rem" }}><Spinner size={14} /> Loading tags...</p>
+            ) : adminTags.length === 0 ? (
+              <p style={{ color: "var(--color-text-muted)", fontSize: "0.8125rem" }}>No tags found.</p>
+            ) : (
+              <div className="settings__tag-list">
+                {adminTags.map((t, idx) => (
+                  <div key={t.tag} className="settings__tag-row">
+                    {renamingTagIdx === idx ? (
+                      <div className="settings__tag-rename">
+                        <input
+                          className="settings__input"
+                          value={renameValue}
+                          onChange={(e) => setRenameValue(e.target.value)}
+                          onKeyDown={(e) => { if (e.key === "Enter") handleRenameTag(t.tag); if (e.key === "Escape") setRenamingTagIdx(null); }}
+                          autoFocus
+                          style={{ flex: 1 }}
+                        />
+                        <button className="settings__btn settings__btn--small" disabled={adminTagsBusy} onClick={() => handleRenameTag(t.tag)}>
+                          <Check size={13} /> Save
+                        </button>
+                        <button className="settings__btn settings__btn--small" onClick={() => setRenamingTagIdx(null)}>
+                          Cancel
+                        </button>
+                      </div>
+                    ) : (
+                      <>
+                        <span className="settings__tag-name">{t.tag}</span>
+                        <span className="settings__tag-count">{t.count}</span>
+                        <button
+                          className="settings__btn settings__btn--small"
+                          disabled={adminTagsBusy}
+                          onClick={() => { setRenamingTagIdx(idx); setRenameValue(t.tag); }}
+                          title="Rename tag"
+                        >
+                          <ArrowUp size={12} style={{ transform: "rotate(45deg)" }} />
+                        </button>
+                        <button
+                          className="settings__btn settings__btn--small settings__btn--danger"
+                          disabled={adminTagsBusy}
+                          onClick={() => { if (window.confirm(`Remove tag "${t.tag}" from all media?`)) handleDeleteTag(t.tag); }}
+                          title="Delete tag"
+                        >
+                          <Trash2 size={12} />
+                        </button>
+                      </>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+            {adminTagsMessage && (
+              <p style={{ color: adminTagsMessage.type === "success" ? "var(--color-success)" : "var(--color-danger)", fontSize: "0.8125rem", marginTop: "0.5rem" }}>
+                {adminTagsMessage.type === "success" ? <Check size={12} style={{ verticalAlign: "middle" }} /> : null} {adminTagsMessage.text}
+              </p>
+            )}
+          </div>
+        );
+      }
+
       default:
         return null;
     }
@@ -873,21 +1129,145 @@ function Settings() {
       </div>
 
       <h2 className="settings__section-title">Admin Tasks</h2>
+      {adminPin && !adminPinUnlocked && adminPinMode === "unlock" && (
+        <div className="settings__admin-pin-gate">
+          <p className="settings__admin-pin-label">Enter PIN to access Admin Tasks</p>
+          <div className="settings__nickname-row">
+            <input
+              className="settings__input"
+              type="password"
+              maxLength={6}
+              placeholder="Enter 6-digit PIN"
+              value={adminPinInput}
+              onChange={(e) => { setAdminPinInput(e.target.value); setAdminPinError(false); }}
+              onKeyDown={(e) => { if (e.key === "Enter") handleAdminPinUnlock(); }}
+              style={{ width: "160px", letterSpacing: "0.25em", fontSize: "1.1rem" }}
+            />
+            <button className="settings__btn" onClick={handleAdminPinUnlock}>
+              <Unlock size={14} /> Unlock
+            </button>
+          </div>
+          {adminPinError && (
+            <p style={{ color: "var(--color-danger)", fontSize: "0.8125rem", marginTop: "0.25rem" }}>Invalid PIN.</p>
+          )}
+        </div>
+      )}
+      {(!adminPin || adminPinUnlocked) && (
+        <div className="settings__admin-pin-bar">
+          {adminPin && (
+            <>
+              <button className="settings__btn settings__btn--small" onClick={handleAdminPinLock}>
+                <Lock size={13} /> Lock
+              </button>
+              {adminPinMode === "unlock" && (
+                <button className="settings__btn settings__btn--small" onClick={() => { setAdminPinMode("change"); setAdminPinInput(""); setAdminPinError(false); }}>
+                  Change PIN
+                </button>
+              )}
+            </>
+          )}
+          {!adminPin && (
+            <button className="settings__btn settings__btn--small" onClick={() => { setAdminPinMode("set"); setAdminPinInput(""); setAdminPinError(false); }}>
+              <Lock size={13} /> Set Admin PIN
+            </button>
+          )}
+        </div>
+      )}
+      {adminPinMode === "set" && (
+        <div className="settings__admin-pin-gate">
+          <p className="settings__admin-pin-label">Set a 6-digit PIN for Admin Tasks</p>
+          <div className="settings__nickname-row">
+            <input
+              className="settings__input"
+              type="password"
+              maxLength={6}
+              placeholder="Enter new 6-digit PIN"
+              value={adminPinInput}
+              onChange={(e) => { setAdminPinInput(e.target.value); setAdminPinError(false); }}
+              onKeyDown={(e) => { if (e.key === "Enter") handleAdminPinSet(); }}
+              style={{ width: "160px", letterSpacing: "0.25em", fontSize: "1.1rem" }}
+            />
+            <button className="settings__btn" onClick={handleAdminPinSet}>
+              <Check size={14} /> Set PIN
+            </button>
+            <button className="settings__btn" onClick={() => { setAdminPinMode("unlock"); setAdminPinInput(""); }}>
+              Cancel
+            </button>
+          </div>
+          {adminPinError && (
+            <p style={{ color: "var(--color-danger)", fontSize: "0.8125rem", marginTop: "0.25rem" }}>PIN must be 6 digits.</p>
+          )}
+        </div>
+      )}
+      {adminPinMode === "change" && (
+        <div className="settings__admin-pin-gate">
+          <p className="settings__admin-pin-label">Change Admin PIN</p>
+          <div className="settings__nickname-row">
+            <input
+              className="settings__input"
+              type="password"
+              maxLength={6}
+              placeholder="Current PIN"
+              value={adminPinInput}
+              onChange={(e) => { setAdminPinInput(e.target.value); setAdminPinError(false); }}
+              onKeyDown={(e) => { if (e.key === "Enter") handleAdminPinChange(); }}
+              style={{ width: "160px", letterSpacing: "0.25em", fontSize: "1.1rem" }}
+            />
+            <button className="settings__btn" onClick={handleAdminPinChange}>
+              <ChevronRight size={14} /> Next
+            </button>
+            <button className="settings__btn" onClick={() => { setAdminPinMode("unlock"); setAdminPinInput(""); }}>
+              Cancel
+            </button>
+          </div>
+          {adminPinError && (
+            <p style={{ color: "var(--color-danger)", fontSize: "0.8125rem", marginTop: "0.25rem" }}>Current PIN is incorrect.</p>
+          )}
+        </div>
+      )}
+      {adminPinMode === "set-new" && (
+        <div className="settings__admin-pin-gate">
+          <p className="settings__admin-pin-label">Enter new 6-digit PIN</p>
+          <div className="settings__nickname-row">
+            <input
+              className="settings__input"
+              type="password"
+              maxLength={6}
+              placeholder="New 6-digit PIN"
+              value={adminPinInput}
+              onChange={(e) => { setAdminPinInput(e.target.value); setAdminPinError(false); }}
+              onKeyDown={(e) => { if (e.key === "Enter") handleAdminPinSaveNew(); }}
+              style={{ width: "160px", letterSpacing: "0.25em", fontSize: "1.1rem" }}
+            />
+            <button className="settings__btn" onClick={handleAdminPinSaveNew}>
+              <Check size={14} /> Save
+            </button>
+            <button className="settings__btn" onClick={() => { setAdminPinMode("unlock"); setAdminPinInput(""); }}>
+              Cancel
+            </button>
+          </div>
+          {adminPinError && (
+            <p style={{ color: "var(--color-danger)", fontSize: "0.8125rem", marginTop: "0.25rem" }}>PIN must be 6 digits.</p>
+          )}
+        </div>
+      )}
       <div className="settings__list">
         {ADMIN_TASKS.map((t) => {
           const Icon = t.icon;
+          const locked = adminPin && !adminPinUnlocked;
           return (
             <button
               key={t.id}
-              className="settings__row"
-              onClick={() => setOpenDialog(t.id)}
+              className={`settings__row ${locked ? "settings__row--locked" : ""}`}
+              onClick={() => { if (!locked) setOpenDialog(t.id); }}
+              disabled={locked}
             >
               <Icon size={18} className="settings__row-icon" />
               <div className="settings__row-info">
                 <span className="settings__row-label">{t.label}</span>
                 <span className="settings__row-desc">{t.description}</span>
               </div>
-              <ChevronRight size={16} className="settings__row-chevron" />
+              {!locked && <ChevronRight size={16} className="settings__row-chevron" />}
             </button>
           );
         })}

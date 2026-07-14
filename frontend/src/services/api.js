@@ -454,6 +454,11 @@ export async function verifyHiddenPin(pin) {
   return data;
 }
 
+export async function changeHiddenPin(oldPin, newPin) {
+  const { data } = await client.post("/files/change-hidden-pin", { old_pin: oldPin, new_pin: newPin });
+  return data;
+}
+
 export async function unhideFiles(fileIds, pin) {
   const { data } = await client.post("/files/unhide", { file_ids: fileIds }, {
     headers: { "X-Hidden-Pin": pin },
@@ -545,6 +550,21 @@ export async function adminBulkThumbnails() {
 
 export async function adminBulkFaces() {
   const { data } = await client.post("/admin/bulk-faces");
+  return data;
+}
+
+export async function adminRenameTag(oldTag, newTag) {
+  const { data } = await client.post("/admin/tags/rename", { old_tag: oldTag, new_tag: newTag });
+  return data;
+}
+
+export async function adminDeleteTag(tag) {
+  const { data } = await client.post("/admin/tags/delete", { tag });
+  return data;
+}
+
+export async function getAllTags() {
+  const { data } = await client.get("/tags");
   return data;
 }
 

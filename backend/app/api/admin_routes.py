@@ -1,4 +1,5 @@
 from flask import Blueprint, jsonify, request
+from sqlalchemy import text
 
 from app import db
 from app.models.detected_face import DetectedFace
@@ -90,3 +91,61 @@ def admin_bulk_faces():
     if file_ids:
         bulk_detect_faces.delay(file_ids)
     return jsonify({"queued": len(file_ids)}), 202
+
+
+@admin_bp.route("/admin/tags/rename", methods=["POST"])
+def admin_rename_tag():
+    """Rename a tag across all files that have it."""
+    data = request.get_json(force=True)
+    old_tag = (data.get("old_tag") or "").strip()
+    new_tag = (data.get("new_tag") or "").strip()
+    if not old_tag or not new_tag:
+        return jsonify({"error": "old_tag and new_tag are required"}), 400
+    if old_tag == new_tag:
+        return jsonify({"error": "old_tag and new_tag must differ"}), 400
+    result = db.session.execute(
+        text("""
+            UPDATE file_metadata
+            SET tags = (
+                SELECT jsonb_agg(DISTINCT elem)
+                FROM (
+                    SELECT CASE
+                        WHEN elem = to_jsonb(:old_tag::text)
+                        THEN to_jsonb(:new_tag::text)
+                        ELSE elem
+                    END AS elem
+                    FROM jsonb_array_elements(tags) AS t
+                ) AS sub
+            )
+            WHERE tags ? :old_tag
+        """),
+        {"old_tag": old_tag, "new_tag": new_tag},
+    )
+    db.session.commit()
+    return jsonify({"renamed": result.rowcount, "from": old_tag, "to": new_tag})
+
+
+@admin_bp.route("/admin/tags/delete", methods=["POST"])
+def admin_delete_tag():
+    """Remove a tag from all files that have it."""
+    data = request.get_json(force=True)
+    tag = (data.get("tag") or "").strip()
+    if not tag:
+        return jsonify({"error": "tag is required"}), 400
+    result = db.session.execute(
+        text("""
+            UPDATE file_metadata
+            SET tags = (
+                SELECT CASE
+                    WHEN count(*) = 0 THEN NULL
+                    ELSE jsonb_agg(elem)
+                END
+                FROM jsonb_array_elements(tags) AS elem
+                WHERE elem != to_jsonb(:tag::text)
+            )
+            WHERE tags ? :tag
+        """),
+        {"tag": tag},
+    )
+    db.session.commit()
+    return jsonify({"deleted": result.rowcount, "tag": tag})
