@@ -152,8 +152,8 @@ def admin_rename_tag():
                 SELECT jsonb_agg(DISTINCT elem)
                 FROM (
                     SELECT CASE
-                        WHEN elem = to_jsonb(:old_tag::text)
-                        THEN to_jsonb(:new_tag::text)
+                        WHEN elem = to_jsonb(CAST(:old_tag AS text))
+                        THEN to_jsonb(CAST(:new_tag AS text))
                         ELSE elem
                     END AS elem
                     FROM jsonb_array_elements(tags) AS t
@@ -184,7 +184,7 @@ def admin_delete_tag():
                     ELSE jsonb_agg(elem)
                 END
                 FROM jsonb_array_elements(tags) AS elem
-                WHERE elem != to_jsonb(:tag::text)
+                WHERE elem != to_jsonb(CAST(:tag AS text))
             )
             WHERE tags ? :tag
         """),
