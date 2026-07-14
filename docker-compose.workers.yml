@@ -35,7 +35,7 @@ services:
       - FACE_DET_THRESH=0.3
       - PROMETHEUS_MULTIPROC_DIR=/tmp/prometheus_metrics
       - WORKER_METRICS_PORT=9201
-    command: celery -A app.tasks.celery worker -Q import_queue,metadata,thumbnail,face_detection -l info --concurrency=8 --hostname=worker@%h
+    command: celery -A app.tasks.celery worker -Q import_queue,metadata,ai_metadata,face_detection,thumbnail -l info --concurrency=6 --hostname=worker@%h
     ports:
       - "9201:9201"
     volumes:
@@ -43,35 +43,7 @@ services:
       - ${MEDIA_PATH:-/media}:/media:ro
       - ${MEDIA_FILES_PREFIX:-/home/pritam/media_server_files}:/media_files
       - ${MEDIA_FILES_PREFIX:-/home/pritam/media_server_files}/uploads:/uploads
-      - /home/pritam/.insightface:/root/.insightface
-    networks:
-      - default-network
-    dns:
-      - 172.17.0.1
-      - 8.8.8.8
-    restart: unless-stopped
-
-  worker_ai:
-    container_name: media_server_worker_ai
-    build:
-      context: .
-      dockerfile: backend/Dockerfile
-    env_file: ./backend/.env
-    environment:
-      - FACE_PROVIDERS=CPUExecutionProvider
-      - FACE_MATCH_THRESHOLD=0.4
-      - FACE_DET_THRESH=0.3
-      - PROMETHEUS_MULTIPROC_DIR=/tmp/prometheus_metrics
-      - WORKER_METRICS_PORT=9202
-    command: celery -A app.tasks.celery worker -Q ai_metadata -l info --concurrency=2 --hostname=worker@%h
-    ports:
-      - "9202:9202"
-    volumes:
-      - ${MEDIA_FILES_PREFIX:-/home/pritam/media_server_files}/edited:/edited
-      - ${MEDIA_PATH:-/media}:/media:ro
-      - ${MEDIA_FILES_PREFIX:-/home/pritam/media_server_files}:/media_files
-      - ${MEDIA_FILES_PREFIX:-/home/pritam/media_server_files}/uploads:/uploads
-      - /home/pritam/.insightface:/root/.insightface
+      - /home/deployer/.insightface:/root/.insightface
     networks:
       - default-network
     dns:
