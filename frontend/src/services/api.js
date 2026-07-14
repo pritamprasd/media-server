@@ -533,33 +533,67 @@ export async function deleteMemory(memoryId) {
   return data;
 }
 
-export async function adminBulkAi() {
-  const { data } = await client.post("/admin/bulk-ai");
+export async function adminBulkAi(pin) {
+  const { data } = await client.post("/admin/bulk-ai", null, {
+    headers: { "X-Admin-Pin": pin },
+  });
   return data;
 }
 
-export async function adminBulkExif() {
-  const { data } = await client.post("/admin/bulk-exif");
+export async function adminBulkExif(pin) {
+  const { data } = await client.post("/admin/bulk-exif", null, {
+    headers: { "X-Admin-Pin": pin },
+  });
   return data;
 }
 
-export async function adminBulkThumbnails() {
-  const { data } = await client.post("/admin/bulk-thumbnails");
+export async function adminBulkThumbnails(pin) {
+  const { data } = await client.post("/admin/bulk-thumbnails", null, {
+    headers: { "X-Admin-Pin": pin },
+  });
   return data;
 }
 
-export async function adminBulkFaces() {
-  const { data } = await client.post("/admin/bulk-faces");
+export async function adminBulkFaces(pin) {
+  const { data } = await client.post("/admin/bulk-faces", null, {
+    headers: { "X-Admin-Pin": pin },
+  });
   return data;
 }
 
-export async function adminRenameTag(oldTag, newTag) {
-  const { data } = await client.post("/admin/tags/rename", { old_tag: oldTag, new_tag: newTag });
+export async function adminRenameTag(oldTag, newTag, pin) {
+  const { data } = await client.post("/admin/tags/rename", { old_tag: oldTag, new_tag: newTag }, {
+    headers: { "X-Admin-Pin": pin },
+  });
   return data;
 }
 
-export async function adminDeleteTag(tag) {
-  const { data } = await client.post("/admin/tags/delete", { tag });
+export async function adminDeleteTag(tag, pin) {
+  const { data } = await client.post("/admin/tags/delete", { tag }, {
+    headers: { "X-Admin-Pin": pin },
+  });
+  return data;
+}
+
+export async function verifyAdminPin(pin) {
+  const { data } = await client.post("/admin/verify-pin", {}, {
+    headers: { "X-Admin-Pin": pin },
+  });
+  return data;
+}
+
+export async function changeAdminPin(oldPin, newPin) {
+  const { data } = await client.post("/admin/change-pin", { old_pin: oldPin, new_pin: newPin });
+  return data;
+}
+
+export async function listAdminTags(pin, page = 1, perPage = 50, q = "") {
+  const params = { page, per_page: perPage };
+  if (q) params.q = q;
+  const { data } = await client.get("/admin/tags", {
+    params,
+    headers: { "X-Admin-Pin": pin },
+  });
   return data;
 }
 

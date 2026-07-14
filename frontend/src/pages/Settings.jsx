@@ -6,7 +6,7 @@ import {
 } from "lucide-react";
 import { getPref, setPref, clearApiCache, getStorageEstimate } from "../services/db";
 import Spinner from "../components/Spinner";
-import { setAirplaneMode, adminBulkAi, adminBulkExif, adminBulkThumbnails, adminBulkFaces, adminRenameTag, adminDeleteTag, getAllTags } from "../services/api";
+import { setAirplaneMode, adminBulkAi, adminBulkExif, adminBulkThumbnails, adminBulkFaces, adminRenameTag, adminDeleteTag, verifyAdminPin, changeAdminPin, listAdminTags } from "../services/api";
 import { useTheme } from "../contexts/ThemeContext";
 import { SETTINGS, ADMIN_TASKS, ADMIN_TASKS_MAP } from "../config/settings";
 import shortcuts from "../data/shortcuts.yaml";
@@ -94,8 +94,7 @@ function Settings() {
   const [orientationLock, setOrientationLock] = useState(false);
   const [adminBusy, setAdminBusy] = useState(null);
   const [adminResults, setAdminResults] = useState({});
-  const [adminPin, setAdminPin] = useState(null);
-  const [adminPinUnlocked, setAdminPinUnlocked] = useState(false);
+  const [adminPinUnlocked, setAdminPinUnlocked] = useState(() => sessionStorage.getItem("admin_pin_unlocked") === "true");
   const [adminPinInput, setAdminPinInput] = useState("");
   const [adminPinError, setAdminPinError] = useState(false);
   const [adminPinMode, setAdminPinMode] = useState("unlock");
@@ -105,6 +104,9 @@ function Settings() {
   const [renameValue, setRenameValue] = useState("");
   const [adminTagsBusy, setAdminTagsBusy] = useState(false);
   const [adminTagsMessage, setAdminTagsMessage] = useState(null);
+  const [adminTagsSearch, setAdminTagsSearch] = useState("");
+  const [adminTagsPage, setAdminTagsPage] = useState(1);
+  const [adminTagsHasMore, setAdminTagsHasMore] = useState(false);
   const [disabledTools, setDisabledTools] = useState(() => new Set());
   const [allTools, setAllTools] = useState([]);
   const navigate = useNavigate();
@@ -138,10 +140,6 @@ function Settings() {
     getPref("orientationLock", false).then(setOrientationLock);
     getPref(DISABLED_TOOLS_KEY, []).then((ids) => setDisabledTools(new Set(ids)));
     setAllTools(getTools());
-    getPref("adminPin", null).then((pin) => {
-      setAdminPin(pin);
-      if (!pin) setAdminPinUnlocked(true);
-    });
     return () => navigator.serviceWorker?.removeEventListener("message", onCacheMsg);
   }, []);
 
@@ -156,13 +154,21 @@ function Settings() {
       .catch(() => {});
   }, []);
 
-  const loadAdminTags = useCallback(async () => {
+  const loadAdminTags = useCallback(async (page = 1, search = "") => {
+    const pin = sessionStorage.getItem("admin_pin") || "";
+    if (!pin) return;
     setAdminTagsLoading(true);
     try {
-      const data = await getAllTags();
-      setAdminTags(data.tags || []);
+      const data = await listAdminTags(pin, page, 50, search);
+      if (page === 1) {
+        setAdminTags(data.tags || []);
+      } else {
+        setAdminTags((prev) => [...prev, ...(data.tags || [])]);
+      }
+      setAdminTagsPage(data.page || 1);
+      setAdminTagsHasMore(data.has_more || false);
     } catch {
-      setAdminTags([]);
+      if (page === 1) setAdminTags([]);
     } finally {
       setAdminTagsLoading(false);
     }
@@ -171,7 +177,10 @@ function Settings() {
   // Refresh cache status every time the Offline Cache dialog is opened.
   useEffect(() => {
     if (openDialog === "offline-cache") requestCacheStatus();
-    if (openDialog === "admin-tags") loadAdminTags();
+    if (openDialog === "admin-tags") {
+      setAdminTagsSearch("");
+      loadAdminTags(1, "");
+    }
   }, [openDialog, requestCacheStatus, loadAdminTags]);
 
   // Re-fetch once the service worker takes control of the page.
@@ -434,13 +443,15 @@ function Settings() {
   };
 
   const runAdminTask = async (action) => {
+    const pin = sessionStorage.getItem("admin_pin") || "";
+    if (!pin) return;
     setAdminBusy(action);
     try {
       let res;
-      if (action === "ai") res = await adminBulkAi();
-      else if (action === "exif") res = await adminBulkExif();
-      else if (action === "thumbnails") res = await adminBulkThumbnails();
-      else if (action === "faces") res = await adminBulkFaces();
+      if (action === "ai") res = await adminBulkAi(pin);
+      else if (action === "exif") res = await adminBulkExif(pin);
+      else if (action === "thumbnails") res = await adminBulkThumbnails(pin);
+      else if (action === "faces") res = await adminBulkFaces(pin);
       setAdminResults((prev) => ({ ...prev, [action]: res?.queued ?? 0 }));
     } catch {
       setAdminResults((prev) => ({ ...prev, [action]: "error" }));
@@ -449,60 +460,67 @@ function Settings() {
     }
   };
 
-  const handleAdminPinUnlock = () => {
-    const pin = adminPinInput.trim();
-    if (pin.length !== 6 || pin !== adminPin) {
-      setAdminPinError(true);
-      return;
-    }
-    setAdminPinUnlocked(true);
-    setAdminPinError(false);
-    setAdminPinInput("");
-  };
-
-  const handleAdminPinSet = () => {
+  const handleAdminPinUnlock = async () => {
     const pin = adminPinInput.trim();
     if (pin.length !== 6) {
       setAdminPinError(true);
       return;
     }
-    setPref("adminPin", pin);
-    setAdminPin(pin);
-    setAdminPinUnlocked(true);
-    setAdminPinError(false);
-    setAdminPinInput("");
-    setAdminPinMode("unlock");
+    try {
+      await verifyAdminPin(pin);
+      sessionStorage.setItem("admin_pin", pin);
+      sessionStorage.setItem("admin_pin_unlocked", "true");
+      setAdminPinUnlocked(true);
+      setAdminPinError(false);
+      setAdminPinInput("");
+      window.dispatchEvent(new Event("admin-pin-changed"));
+    } catch {
+      setAdminPinError(true);
+    }
   };
 
-  const handleAdminPinChange = () => {
+  const handleAdminPinChange = async () => {
     const current = adminPinInput.trim();
-    if (current !== adminPin) {
+    if (current.length !== 6) { setAdminPinError(true); return; }
+    try {
+      await verifyAdminPin(current);
+      sessionStorage.setItem("admin_pin_current", current);
+      setAdminPinMode("set-new");
+      setAdminPinInput("");
+      setAdminPinError(false);
+    } catch {
       setAdminPinError(true);
-      return;
     }
-    setAdminPinMode("set-new");
-    setAdminPinInput("");
-    setAdminPinError(false);
   };
 
-  const handleAdminPinSaveNew = () => {
-    const pin = adminPinInput.trim();
-    if (pin.length !== 6) {
+  const handleAdminPinSaveNew = async () => {
+    const newPin = adminPinInput.trim();
+    if (newPin.length !== 6) {
       setAdminPinError(true);
       return;
     }
-    setPref("adminPin", pin);
-    setAdminPin(pin);
-    setAdminPinInput("");
-    setAdminPinMode("unlock");
-    setAdminPinError(false);
+    try {
+      const oldPin = sessionStorage.getItem("admin_pin_current") || "";
+      await changeAdminPin(oldPin, newPin);
+      sessionStorage.setItem("admin_pin", newPin);
+      sessionStorage.removeItem("admin_pin_current");
+      setAdminPinInput("");
+      setAdminPinMode("unlock");
+      setAdminPinError(false);
+    } catch {
+      setAdminPinError(true);
+    }
   };
 
   const handleAdminPinLock = () => {
+    sessionStorage.removeItem("admin_pin");
+    sessionStorage.removeItem("admin_pin_unlocked");
+    sessionStorage.removeItem("admin_pin_current");
     setAdminPinUnlocked(false);
     setAdminPinInput("");
     setAdminPinError(false);
     setAdminPinMode("unlock");
+    window.dispatchEvent(new Event("admin-pin-changed"));
   };
 
   const handleRenameTag = async (oldTag) => {
@@ -511,7 +529,7 @@ function Settings() {
     setAdminTagsBusy(true);
     setAdminTagsMessage(null);
     try {
-      await adminRenameTag(oldTag, newTag);
+      await adminRenameTag(oldTag, newTag, sessionStorage.getItem("admin_pin") || "");
       setAdminTags((prev) => prev.map((t) => t.tag === oldTag ? { tag: newTag, count: t.count } : t));
       setAdminTagsMessage({ type: "success", text: `Renamed "${oldTag}" to "${newTag}"` });
     } catch {
@@ -527,7 +545,7 @@ function Settings() {
     setAdminTagsBusy(true);
     setAdminTagsMessage(null);
     try {
-      await adminDeleteTag(tag);
+      await adminDeleteTag(tag, sessionStorage.getItem("admin_pin") || "");
       setAdminTags((prev) => prev.filter((t) => t.tag !== tag));
       setAdminTagsMessage({ type: "success", text: `Deleted tag "${tag}" from all media` });
     } catch {
@@ -1025,9 +1043,23 @@ function Settings() {
       }
 
       case "admin-tags": {
+        const handleSearchTags = (val) => {
+          setAdminTagsSearch(val);
+          loadAdminTags(1, val);
+        };
         return (
           <div className="settings__admin-tags">
-            {adminTagsLoading ? (
+            <div className="settings__tag-search">
+              <input
+                className="settings__input"
+                type="text"
+                placeholder="Search tags..."
+                value={adminTagsSearch}
+                onChange={(e) => handleSearchTags(e.target.value)}
+                style={{ width: "100%", marginBottom: "0.5rem" }}
+              />
+            </div>
+            {adminTagsLoading && adminTags.length === 0 ? (
               <p style={{ color: "var(--color-text-muted)", fontSize: "0.8125rem" }}><Spinner size={14} /> Loading tags...</p>
             ) : adminTags.length === 0 ? (
               <p style={{ color: "var(--color-text-muted)", fontSize: "0.8125rem" }}>No tags found.</p>
@@ -1076,6 +1108,16 @@ function Settings() {
                     )}
                   </div>
                 ))}
+                {adminTagsHasMore && (
+                  <button
+                    className="settings__btn settings__btn--small"
+                    style={{ width: "100%", marginTop: "0.5rem" }}
+                    disabled={adminTagsLoading}
+                    onClick={() => loadAdminTags(adminTagsPage + 1, adminTagsSearch)}
+                  >
+                    {adminTagsLoading ? <><Spinner size={12} /> Loading...</> : "Load More"}
+                  </button>
+                )}
               </div>
             )}
             {adminTagsMessage && (
@@ -1129,7 +1171,7 @@ function Settings() {
       </div>
 
       <h2 className="settings__section-title">Admin Tasks</h2>
-      {adminPin && !adminPinUnlocked && adminPinMode === "unlock" && (
+      {!adminPinUnlocked && adminPinMode === "unlock" && (
         <div className="settings__admin-pin-gate">
           <p className="settings__admin-pin-label">Enter PIN to access Admin Tasks</p>
           <div className="settings__nickname-row">
@@ -1152,50 +1194,15 @@ function Settings() {
           )}
         </div>
       )}
-      {(!adminPin || adminPinUnlocked) && (
+      {adminPinUnlocked && (
         <div className="settings__admin-pin-bar">
-          {adminPin && (
-            <>
-              <button className="settings__btn settings__btn--small" onClick={handleAdminPinLock}>
-                <Lock size={13} /> Lock
-              </button>
-              {adminPinMode === "unlock" && (
-                <button className="settings__btn settings__btn--small" onClick={() => { setAdminPinMode("change"); setAdminPinInput(""); setAdminPinError(false); }}>
-                  Change PIN
-                </button>
-              )}
-            </>
-          )}
-          {!adminPin && (
-            <button className="settings__btn settings__btn--small" onClick={() => { setAdminPinMode("set"); setAdminPinInput(""); setAdminPinError(false); }}>
-              <Lock size={13} /> Set Admin PIN
+          <button className="settings__btn settings__btn--small" onClick={handleAdminPinLock}>
+            <Lock size={13} /> Lock
+          </button>
+          {adminPinMode === "unlock" && (
+            <button className="settings__btn settings__btn--small" onClick={() => { setAdminPinMode("change"); setAdminPinInput(""); setAdminPinError(false); }}>
+              Change PIN
             </button>
-          )}
-        </div>
-      )}
-      {adminPinMode === "set" && (
-        <div className="settings__admin-pin-gate">
-          <p className="settings__admin-pin-label">Set a 6-digit PIN for Admin Tasks</p>
-          <div className="settings__nickname-row">
-            <input
-              className="settings__input"
-              type="password"
-              maxLength={6}
-              placeholder="Enter new 6-digit PIN"
-              value={adminPinInput}
-              onChange={(e) => { setAdminPinInput(e.target.value); setAdminPinError(false); }}
-              onKeyDown={(e) => { if (e.key === "Enter") handleAdminPinSet(); }}
-              style={{ width: "160px", letterSpacing: "0.25em", fontSize: "1.1rem" }}
-            />
-            <button className="settings__btn" onClick={handleAdminPinSet}>
-              <Check size={14} /> Set PIN
-            </button>
-            <button className="settings__btn" onClick={() => { setAdminPinMode("unlock"); setAdminPinInput(""); }}>
-              Cancel
-            </button>
-          </div>
-          {adminPinError && (
-            <p style={{ color: "var(--color-danger)", fontSize: "0.8125rem", marginTop: "0.25rem" }}>PIN must be 6 digits.</p>
           )}
         </div>
       )}
@@ -1254,7 +1261,7 @@ function Settings() {
       <div className="settings__list">
         {ADMIN_TASKS.map((t) => {
           const Icon = t.icon;
-          const locked = adminPin && !adminPinUnlocked;
+          const locked = !adminPinUnlocked;
           return (
             <button
               key={t.id}

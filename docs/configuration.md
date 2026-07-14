@@ -15,6 +15,7 @@
 | `FACE_PROVIDERS` | `CUDA,TensorRT,CPU` | ONNX Runtime execution providers (comma-separated, tried in order) |
 | `FACE_BATCH_SIZE` | `5` | Images per face-detection Celery task |
 | `HIDDEN_FILES_PIN` | `"000000"` | 6-digit PIN for hidden files access |
+| `ADMIN_PIN` | `"000000"` | 6-digit PIN for admin tasks access |
 | `EDITED_IMAGES_DIR` | `~/media-server-edited` | Where edited/cropped images are saved |
 | `IMPORT_DEFAULT_PATH` | `~` | Default directory for import-from-folder dialog |
 | `UPLOAD_DIR` | `/uploads` | Upload storage directory |

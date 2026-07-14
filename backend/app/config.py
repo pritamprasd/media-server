@@ -74,6 +74,10 @@ class Config:
     # deployment. Default is 000000 which should be changed in production.
     HIDDEN_FILES_PIN = os.environ.get("HIDDEN_FILES_PIN", "000000")
 
+    # 6-digit PIN required to access the Admin Tasks section. Set in .env
+    # during deployment. Default is 000000 which should be changed in production.
+    ADMIN_PIN = os.environ.get("ADMIN_PIN", "000000")
+
 
 
 class DevelopmentConfig(Config):

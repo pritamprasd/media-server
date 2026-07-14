@@ -164,9 +164,9 @@ See also [docs/face-detection.md](face-detection.md) for the in-depth pipeline.
   - **Generate EXIF Data** — queues metadata extraction for all files missing EXIF/metadata
   - **Generate Thumbnails** — queues thumbnail generation for all files missing a thumbnail
   - **Detect & Save Faces** — queues face detection for all image files not yet scanned
-  - **Manage Tags** — rename or delete tags across all media; lists all tags with frequency counts; inline rename (input + save) and delete (with confirmation) actions
+  - **Manage Tags** — paginated, searchable tag list with rename/delete actions; search-as-you-type filters the list; "Load More" for lazy loading; inline rename (input + save) and delete (with confirmation) actions
   - **Manage Tools** — enable/disable individual tools in the Tools tab; disabled tools are hidden from the grid and persisted to IndexedDB (`disabledTools`)
-  - **Admin Tasks PIN** — optional 6-digit PIN gate for the Admin Tasks section; PIN stored in IndexedDB; validated client-side; lock/unlock state is session-only (resets on page refresh); Change PIN flow available
+  - **Admin Tasks PIN** — 6-digit PIN gate for the Admin Tasks section; PIN stored in backend config (`ADMIN_PIN` env var); verified server-side via `POST /admin/verify-pin`; all admin endpoints require `X-Admin-Pin` header; lock/unlock state is session-only (resets on page refresh); Change PIN flow validates current PIN against backend then updates in-memory config
 
 ## 🧰 Tools
 - **Tool system** — declarative imperative DOM framework; drop a `.js` or `.html` file into `frontend/src/tools/` and it's auto-discovered via `import.meta.glob`; no route, import, or config change needed

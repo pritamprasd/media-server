@@ -1,4 +1,6 @@
-from flask import Blueprint, jsonify, request
+from functools import wraps
+
+from flask import Blueprint, jsonify, request, current_app
 from sqlalchemy import text
 
 from app import db
@@ -13,6 +15,41 @@ from app.tasks.admin_tasks import (
 )
 
 admin_bp = Blueprint("admin", __name__)
+
+
+def _check_admin_pin(pin):
+    return pin == current_app.config.get("ADMIN_PIN", "000000")
+
+
+def require_admin_pin(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        pin = request.headers.get("X-Admin-Pin", "")
+        if not _check_admin_pin(pin):
+            return jsonify({"error": "Invalid admin PIN"}), 403
+        return f(*args, **kwargs)
+    return decorated
+
+
+@admin_bp.route("/admin/verify-pin", methods=["POST"])
+def admin_verify_pin():
+    pin = request.headers.get("X-Admin-Pin", "")
+    if not _check_admin_pin(pin):
+        return jsonify({"error": "Invalid PIN"}), 403
+    return jsonify({"valid": True}), 200
+
+
+@admin_bp.route("/admin/change-pin", methods=["POST"])
+def admin_change_pin():
+    data = request.get_json(force=True)
+    old_pin = data.get("old_pin", "")
+    new_pin = data.get("new_pin", "")
+    if not _check_admin_pin(old_pin):
+        return jsonify({"error": "Current PIN is incorrect"}), 403
+    if len(new_pin) != 6 or not new_pin.isdigit():
+        return jsonify({"error": "New PIN must be exactly 6 digits"}), 400
+    current_app.config["ADMIN_PIN"] = new_pin
+    return jsonify({"success": True}), 200
 
 
 def _make_file_info(f):
@@ -30,6 +67,7 @@ def _make_file_info(f):
 
 
 @admin_bp.route("/admin/bulk-ai", methods=["POST"])
+@require_admin_pin
 def admin_bulk_ai():
     """Queue one AI description task per file missing a description."""
     if request.headers.get("X-Airplane-Mode") == "1":
@@ -48,6 +86,7 @@ def admin_bulk_ai():
 
 
 @admin_bp.route("/admin/bulk-exif", methods=["POST"])
+@require_admin_pin
 def admin_bulk_exif():
     """Queue EXIF/metadata extraction for all files missing it."""
     files = (
@@ -63,6 +102,7 @@ def admin_bulk_exif():
 
 
 @admin_bp.route("/admin/bulk-thumbnails", methods=["POST"])
+@require_admin_pin
 def admin_bulk_thumbnails():
     """Queue thumbnail generation for all files missing one."""
     files = (
@@ -78,6 +118,7 @@ def admin_bulk_thumbnails():
 
 
 @admin_bp.route("/admin/bulk-faces", methods=["POST"])
+@require_admin_pin
 def admin_bulk_faces():
     """Queue face detection for all image files not yet scanned."""
     scanned = db.session.query(DetectedFace.file_id).distinct().subquery()
@@ -94,6 +135,7 @@ def admin_bulk_faces():
 
 
 @admin_bp.route("/admin/tags/rename", methods=["POST"])
+@require_admin_pin
 def admin_rename_tag():
     """Rename a tag across all files that have it."""
     data = request.get_json(force=True)
@@ -126,6 +168,7 @@ def admin_rename_tag():
 
 
 @admin_bp.route("/admin/tags/delete", methods=["POST"])
+@require_admin_pin
 def admin_delete_tag():
     """Remove a tag from all files that have it."""
     data = request.get_json(force=True)
@@ -149,3 +192,52 @@ def admin_delete_tag():
     )
     db.session.commit()
     return jsonify({"deleted": result.rowcount, "tag": tag})
+
+
+@admin_bp.route("/admin/tags", methods=["GET"])
+@require_admin_pin
+def admin_list_tags():
+    """Paginated, searchable tag list for admin management."""
+    q = request.args.get("q", "").strip().lower()
+    page = request.args.get("page", 1, type=int)
+    per_page = request.args.get("per_page", 50, type=int)
+    per_page = min(per_page, 200)
+
+    base_q = text("""
+        SELECT elem AS tag, count(*) AS cnt
+        FROM file_metadata, jsonb_array_elements_text(tags) AS elem
+        WHERE file_metadata.tags IS NOT NULL
+          AND file_metadata.tags != 'null'::jsonb
+          AND file_metadata.file_id IN (
+              SELECT id FROM imported_files WHERE deleted = false
+          )
+        GROUP BY elem
+    """)
+
+    if q:
+        rows = db.session.execute(
+            text(str(base_q) + " HAVING lower(elem) LIKE :q ORDER BY cnt DESC, tag ASC LIMIT :lim OFFSET :off"),
+            {"q": f"%{q}%", "lim": per_page, "off": (page - 1) * per_page},
+        ).fetchall()
+        count_rows = db.session.execute(
+            text("SELECT count(*) FROM (SELECT 1 FROM file_metadata, jsonb_array_elements_text(tags) AS elem WHERE file_metadata.tags IS NOT NULL AND file_metadata.tags != 'null'::jsonb AND file_metadata.file_id IN (SELECT id FROM imported_files WHERE deleted = false) GROUP BY elem HAVING lower(elem) LIKE :q) sub"),
+            {"q": f"%{q}%"},
+        ).fetchone()
+    else:
+        rows = db.session.execute(
+            text(str(base_q) + " ORDER BY cnt DESC, tag ASC LIMIT :lim OFFSET :off"),
+            {"lim": per_page, "off": (page - 1) * per_page},
+        ).fetchall()
+        count_rows = db.session.execute(
+            text("SELECT count(*) FROM (SELECT 1 FROM file_metadata, jsonb_array_elements_text(tags) AS elem WHERE file_metadata.tags IS NOT NULL AND file_metadata.tags != 'null'::jsonb AND file_metadata.file_id IN (SELECT id FROM imported_files WHERE deleted = false) GROUP BY elem) sub"),
+            {},
+        ).fetchone()
+
+    total = count_rows[0] if count_rows else 0
+    return jsonify({
+        "tags": [{"tag": r[0], "count": r[1]} for r in rows],
+        "total": total,
+        "page": page,
+        "per_page": per_page,
+        "has_more": page * per_page < total,
+    }), 200
