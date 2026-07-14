@@ -329,6 +329,45 @@ def rename_item(path, new_name, item_type="file"):
     return {"message": "Renamed"}, 200
 
 
+def _move_dir_tree(dir_entry, target, upload_dir, upload_session):
+    old_path = dir_entry.path
+    name = dir_entry.name
+    dst_rel = os.path.join(target, name) if target else name
+    old_prefix = old_path + "/"
+    new_prefix = dst_rel + "/"
+    old_fs = os.path.join(upload_dir, old_path)
+    dst_fs = os.path.join(upload_dir, dst_rel)
+    if os.path.exists(old_fs):
+        os.makedirs(os.path.dirname(dst_fs), exist_ok=True)
+        os.renames(old_fs, dst_fs)
+    dir_entry.path = dst_rel
+    dir_entry.parent_path = target
+    children = ImportedDirectory.query.filter(
+        ImportedDirectory.session_id == dir_entry.session_id,
+        ImportedDirectory.deleted != True,
+        ImportedDirectory.path.like(f"{old_prefix}%"),
+    ).all()
+    for child in children:
+        suffix = child.path[len(old_prefix):]
+        child.path = new_prefix + suffix
+        child.parent_path = "/".join(child.path.split("/")[:-1])
+    child_files = ImportedFile.query.filter(
+        ImportedFile.session_id == dir_entry.session_id,
+        ImportedFile.deleted != True,
+        ImportedFile.relative_path.like(f"{old_prefix}%"),
+    ).all()
+    for cf in child_files:
+        suffix = cf.relative_path[len(old_prefix):]
+        cf.relative_path = new_prefix + suffix
+        cf.file_path = os.path.join(upload_dir, cf.relative_path)
+        dir_name = os.path.dirname(cf.relative_path)
+        if dir_name:
+            dir_entry_child = _ensure_upload_subdir(upload_session, dir_name)
+            cf.directory_id = dir_entry_child.id
+        else:
+            cf.directory_id = _root_dir_id(upload_session, upload_dir)
+
+
 def move_items(paths, target):
     if not paths:
         return {"error": "paths is required"}, 400
@@ -349,7 +388,15 @@ def move_items(paths, target):
             ImportedFile.deleted != True, ImportedFile.relative_path == src_path,
         ).all()
         if not entries:
-            not_found.append(src_path)
+            dir_entries = ImportedDirectory.query.filter(
+                ImportedDirectory.deleted != True, ImportedDirectory.path == src_path,
+            ).all()
+            if dir_entries:
+                for de in dir_entries:
+                    _move_dir_tree(de, target, upload_dir, upload_session)
+                    moved_count += 1
+            else:
+                not_found.append(src_path)
             continue
         for entry in entries:
             session = db.session.get(ImportSession, entry.session_id)
@@ -406,6 +453,70 @@ def move_items(paths, target):
     return {"message": msg}, 200 if moved_count else 404
 
 
+def _copy_dir_tree(dir_entry, target, upload_dir, upload_session):
+    old_path = dir_entry.path
+    name = dir_entry.name
+    dst_rel = os.path.join(target, name) if target else name
+    old_prefix = old_path + "/"
+    new_prefix = dst_rel + "/"
+    old_fs = os.path.join(upload_dir, old_path)
+    dst_fs = os.path.join(upload_dir, dst_rel)
+    if os.path.isdir(old_fs):
+        shutil.copytree(old_fs, dst_fs)
+    new_dir = ImportedDirectory(
+        session_id=upload_session.id, path=dst_rel, name=name,
+        parent_path=target,
+    )
+    db.session.add(new_dir)
+    db.session.flush()
+    children = ImportedDirectory.query.filter(
+        ImportedDirectory.session_id == dir_entry.session_id,
+        ImportedDirectory.deleted != True,
+        ImportedDirectory.path.like(f"{old_prefix}%"),
+    ).all()
+    for child in children:
+        suffix = child.path[len(old_prefix):]
+        child_new_rel = new_prefix + suffix
+        child_new_parent = "/".join(child_new_rel.split("/")[:-1])
+        new_child = ImportedDirectory(
+            session_id=upload_session.id, path=child_new_rel,
+            name=child.name, parent_path=child_new_parent,
+        )
+        db.session.add(new_child)
+    db.session.flush()
+    child_files = ImportedFile.query.filter(
+        ImportedFile.session_id == dir_entry.session_id,
+        ImportedFile.deleted != True,
+        ImportedFile.relative_path.like(f"{old_prefix}%"),
+    ).all()
+    for cf in child_files:
+        suffix = cf.relative_path[len(old_prefix):]
+        new_file_rel = new_prefix + suffix
+        new_file_fs = os.path.join(upload_dir, new_file_rel)
+        dir_name = os.path.dirname(new_file_rel)
+        dir_id = _root_dir_id(upload_session, upload_dir)
+        if dir_name:
+            d_entry = _ensure_upload_subdir(upload_session, dir_name)
+            dir_id = d_entry.id
+        new_entry = ImportedFile(
+            session_id=upload_session.id, filename=cf.filename,
+            file_path=new_file_fs, relative_path=new_file_rel,
+            mime_type=cf.mime_type, size=cf.size,
+            modified=cf.modified, nickname=cf.nickname,
+            directory_id=dir_id,
+        )
+        db.session.add(new_entry)
+        db.session.flush()
+        orig_meta = FileMetadata.query.filter_by(file_id=cf.id).first()
+        if orig_meta:
+            new_meta = FileMetadata(file_id=new_entry.id, exif=orig_meta.exif,
+                description=orig_meta.description, tags=orig_meta.tags,
+                search_words=orig_meta.search_words, thumbnail=orig_meta.thumbnail,
+                thumbnail_status=orig_meta.thumbnail_status,
+                metadata_status=orig_meta.metadata_status)
+            db.session.add(new_meta)
+
+
 def copy_items(paths, target):
     if not paths:
         return {"error": "paths is required"}, 400
@@ -424,29 +535,36 @@ def copy_items(paths, target):
         entries = ImportedFile.query.filter(
             ImportedFile.deleted != True, ImportedFile.relative_path == src_path,
         ).all()
-        for entry in entries:
-            session = db.session.get(ImportSession, entry.session_id)
-            src_fs = os.path.join(session.root_path, src_path) if session else ""
-            if os.path.isfile(src_fs):
-                os.makedirs(os.path.dirname(dst_fs), exist_ok=True)
-                shutil.copy2(src_fs, dst_fs)
-            new_entry = ImportedFile(
-                session_id=upload_session.id, filename=name,
-                file_path=dst_fs, relative_path=dst_rel,
-                mime_type=entry.mime_type, size=entry.size,
-                modified=entry.modified, nickname=entry.nickname,
-                directory_id=_root_dir_id(upload_session, upload_dir),
-            )
-            db.session.add(new_entry)
-            db.session.flush()
-            orig_meta = FileMetadata.query.filter_by(file_id=entry.id).first()
-            if orig_meta:
-                new_meta = FileMetadata(file_id=new_entry.id, exif=orig_meta.exif,
-                    description=orig_meta.description, tags=orig_meta.tags,
-                    search_words=orig_meta.search_words, thumbnail=orig_meta.thumbnail,
-                    thumbnail_status=orig_meta.thumbnail_status,
-                    metadata_status=orig_meta.metadata_status)
-                db.session.add(new_meta)
+        if entries:
+            for entry in entries:
+                session = db.session.get(ImportSession, entry.session_id)
+                src_fs = os.path.join(session.root_path, src_path) if session else ""
+                if os.path.isfile(src_fs):
+                    os.makedirs(os.path.dirname(dst_fs), exist_ok=True)
+                    shutil.copy2(src_fs, dst_fs)
+                new_entry = ImportedFile(
+                    session_id=upload_session.id, filename=name,
+                    file_path=dst_fs, relative_path=dst_rel,
+                    mime_type=entry.mime_type, size=entry.size,
+                    modified=entry.modified, nickname=entry.nickname,
+                    directory_id=_root_dir_id(upload_session, upload_dir),
+                )
+                db.session.add(new_entry)
+                db.session.flush()
+                orig_meta = FileMetadata.query.filter_by(file_id=entry.id).first()
+                if orig_meta:
+                    new_meta = FileMetadata(file_id=new_entry.id, exif=orig_meta.exif,
+                        description=orig_meta.description, tags=orig_meta.tags,
+                        search_words=orig_meta.search_words, thumbnail=orig_meta.thumbnail,
+                        thumbnail_status=orig_meta.thumbnail_status,
+                        metadata_status=orig_meta.metadata_status)
+                    db.session.add(new_meta)
+        else:
+            dir_entries = ImportedDirectory.query.filter(
+                ImportedDirectory.deleted != True, ImportedDirectory.path == src_path,
+            ).all()
+            for de in dir_entries:
+                _copy_dir_tree(de, target, upload_dir, upload_session)
     db.session.commit()
     return {"message": "Items copied"}, 200
 
