@@ -2,7 +2,7 @@ import os
 import shutil
 
 from flask import current_app
-from sqlalchemy import func
+from sqlalchemy import func, text
 
 from app import db
 from app.models.import_session import ImportSession
@@ -148,51 +148,74 @@ def browse_explorer(prefix, page=1, per_page=100):
         all_sessions = ImportSession.query.filter(
             ImportSession.id != upload_session_id,
         ).all()
-        for s in all_sessions:
-            if edited_session and s.id == edited_session.id:
-                continue
-            root_dir = ImportedDirectory.query.filter_by(
-                session_id=s.id, path=""
-            ).first()
-            if not root_dir:
-                continue
-            file_count = ImportedFile.query.filter(
-                ImportedFile.directory_id == root_dir.id,
-                ImportedFile.deleted != True,
-            ).count()
-            if file_count == 0:
-                continue
-            dir_basename = os.path.basename(s.root_path.rstrip("/"))
-            if dir_basename and dir_basename not in seen_paths:
-                seen_paths.add(dir_basename)
-                sub_dir_count = ImportedDirectory.query.filter(
-                    ImportedDirectory.session_id == s.id,
-                    ImportedDirectory.parent_path == "",
-                    ImportedDirectory.deleted != True,
-                ).count()
-                dir_result.append({
-                    "name": dir_basename,
-                    "path": f"__session_{s.id}__",
-                    "session_id": s.id,
-                    "is_upload": False,
-                    "file_count": file_count,
-                    "dir_count": sub_dir_count,
-                })
+        non_edited_session_ids = [
+            s.id for s in all_sessions
+            if not (edited_session and s.id == edited_session.id)
+        ]
+
+        if non_edited_session_ids:
+            root_dir_rows = db.session.execute(
+                text("SELECT session_id, id FROM imported_directories WHERE session_id = ANY(:sids) AND path = '' AND deleted = false"),
+                {"sids": non_edited_session_ids},
+            ).fetchall()
+            root_dir_map = {r[0]: r[1] for r in root_dir_rows}
+
+            root_dir_ids = list(root_dir_map.values())
+            if root_dir_ids:
+                fc_rows = db.session.execute(
+                    text("SELECT directory_id, count(*) FROM imported_files WHERE directory_id = ANY(:ids) AND deleted = false GROUP BY directory_id"),
+                    {"ids": root_dir_ids},
+                ).fetchall()
+                file_count_map = {r[0]: r[1] for r in fc_rows}
+            else:
+                file_count_map = {}
+
+            dc_rows = db.session.execute(
+                text("SELECT session_id, count(*) FROM imported_directories WHERE session_id = ANY(:sids) AND parent_path = '' AND deleted = false GROUP BY session_id"),
+                {"sids": non_edited_session_ids},
+            ).fetchall()
+            sub_dir_count_map = {r[0]: r[1] for r in dc_rows}
+
+            session_map = {s.id: s for s in all_sessions}
+            for sid in non_edited_session_ids:
+                root_dir_id = root_dir_map.get(sid)
+                if not root_dir_id:
+                    continue
+                fc = file_count_map.get(root_dir_id, 0)
+                if fc == 0:
+                    continue
+                s = session_map[sid]
+                dir_basename = os.path.basename(s.root_path.rstrip("/"))
+                if dir_basename and dir_basename not in seen_paths:
+                    seen_paths.add(dir_basename)
+                    dir_result.append({
+                        "name": dir_basename,
+                        "path": f"__session_{s.id}__",
+                        "session_id": s.id,
+                        "is_upload": False,
+                        "file_count": fc,
+                        "dir_count": sub_dir_count_map.get(s.id, 0),
+                    })
 
         if edited_session:
             edited_name = os.path.basename(edited_dir.rstrip("/"))
             edited_key = f"__session_{edited_session.id}__"
             if edited_key not in seen_paths and edited_name not in seen_paths:
                 seen_paths.add(edited_key)
-                edited_file_count = ImportedFile.query.filter(
-                    ImportedFile.directory_id == _root_dir_id(edited_session, edited_dir),
-                    ImportedFile.deleted != True,
-                ).count() if _root_dir_id(edited_session, edited_dir) else 0
-                edited_dir_count = ImportedDirectory.query.filter(
-                    ImportedDirectory.session_id == edited_session.id,
-                    ImportedDirectory.parent_path == "",
-                    ImportedDirectory.deleted != True,
-                ).count()
+                edited_root_id = _root_dir_id(edited_session, edited_dir)
+                if edited_root_id:
+                    edited_fc_rows = db.session.execute(
+                        text("SELECT count(*) FROM imported_files WHERE directory_id = :did AND deleted = false"),
+                        {"did": edited_root_id},
+                    ).fetchone()
+                    edited_file_count = edited_fc_rows[0] if edited_fc_rows else 0
+                else:
+                    edited_file_count = 0
+                edited_dc_rows = db.session.execute(
+                    text("SELECT count(*) FROM imported_directories WHERE session_id = :sid AND parent_path = '' AND deleted = false"),
+                    {"sid": edited_session.id},
+                ).fetchone()
+                edited_dir_count = edited_dc_rows[0] if edited_dc_rows else 0
                 dir_result.insert(0, {
                     "name": edited_name,
                     "path": edited_key,
@@ -210,15 +233,18 @@ def browse_explorer(prefix, page=1, per_page=100):
     file_ids = [f.id for f in files]
     metas = {}
     if file_ids:
-        for m in FileMetadata.query.filter(FileMetadata.file_id.in_(file_ids)).all():
-            metas[m.file_id] = m
+        for r in db.session.execute(
+            text("SELECT file_id, thumbnail_status FROM file_metadata WHERE file_id = ANY(:ids)"),
+            {"ids": file_ids},
+        ).fetchall():
+            metas[r[0]] = {"thumbnail_status": r[1]}
 
     file_result = []
     for f in files:
         d = f.to_dict()
         meta = metas.get(f.id)
-        d["thumbnail"] = meta.thumbnail if meta else None
-        d["thumbnail_status"] = meta.thumbnail_status if meta else "pending"
+        d["thumbnail"] = None
+        d["thumbnail_status"] = meta["thumbnail_status"] if meta else "pending"
         d["session_id"] = f.session_id
         d["created_at"] = f.created_at.isoformat() if f.created_at else None
         file_result.append(d)

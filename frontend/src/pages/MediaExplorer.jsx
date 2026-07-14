@@ -803,7 +803,7 @@ function MediaExplorer() {
             );
           }
           const isVideo = it.mime_type?.startsWith("video/");
-          const thumbUrl = it.thumbnail && it.thumbnail_status === "completed" ? it.thumbnail : null;
+          const thumbUrl = it.thumbnail_status === "completed" ? `/api/files/${it.id}/thumbnail` : null;
           return (
             <div key={id}
               className={`explorer__tile ${viewMode === "grid" ? "explorer__tile--grid" : "explorer__tile--list"} ${sel ? "explorer__tile--sel" : ""}`}
