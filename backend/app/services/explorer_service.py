@@ -295,6 +295,7 @@ def rename_item(path, new_name, item_type="file"):
             for cf in child_files:
                 suffix = cf.relative_path[len(old_prefix):]
                 cf.relative_path = new_prefix + suffix
+                cf.file_path = os.path.join(upload_dir, cf.relative_path)
                 dir_name = os.path.dirname(cf.relative_path)
                 dir_entry = ImportedDirectory.query.filter_by(
                     session_id=cf.session_id, path=dir_name
@@ -325,6 +326,7 @@ def rename_item(path, new_name, item_type="file"):
                 dst_fs = os.path.join(upload_dir, entry.relative_path)
                 if os.path.exists(src_fs):
                     os.renames(src_fs, dst_fs)
+                entry.file_path = dst_fs
     db.session.commit()
     return {"message": "Renamed"}, 200
 

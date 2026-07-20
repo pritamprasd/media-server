@@ -352,6 +352,7 @@ def move_upload_items():
             else:
                 suffix = f.relative_path[len(old_prefix):]
                 f.relative_path = new_prefix + suffix
+            f.file_path = os.path.join(upload_dir, f.relative_path)
             dir_name = os.path.dirname(f.relative_path)
             dir_entry = _ensure_upload_subdir(session, dir_name) if dir_name else _root_dir
             f.directory_id = dir_entry.id
@@ -543,6 +544,7 @@ def rename_upload_item():
             else:
                 suffix = f.relative_path[len(old_prefix):]
                 f.relative_path = new_prefix + suffix
+            f.file_path = os.path.join(upload_dir, f.relative_path)
             dir_name = os.path.dirname(f.relative_path)
             if dir_name:
                 _ensure_upload_subdir(session, dir_name)
@@ -553,6 +555,7 @@ def rename_upload_item():
         if file_entry:
             file_entry.filename = new_name
             file_entry.relative_path = new_path
+            file_entry.file_path = os.path.join(upload_dir, new_path)
 
     db.session.commit()
     return jsonify({"message": "Renamed"}), 200
