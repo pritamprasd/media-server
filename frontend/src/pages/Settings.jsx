@@ -29,7 +29,7 @@ const TABS = [
   { path: "/import", label: "Import Media" },
   { path: "/explorer", label: "Explorer" },
   { path: "/favorites", label: "Favorites" },
-  { path: "/upload", label: "Upload" },
+  // { path: "/upload", label: "Upload" },
   { path: "/map", label: "Map" },
   { path: "/locations", label: "Locations" },
   { path: "/faces", label: "Faces" },

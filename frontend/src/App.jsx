@@ -9,7 +9,7 @@ import Hidden from "./pages/Hidden";
 import Importer from "./pages/Importer";
 import Favorites from "./pages/Favorites";
 import Duplicates from "./pages/Duplicates";
-import Upload from "./pages/Upload";
+// import Upload from "./pages/Upload";
 import MediaExplorer from "./pages/MediaExplorer";
 import Statistics from "./pages/Statistics";
 import Settings from "./pages/Settings";
@@ -98,7 +98,7 @@ function App() {
           <Route path="/import" element={<Importer />} />
           <Route path="/favorites" element={<Favorites />} />
           <Route path="/duplicates" element={<Duplicates />} />
-          <Route path="/upload" element={<Upload />} />
+          {/*<Route path="/upload" element={<Upload />} />*/}
           <Route path="/explorer" element={<MediaExplorer />} />
           <Route path="/statistics" element={<Statistics />} />
           <Route path="/settings" element={<Settings />} />
